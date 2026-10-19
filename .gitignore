@@ -79,3 +79,9 @@ src/main/resources/cert
 # Local release configuration and Python caches
 /scripts/.deploy/
 __pycache__/
+
+# Impeccable live-mode runtime state (live/config.json is tracked)
+frontend/.impeccable/*
+!frontend/.impeccable/live
+frontend/.impeccable/live/*
+!frontend/.impeccable/live/config.json
