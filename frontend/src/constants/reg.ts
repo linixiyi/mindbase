@@ -7,9 +7,9 @@ export const REG_PHONE =
 /**
  * Password reg
  *
- * 6-18 characters, including letters and numbers
+ * 6-64 characters, including letters and numbers；与后端规则对齐（后端要求 ≥12 且允许连字符等特殊字符）
  */
-export const REG_PWD = /^(?=.*[A-Za-z])(?=.*\d).{6,18}$/;
+export const REG_PWD = /^(?=.*[A-Za-z])(?=.*\d).{6,64}$/;
 
 /** Email reg */
 export const REG_EMAIL = /^\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*$/;
