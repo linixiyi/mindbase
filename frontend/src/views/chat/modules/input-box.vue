@@ -434,17 +434,15 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative shrink-0 bg-white px-4 pb-3 pt-2 dark:bg-[#1c1c1c]">
+  <div class="relative shrink-0 bg-container px-4 pb-3 pt-2">
+    <div class="pointer-events-none absolute inset-x-0 h-6 from-container/95 to-transparent bg-gradient-to-t -top-6" />
     <div
-      class="pointer-events-none absolute inset-x-0 h-6 from-white/95 to-transparent bg-gradient-to-t -top-6 dark:from-[#1c1c1c]/95"
-    />
-    <div
-      class="chat-input-shell mx-auto max-w-[960px] w-full flex items-end gap-2 rounded-2xl bg-white px-3.5 py-2.5 dark:bg-[#1f1f1f]"
+      class="chat-input-shell mx-auto max-w-[960px] w-full flex items-end gap-2 rounded-2xl bg-container px-3.5 py-2.5"
     >
       <textarea
         ref="inputRef"
         v-model.trim="input.message"
-        placeholder="给 MindBase 发送消息，Enter 发送，Shift+Enter 换行"
+        placeholder="给 MindBase 发送消息"
         class="text-body max-h-32 min-h-6 w-full flex-1 resize-none border-none bg-transparent py-1 text-14px caret-[rgb(var(--primary-color))] outline-none"
         @keydown="handShortcut"
       />
@@ -475,7 +473,7 @@ onUnmounted(() => {
           />
           <span class="text-muted text-11px">{{ connectionText }}</span>
         </div>
-        <span v-if="isRateLimited" class="text-11px text-[rgb(var(--primary-color))]">
+        <span v-if="isRateLimited" class="text-muted text-11px">
           {{ cooldownText }}
         </span>
       </div>

@@ -1,0 +1,495 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-19",
+  "title": "Design System: MindBase",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "指挥靛紫",
+        "canonical": "#646cff",
+        "tonalRamp": [
+          "#181650",
+          "#262687",
+          "#2924ad",
+          "#342cd8",
+          "#3c39f4",
+          "#646cff",
+          "#7a8cff",
+          "#a3b6ff",
+          "#c7d4ff",
+          "#e0e9ff",
+          "#f0f4ff"
+        ]
+      },
+      "primary-pressed": {
+        "role": "primary",
+        "displayName": "指挥靛紫·按压",
+        "canonical": "#342cd8",
+        "tonalRamp": [
+          "#181650",
+          "#262687",
+          "#2924ad",
+          "#342cd8",
+          "#3c39f4",
+          "#646cff",
+          "#7a8cff",
+          "#a3b6ff",
+          "#c7d4ff",
+          "#e0e9ff",
+          "#f0f4ff"
+        ]
+      },
+      "link-blue": {
+        "role": "secondary",
+        "displayName": "引用蓝",
+        "canonical": "#1890ff",
+        "tonalRamp": [
+          "#11315a",
+          "#135095",
+          "#0f5abd",
+          "#0a73ea",
+          "#1890ff",
+          "#33aaff",
+          "#5cc6ff",
+          "#8fdaff",
+          "#bde8ff",
+          "#dbf2ff",
+          "#f0f9ff"
+        ]
+      },
+      "success": {
+        "role": "status",
+        "displayName": "语义绿",
+        "canonical": "#52c41a",
+        "tonalRamp": [
+          "#242d06",
+          "#455115",
+          "#546114",
+          "#677812",
+          "#8ca111",
+          "#52c41a",
+          "#cde137",
+          "#e1ef67",
+          "#f0f7a1",
+          "#f8fbcb",
+          "#fdfde7"
+        ]
+      },
+      "warning": {
+        "role": "status",
+        "displayName": "语义琥珀",
+        "canonical": "#faad14",
+        "tonalRamp": [
+          "#461701",
+          "#78300c",
+          "#933b0b",
+          "#b74d06",
+          "#df7001",
+          "#faad14",
+          "#ffb81f",
+          "#ffcf4d",
+          "#ffe48a",
+          "#fff2c7",
+          "#fffaeb"
+        ]
+      },
+      "error": {
+        "role": "status",
+        "displayName": "语义红",
+        "canonical": "#f5222d",
+        "tonalRamp": [
+          "#4b0602",
+          "#8e1610",
+          "#a8120a",
+          "#cf1107",
+          "#f5222d",
+          "#ff3d33",
+          "#ff726b",
+          "#ffa8a3",
+          "#ffcac7",
+          "#ffe2e0",
+          "#fff0f0"
+        ]
+      },
+      "container": {
+        "role": "neutral",
+        "displayName": "纯白面板",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#3d3d3d",
+          "#525252",
+          "#6b6b6b",
+          "#8c8c8c",
+          "#b3b3b3",
+          "#d9d9d9",
+          "#f2f2f2",
+          "#ffffff"
+        ]
+      },
+      "layout": {
+        "role": "neutral",
+        "displayName": "冷雾底色",
+        "canonical": "#f7fafc",
+        "tonalRamp": [
+          "#262626",
+          "#3d3d3d",
+          "#525252",
+          "#6b6b6b",
+          "#8c8c8c",
+          "#b3b3b3",
+          "#d9d9d9",
+          "#e8edf2",
+          "#f7fafc"
+        ]
+      },
+      "base-text": {
+        "role": "neutral",
+        "displayName": "墨黑正文",
+        "canonical": "#1f1f1f",
+        "tonalRamp": [
+          "#1f1f1f",
+          "#3d3d3d",
+          "#525252",
+          "#6b6b6b",
+          "#8c8c8c",
+          "#b3b3b3",
+          "#d9d9d9",
+          "#f2f2f2"
+        ]
+      },
+      "inverted": {
+        "role": "neutral",
+        "displayName": "深夜反色",
+        "canonical": "#001428",
+        "tonalRamp": [
+          "#001428",
+          "#0a2438",
+          "#143348",
+          "#24475c",
+          "#3d6076",
+          "#5f8496",
+          "#8dabb8",
+          "#c2d4dc",
+          "#e8f0f3"
+        ]
+      },
+      "dark-container": {
+        "role": "neutral",
+        "displayName": "暗色面板",
+        "canonical": "#1c1c1c",
+        "tonalRamp": [
+          "#121212",
+          "#1c1c1c",
+          "#262626",
+          "#323232",
+          "#404040",
+          "#565656",
+          "#767676",
+          "#a6a6a6"
+        ]
+      },
+      "dark-layout": {
+        "role": "neutral",
+        "displayName": "暗色底色",
+        "canonical": "#121212",
+        "tonalRamp": [
+          "#0d0d0d",
+          "#121212",
+          "#1a1a1a",
+          "#242424",
+          "#303030",
+          "#444444",
+          "#5f5f5f",
+          "#8a8a8a"
+        ]
+      },
+      "dark-base-text": {
+        "role": "neutral",
+        "displayName": "暗色正文",
+        "canonical": "#e0e0e0",
+        "tonalRamp": [
+          "#3a3a3a",
+          "#545454",
+          "#6f6f6f",
+          "#8c8c8c",
+          "#ababab",
+          "#c6c6c6",
+          "#e0e0e0",
+          "#f5f5f5"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "页面与卡片标题（18px/600）——一个工作区只有一个。"
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "面板与区块标题、空状态主文案（15px/600）。"
+      },
+      "body-large": {
+        "displayName": "Body Large",
+        "purpose": "聊天消息正文与用户名（16px）。"
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "全局基准：表单、按钮、表格、输入框（14px，Naive 基准行高 1.6）。"
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "分段标签、表头、工具条目（12px/500）。"
+      },
+      "micro": {
+        "displayName": "Micro",
+        "purpose": "时间戳、连接状态、快捷键提示（11px）。"
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "MD5、会话 ID、密钥等机器标识的唯一字体（12px）。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "shell-header",
+        "value": "0 1px 2px rgb(0, 21, 41, 0.08)",
+        "purpose": "亮色主题顶栏/标签栏贴附内容之上的细影（主题 token boxShadow.header/tab）。"
+      },
+      {
+        "name": "shell-sider",
+        "value": "2px 0 8px 0 rgb(29, 35, 41, 0.05)",
+        "purpose": "亮色主题侧栏右缘垂直细影（主题 token boxShadow.sider）。"
+      },
+      {
+        "name": "input-rest",
+        "value": "0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(15, 23, 42, 0.04)",
+        "purpose": "对话输入壳静息态微影——全系统唯一静息带影的表面。"
+      },
+      {
+        "name": "input-focus",
+        "value": "0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06)",
+        "purpose": "输入壳 focus-within：微影抬升 + 边框转主色 38% 透明。"
+      },
+      {
+        "name": "segment-active",
+        "value": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+        "purpose": "分段控件活动段白底浮起（shadow-sm）。"
+      },
+      {
+        "name": "modal-overlay",
+        "value": "0 36px 120px rgba(15, 23, 42, 0.28)",
+        "purpose": "全屏文档预览模态的深影——浮层升得越高，影越深。"
+      },
+      {
+        "name": "auth-ambient",
+        "value": "0 18px 40px rgb(100 108 255 / 0.08)",
+        "purpose": "登录/注册卡片的靛紫低透明氛围影。"
+      },
+      {
+        "name": "flat-rest",
+        "value": "none",
+        "purpose": "静止卡片与区块的规范值：page-section 与 card-wrapper 显式 shadow-none。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-naive",
+        "value": "cubic-bezier(.4, 0, .2, 1)",
+        "purpose": "Naive UI 全局基准缓动（cubicBezierEaseInOut），浮层与组件状态过渡默认。"
+      },
+      {
+        "name": "page-fade-slide",
+        "value": "all 0.3s（渐隐 + translateX ±30px）",
+        "purpose": "默认页面切换动画（fade-slide，mode out-in）。"
+      },
+      {
+        "name": "input-shell-state",
+        "value": "border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease",
+        "purpose": "对话输入壳边框/阴影/背景的状态过渡。"
+      },
+      {
+        "name": "sidebar-width",
+        "value": "width 0.2s ease-out",
+        "purpose": "对话侧栏展开/折叠的宽度过渡。"
+      },
+      {
+        "name": "list-item-in",
+        "value": "all 0.2s ease（入场 opacity 0 + translateX(-8px)）",
+        "purpose": "会话列表项增删的进出动画。"
+      },
+      {
+        "name": "link-color",
+        "value": "color 0.2s",
+        "purpose": "链接与可点击文本的变色过渡。"
+      },
+      {
+        "name": "surface-300",
+        "value": "transition 300ms（transition-300）",
+        "purpose": "内容区 bg-layout 等表面属性的常规过渡时长。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px",
+        "purpose": "isMobile 判定线（breakpointsTailwind）：侧栏折叠为浮层抽屉、卡片与表格内边距收缩。"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      },
+      {
+        "name": "2xl",
+        "value": "1536px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "靛紫实底小按钮（高 28px、6px 圆角），工具栏与表单的主操作。",
+      "html": "<button class=\"ds-btn-primary\">上传文档</button>",
+      "css": ".ds-btn-primary { background: #646cff; color: #ffffff; border: none; border-radius: 6px; height: 28px; padding: 0 12px; font-size: 14px; line-height: 1.6; cursor: pointer; transition: background-color 0.2s, border-color 0.2s; } .ds-btn-primary:hover { background: #646cff; } .ds-btn-primary:active { background: #342cd8; } .ds-btn-primary:focus-visible { outline: none; border: 1px solid rgb(100 108 255 / 0.38); box-shadow: 0 0 0 2px rgb(100 108 255 / 0.1); } .ds-btn-primary:disabled { cursor: default; opacity: 0.5; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-primary-ghost",
+      "description": "透明底 + 靛紫描边的工具栏操作（新增、检索知识库），破坏性变体换 #f5222d。",
+      "html": "<button class=\"ds-btn-ghost\">检索知识库</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: #646cff; border: 1px solid #646cff; border-radius: 6px; height: 28px; padding: 0 12px; font-size: 14px; line-height: 1.6; cursor: pointer; transition: border-color 0.2s, color 0.2s; } .ds-btn-ghost:hover { border-color: #646cff; } .ds-btn-ghost:active { border-color: #342cd8; color: #342cd8; } .ds-btn-ghost:focus-visible { outline: none; border-color: rgb(100 108 255 / 0.38); box-shadow: 0 0 0 2px rgb(100 108 255 / 0.1); }"
+    },
+    {
+      "name": "Quaternary Button",
+      "kind": "button",
+      "refersTo": "button-quaternary",
+      "description": "全透明常驻显形操作按钮：表格行内操作与消息工具（复制/点赞/删除），hover 以微弱底色与主色文字回应。",
+      "html": "<button class=\"ds-btn-quaternary\">预览</button>",
+      "css": ".ds-btn-quaternary { background: transparent; color: #1f1f1f; border: none; border-radius: 6px; height: 28px; padding: 0 10px; font-size: 14px; line-height: 1.6; cursor: pointer; transition: background-color 0.2s, color 0.2s; } .ds-btn-quaternary:hover { background: rgb(31 31 31 / 0.055); color: #646cff; } .ds-btn-quaternary:active { background: rgb(31 31 31 / 0.1); } .ds-btn-quaternary:focus-visible { outline: none; box-shadow: 0 0 0 2px rgb(100 108 255 / 0.1); }"
+    },
+    {
+      "name": "Chat Input",
+      "kind": "input",
+      "refersTo": "input-chat",
+      "description": "签名组件：16px 圆角白壳 + 静态微影，focus 时边框转靛紫 38%、微影抬升，下方 11px 状态行。",
+      "html": "<div class=\"ds-chat-wrap\"><div class=\"ds-chat-shell\"><textarea class=\"ds-chat-textarea\" rows=\"1\" placeholder=\"给 MindBase 发送消息，Enter 发送，Shift+Enter 换行\"></textarea><button class=\"ds-chat-send\" aria-label=\"发送\">↑</button></div><div class=\"ds-chat-status\"><span class=\"ds-chat-dot\"></span><span>已连接</span><span class=\"ds-chat-hint\">Shift+Enter 换行</span></div></div>",
+      "css": ".ds-chat-wrap { max-width: 960px; margin: 0 auto; } .ds-chat-shell { display: flex; align-items: flex-end; gap: 8px; background: #ffffff; border: 1px solid rgba(15, 23, 42, 0.12); border-radius: 16px; padding: 10px 14px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(15, 23, 42, 0.04); transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease; } .ds-chat-shell:focus-within { border-color: rgb(100 108 255 / 0.38); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06); } .ds-chat-textarea { flex: 1; border: none; outline: none; resize: none; background: transparent; font-size: 14px; color: #1f1f1f; caret-color: #646cff; min-height: 24px; max-height: 128px; padding: 4px 0; font-family: inherit; } .ds-chat-textarea::placeholder { color: rgb(31 31 31 / 0.68); } .ds-chat-send { flex-shrink: 0; width: 28px; height: 28px; border: none; border-radius: 9999px; background: #646cff; color: #ffffff; font-size: 14px; cursor: pointer; transition: background-color 0.2s; } .ds-chat-send:active { background: #342cd8; } .ds-chat-send:focus-visible { box-shadow: 0 0 0 2px rgb(100 108 255 / 0.1); outline: none; } .ds-chat-status { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 0 4px; font-size: 11px; color: rgb(31 31 31 / 0.68); } .ds-chat-dot { display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background: #22c55e; } .ds-chat-hint { margin-left: auto; }"
+    },
+    {
+      "name": "Section Card",
+      "kind": "card",
+      "refersTo": "card-section",
+      "description": "管理页区块卡片：零边框零阴影的白色面板，12px 圆角，浮于 #f7fafc 底色上。",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-header\"><span class=\"ds-card-title\">文件列表</span><button class=\"ds-btn-ghost ds-card-action\">检索知识库</button></div><div class=\"ds-card-content\">卡片内容区（0 28px 28px）——表格、筛选表单或其他区块内容。</div></div>",
+      "css": ".ds-card { background: #ffffff; border-radius: 12px; box-shadow: none; border: 0; } .ds-card-header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 24px 28px 20px; } .ds-card-title { font-size: 18px; font-weight: 600; line-height: 1.5; color: #1f1f1f; } .ds-card-action { margin-left: auto; } .ds-card-content { padding: 0 28px 28px; font-size: 14px; color: rgb(31 31 31 / 0.68); }"
+    },
+    {
+      "name": "Data Table",
+      "kind": "custom",
+      "refersTo": "table-data",
+      "description": "无边框数据表：8px 圆角，表头 12/16 内边距 500 字重，单元格 14/16，hover 行转微弱底色。",
+      "html": "<table class=\"ds-table\"><thead><tr><th>文件名</th><th>文件大小</th><th>上传状态</th><th>操作</th></tr></thead><tbody><tr><td>产品手册.pdf</td><td>2.4 MB</td><td><span class=\"ds-tag ds-tag-success\">已完成</span></td><td class=\"ds-table-actions\"><button class=\"ds-btn-quaternary ds-table-btn\">预览</button><button class=\"ds-btn-quaternary ds-table-btn\">删除</button></td></tr><tr><td>会议纪要.docx</td><td>318 KB</td><td><span class=\"ds-tag ds-tag-error\">上传中断</span></td><td class=\"ds-table-actions\"><button class=\"ds-btn-quaternary ds-table-btn\">续传</button></td></tr></tbody></table>",
+      "css": ".ds-table { width: 100%; border-collapse: collapse; border-radius: 8px; font-size: 14px; } .ds-table th { text-align: left; font-weight: 500; padding: 12px 16px; color: #1f1f1f; border-bottom: 1px solid rgb(31 31 31 / 0.1); } .ds-table td { padding: 14px 16px; border-bottom: 1px solid rgb(31 31 31 / 0.06); } .ds-table tbody tr { transition: background-color 0.2s; } .ds-table tbody tr:hover { background: rgb(31 31 31 / 0.055); } .ds-table-actions { white-space: nowrap; } .ds-table-btn { height: 28px; padding: 0 10px; font-size: 14px; color: rgb(31 31 31 / 0.68); }"
+    },
+    {
+      "name": "Status Tag",
+      "kind": "chip",
+      "refersTo": "tag-status",
+      "description": "无边框状态标签：语义色淡底 + 同色文字，6px 圆角；处理中任务改用进度条而非标签。",
+      "html": "<span style=\"display:inline-flex;gap:8px;\"><span class=\"ds-tag ds-tag-success\">已完成</span><span class=\"ds-tag ds-tag-warning\">私有</span><span class=\"ds-tag ds-tag-error\">上传中断</span></span>",
+      "css": ".ds-tag { display: inline-flex; align-items: center; border: none; border-radius: 6px; padding: 0 8px; font-size: 12px; line-height: 22px; font-weight: 400; } .ds-tag-success { background: rgb(82 196 26 / 0.12); color: #52c41a; } .ds-tag-warning { background: rgb(250 173 20 / 0.15); color: #faad14; } .ds-tag-error { background: rgb(245 34 45 / 0.1); color: #f5222d; }"
+    },
+    {
+      "name": "Segmented Tabs",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "对话侧栏的分段控件：微弱底色容器 + 白底活动段（shadow-sm + 靛紫文字）。",
+      "html": "<div class=\"ds-segmented\"><div class=\"ds-segment is-active\">活跃</div><div class=\"ds-segment\">已归档</div></div>",
+      "css": ".ds-segmented { display: flex; max-width: 280px; padding: 2px; border-radius: 8px; background: rgb(31 31 31 / 0.055); } .ds-segment { flex: 1; text-align: center; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; color: #666666; cursor: pointer; transition: all 0.2s; } .ds-segment:hover { color: #1f1f1f; } .ds-segment.is-active { background: #ffffff; color: #646cff; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); } .ds-segment.is-active:hover { color: #646cff; }"
+    },
+    {
+      "name": "Conversation Nav Item",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "对话列表行：8px 圆角，选中态主色 8% 洗色 + 靛紫标题与图标砖，hover 转微弱底色。",
+      "html": "<nav class=\"ds-nav\" style=\"max-width:260px;\"><div class=\"ds-nav-item is-active\"><span class=\"ds-nav-icon\">💬</span><div class=\"ds-nav-text\"><div class=\"ds-nav-title\">RAG 检索链路调研</div><div class=\"ds-nav-meta\">10:24</div></div></div><div class=\"ds-nav-item\"><span class=\"ds-nav-icon\">💬</span><div class=\"ds-nav-text\"><div class=\"ds-nav-title\">向量化配额排查</div><div class=\"ds-nav-meta\">昨天</div></div></div></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; background: #f8f9fb; padding: 8px; } .ds-nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: all 0.2s; } .ds-nav-item:hover { background: rgb(31 31 31 / 0.055); } .ds-nav-item.is-active { background: rgb(100 108 255 / 0.08); } .ds-nav-icon { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; font-size: 15px; background: rgb(31 31 31 / 0.055); color: #999999; } .ds-nav-item.is-active .ds-nav-icon { background: rgb(100 108 255 / 0.12); color: #646cff; } .ds-nav-title { font-size: 13px; font-weight: 500; color: #1f1f1f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-nav-item.is-active .ds-nav-title { color: #646cff; } .ds-nav-meta { font-size: 11px; color: #aaaaaa; }"
+    },
+    {
+      "name": "Tool Event Chip",
+      "kind": "chip",
+      "refersTo": null,
+      "description": "回答流中的工具执行条目：细边框 + 微弱底色 + 6px 圆角，报告检索/摘要等工具的执行状态。",
+      "html": "<div style=\"display:flex;flex-direction:column;gap:8px;align-items:flex-start;\"><div class=\"ds-tool-event is-running\"><span class=\"ds-tool-dot\"></span><span class=\"ds-tool-name\">检索知识库</span><span class=\"ds-tool-status\">执行中</span></div><div class=\"ds-tool-event is-success\"><span class=\"ds-tool-dot\"></span><span class=\"ds-tool-name\">检索知识库</span><span class=\"ds-tool-status\">已完成</span></div><div class=\"ds-tool-event is-failed\"><span class=\"ds-tool-dot\"></span><span class=\"ds-tool-name\">生成知识摘要</span><span class=\"ds-tool-status\">失败</span></div></div>",
+      "css": ".ds-tool-event { display: inline-flex; align-items: center; gap: 8px; width: fit-content; max-width: 100%; border: 1px solid rgb(31 31 31 / 0.1); border-radius: 6px; background: rgb(31 31 31 / 0.055); padding: 5px 9px; font-size: 12px; line-height: 18px; color: rgb(31 31 31 / 0.68); } .ds-tool-name { font-weight: 500; color: #1f1f1f; } .ds-tool-dot { width: 8px; height: 8px; border-radius: 9999px; background: rgb(31 31 31 / 0.24); } .ds-tool-event.is-running .ds-tool-dot { background: #faad14; animation: ds-pulse 1s infinite; } .ds-tool-event.is-success { border-color: rgb(24 160 88 / 0.25); } .ds-tool-event.is-success .ds-tool-dot, .ds-tool-event.is-success .ds-tool-status { color: #18a058; background: #18a058; } .ds-tool-event.is-success .ds-tool-status { background: transparent; } .ds-tool-event.is-failed { border-color: rgb(208 48 80 / 0.25); } .ds-tool-event.is-failed .ds-tool-dot, .ds-tool-event.is-failed .ds-tool-status { color: #d03050; background: #d03050; } .ds-tool-event.is-failed .ds-tool-status { background: transparent; } @keyframes ds-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "静谧指挥台",
+    "overview": "MindBase 的界面是一张指挥台：信息的密度是均匀的，控制是精确的，一切装饰性的噪音都被移除。白色工作面板安静地浮在冷灰的布局底色上，靛紫主色 `#646cff` 是台面上唯一亮起的指示灯——它只为主操作、选中态和引用证据点亮。用户（企业员工与企业管理员）在这里提问、审阅引用、裁决冲突、管理配额；界面必须像仪表盘一样可扫描，而不是像海报一样可欣赏。\n\n层级不靠装饰，靠三件事：排版（字号 × 字重从中递减）、中性表面的透明度阶梯（正文 100% → 次要 68% → 边框 10% → 微弱底色 5.5%）、以及白色卡片与 `#f7fafc` 布局底色之间那一级安静的对比。阴影在这个系统里是稀缺资源，只出现在浮层与悬浮态；静止的表面用留白和细边框完成分层。\n\n组件气质「克制精密」：6px 基准圆角、28px 控件高度、精确到像素的间距节奏。每一个状态（hover、focus、选中、处理中）都有明确且一致的反馈，但没有一个状态是喧哗的。",
+    "keyCharacteristics": [
+      "均匀密度、可扫描性优先的控制面气质，无营销式大色块与渐变横幅",
+      "靛紫 `#646cff` 是唯一强调色（info 色跟随主色）",
+      "静止表面零阴影：层级来自留白、细边框与中性透明度阶梯",
+      "小圆角语言：组件 6px、卡片 12px，唯一例外是对话输入壳（16px）",
+      "排版即层级：18/600 → 15/600 → 14 → 12/500 → 11px 的中文字号阶梯",
+      "亮 / 暗双主题（`color-scheme: light dark`），暗色下阴影退场、边界接管"
+    ],
+    "rules": [
+      {
+        "name": "唯一强调色规则",
+        "body": "靛紫 #646cff 之外不存在第二支强调色；引用蓝 #1890ff 是证据链接的专属色，不得挪作通用主色。一屏之内，靛紫永远是少数派。",
+        "section": "colors"
+      },
+      {
+        "name": "中性分层规则",
+        "body": "层级用白色面板、#f7fafc 底色和文本透明度（68% / 10% / 5.5%）表达；需要新层级时先动透明度，不动色相。",
+        "section": "colors"
+      },
+      {
+        "name": "排版做层级规则",
+        "body": "层级只来自字号与字重的递减（18/600 → 15/600 → 14 → 12/500 → 11px），灰阶表达从属；禁止用新色相或大字号制造层级。",
+        "section": "typography"
+      },
+      {
+        "name": "平面为主规则（The Flat-By-Default Rule）",
+        "body": "静止表面不携带阴影（卡片 `shadow-none` 是显式声明）；阴影是对状态的回应——聚焦、悬浮、弹出——而不是对层级的装饰。",
+        "section": "elevation"
+      },
+      {
+        "name": "黑暗无影规则",
+        "body": "暗色主题下输入壳阴影显式移除（`box-shadow: none`），表面边界改用 1px 白色低透明边（10% 内）承担；亮色阴影不得原样带入暗色。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** 用主色洗色做选中态：`rgb(var(--primary-color) / 0.08)`（行背景）与 `/0.12`（图标砖），配合靛紫文字——这是全系统统一的「当前」语言。",
+      "**Do** 保持控件小而密：表格行内与工具栏操作用 `size=\"small\"`（28px）、表格 `size=\"small\"`；弹窗底部与筛选提交按钮保持默认 medium（34px）。表头 12px 16px 内边距 500 字重、单元格 14px 16px。",
+      "**Do** 状态标签用 `NTag bordered={false}` + success/warning/error；处理中的任务用 `NProgress processing`，不用红色。",
+      "**Do** 机器标识（MD5、ID、密钥）一律等宽字体（12px），可点击复制的给出 hover 转靛紫 + 成功 toast。",
+      "**Do** 每条可追溯的证据都标注来源——引用链接、页码、引用校验状态是产品承诺的一部分。",
+      "**Do** 微交互收敛在 0.18~0.3s、ease 系缓动：链接变色 0.2s、输入壳 0.18s、侧栏宽度 0.2s ease-out、页面切换 fade-slide 0.3s。",
+      "**Do** 空状态用 80px 主色 8% 圆角砖 + 图标、15px 主文案、12px 次级提示的固定组合。"
+    ],
+    "donts": [
+      "**Don't** 给静止的卡片或区块加阴影或可见边框——`page-section` 的 `box-shadow: none; border: 0` 是显式声明，不是默认值。",
+      "**Don't** 引入第二支强调色相；#1890ff 只属于引用与文档证据链接。",
+      "**Don't** 使用超过 16px 的组件圆角；16px 是输入壳专属签名，卡片停在 12px。",
+      "**Don't** 在暗色主题复用亮色阴影——暗色下阴影退场、边界接管。",
+      "**Don't** 用渐变横幅、大色块头图、插画式装饰填充管理页面——指挥台上没有海报位。",
+      "**Don't** 把对话列表行归档操作的 hover 显形模式（`opacity-0 group-hover:opacity-100`）外推到表格行与消息工具——后者常驻显形；破坏性操作必须经 Popconfirm 确认。"
+    ]
+  }
+}

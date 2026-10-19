@@ -11,6 +11,7 @@ const scrollbarRef = ref<InstanceType<typeof NScrollbar>>();
 
 const list = ref<Api.Chat.Message[]>([]);
 const loading = ref(false);
+const loadFailed = ref(false);
 
 watch(() => [...list.value], scrollToBottom);
 
@@ -68,10 +69,17 @@ async function getList() {
   });
   if (!error) {
     list.value = data;
+    loadFailed.value = false;
     scrollToBottom();
+  } else {
+    loadFailed.value = true;
   }
   loading.value = false;
 }
+
+const showEmpty = computed(() => !loading.value && list.value.length === 0);
+
+const hasActiveFilters = computed(() => Object.keys(appliedParams.value).length > 0);
 </script>
 
 <template>
@@ -111,24 +119,29 @@ async function getList() {
         </div>
       </NForm>
 
-      <NScrollbar ref="scrollbarRef" class="min-h-0 flex-1">
-        <NSpin :show="loading" class="h-full">
-          <div class="history-messages">
+      <NScrollbar ref="scrollbarRef" class="min-h-0 flex-1" content-class="h-full">
+        <NSpin :show="loading" class="h-full" content-class="h-full">
+          <div v-if="loadFailed" class="h-full flex flex-col items-center justify-center gap-3">
+            <div class="text-muted text-12px">聊天记录加载失败，请稍后重试</div>
+            <NButton size="small" :disabled="loading" @click="getList">重试</NButton>
+          </div>
+          <div v-else-if="showEmpty" class="h-full flex flex-col items-center justify-center gap-4">
+            <div class="h-20 w-20 flex items-center justify-center rounded-xl bg-[rgb(var(--primary-color)/0.08)]">
+              <icon-material-symbols:chat-outline-rounded class="text-36px text-[rgb(var(--primary-color)/0.5)]" />
+            </div>
+            <div class="text-body text-15px font-500">{{ hasActiveFilters ? '无匹配记录' : '暂无聊天记录' }}</div>
+            <div class="text-muted text-12px">
+              {{ hasActiveFilters ? '当前筛选条件下没有聊天记录，可重置筛选' : '开始对话后，聊天记录将显示在这里' }}
+            </div>
+            <NButton v-if="hasActiveFilters" size="small" :disabled="loading" @click="resetFilters">重置筛选</NButton>
+          </div>
+          <div v-else class="mx-auto max-w-[960px] w-full px-4">
             <VueMarkdownItProvider>
               <ChatMessage v-for="(item, index) in list" :key="index" :msg="item" />
             </VueMarkdownItProvider>
           </div>
-          <NEmpty v-if="!list.length" description="暂无数据" class="py-24" />
         </NSpin>
       </NScrollbar>
     </NCard>
   </div>
 </template>
-
-<style scoped lang="scss">
-.history-messages {
-  max-width: 920px;
-  margin: 0 auto;
-  padding: 12px 0;
-}
-</style>

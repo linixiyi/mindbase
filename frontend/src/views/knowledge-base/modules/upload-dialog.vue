@@ -119,7 +119,7 @@ function onUpdate(option: unknown) {
     class="w-500px!"
     @positive-click="handleSubmit"
   >
-    <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100" mt-10>
+    <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100" mt-12px>
       <NFormItem label="所属空间" path="orgTag">
         <div class="w-full">
           <NSelect
@@ -133,9 +133,9 @@ function onUpdate(option: unknown) {
             filterable
             @update:value="(_, option) => onUpdate(option)"
           />
-          <div class="mt-8px text-12px text-gray-500">仅可选择自己的空间和已加入的组织。</div>
-          <div v-if="orgLoadFailed" class="mt-8px text-12px text-#ef4444">空间列表加载失败，请关闭后重试。</div>
-          <div v-else-if="!orgLoading && !orgOptions.length" class="mt-8px text-12px text-#ef4444">
+          <div class="text-muted mt-8px text-12px">仅可选择自己的空间和已加入的组织。</div>
+          <div v-if="orgLoadFailed" class="mt-8px text-12px text-#d03050">空间列表加载失败，请关闭后重试。</div>
+          <div v-else-if="!orgLoading && !orgOptions.length" class="mt-8px text-12px text-#d03050">
             暂无可上传的空间，请先配置组织成员关系。
           </div>
         </div>
@@ -159,10 +159,13 @@ function onUpdate(option: unknown) {
         >
           <NButton>上传文件</NButton>
         </NUpload>
-        <div v-if="fileSizeLimitError" class="mt-8px text-12px text-#ef4444">
+        <div v-if="fileSizeLimitError" class="mt-8px text-12px text-#d03050">
           {{ fileSizeLimitError }}
         </div>
-        <div v-else-if="!authStore.isAdmin && model.uploadMaxSizeMb" class="mt-8px text-12px text-#d97706">
+        <div
+          v-else-if="!authStore.isAdmin && model.uploadMaxSizeMb"
+          class="mt-8px text-12px text-#d97706 dark:text-#fbbf24"
+        >
           当前组织限制非管理员上传文件不超过 {{ model.uploadMaxSizeMb }} MB
         </div>
       </NFormItem>

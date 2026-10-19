@@ -289,6 +289,8 @@ function handleEdit(row: RechargePackage) {
   visible.value = true;
 }
 
+// TODO(lint-debt): 历史表单校验分支过多，重构另行排期
+// eslint-disable-next-line complexity
 async function handleSubmit() {
   console.log('开始提交，editingId:', editingId.value, 'isEditing:', isEditing.value);
 
@@ -318,13 +320,13 @@ async function handleSubmit() {
 
     console.log('提交数据:', submitData);
 
-    const { error, data } = await request({
+    const { error, data: resp } = await request({
       url,
       method,
       data: submitData
     });
 
-    console.log('返回结果:', error, data);
+    console.log('返回结果:', error, resp);
 
     if (!error) {
       window.$message?.success(isEditing.value ? '更新成功' : '创建成功');
@@ -364,7 +366,7 @@ async function handleDelete(id: number) {
       window.$message?.success('删除成功');
       await getData();
     }
-  } catch (e) {
+  } catch {
     window.$message?.error('删除失败');
   }
 }
@@ -477,5 +479,7 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
-.page-section { min-width: 0; }
+.page-section {
+  min-width: 0;
+}
 </style>

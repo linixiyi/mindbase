@@ -171,7 +171,7 @@ const checkPayStatus = async () => {
         window.$message?.error('支付失败，请重试');
       }
     }
-  } catch (e) {
+  } catch {
     window.$message?.error('查询支付状态失败');
   }
 };

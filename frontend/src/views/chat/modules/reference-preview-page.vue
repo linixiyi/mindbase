@@ -78,6 +78,8 @@ function syncFromStorage() {
   }
 }
 
+// TODO(lint-debt): 历史函数分支过多，重构需在真实引用数据下回归验证，另行排期
+// eslint-disable-next-line complexity
 async function loadReferenceDetail() {
   syncFallbackFromQuery();
   const restoredFromStorage = syncFromStorage();
@@ -137,7 +139,7 @@ function handleBack() {
 watch(
   () => route.query,
   () => {
-    void loadReferenceDetail();
+    loadReferenceDetail();
   },
   { immediate: true }
 );
@@ -179,11 +181,11 @@ watch(
 
 <style scoped lang="scss">
 .preview-page-state {
-  @apply flex min-h-220px flex-col items-center justify-center gap-4 rounded-12px bg-white text-stone-500;
+  @apply flex min-h-220px flex-col items-center justify-center gap-4 rounded-12px bg-container text-[var(--app-muted)];
 }
 
 .preview-page-empty {
-  @apply rounded-12px bg-white py-10;
+  @apply rounded-12px bg-container py-10;
 }
 
 .preview-page-shell {
@@ -191,6 +193,6 @@ watch(
 }
 
 .preview-page-tip {
-  @apply rounded-12px border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700;
+  @apply rounded-12px border border-[#faad14]/40 bg-[#faad14]/8 px-4 py-3 text-sm text-[#d48806];
 }
 </style>

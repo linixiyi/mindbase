@@ -3,6 +3,10 @@ defineOptions({
   name: 'SearchDialog'
 });
 
+const emit = defineEmits<{
+  preview: [fileName: string, fileMd5: string];
+}>();
+
 const loading = ref(false);
 const visible = defineModel<boolean>('visible', { default: false });
 
@@ -20,6 +24,7 @@ function createDefaultModel(): Api.KnowledgeBase.SearchParams {
 }
 
 const list = ref<Api.KnowledgeBase.SearchResult[]>([]);
+const searched = ref(false);
 
 const patterns = ref<string[]>([]);
 function highlight(text: string) {
@@ -38,6 +43,7 @@ async function search() {
     list.value = data;
     patterns.value = [model.value.query];
   }
+  searched.value = true;
   loading.value = false;
 }
 
@@ -45,6 +51,7 @@ function reset() {
   model.value = createDefaultModel();
   patterns.value = [];
   list.value = [];
+  searched.value = false;
   restoreValidation();
 }
 watch(visible, () => {
@@ -73,10 +80,10 @@ watch(visible, () => {
       :show-feedback="false"
     >
       <NGrid>
-        <NFormItemGi label="topK" path="topK" class="pr-24px" span="6">
+        <NFormItemGi label="返回条数" path="topK" class="pr-24px" span="6">
           <NInputNumber
             v-model:value="model.topK"
-            placeholder="请输入topK"
+            placeholder="最多返回的结果数"
             clearable
             :min="1"
             :precision="0"
@@ -94,7 +101,7 @@ watch(visible, () => {
               </template>
               重置
             </NButton>
-            <NButton type="primary" ghost @click="search">
+            <NButton type="primary" @click="search">
               <template #icon>
                 <icon-ic-round-search class="text-icon" />
               </template>
@@ -105,41 +112,86 @@ watch(visible, () => {
       </NGrid>
     </NForm>
     <NSpin :show="loading">
-      <NEmpty v-if="list.length === 0" description="暂无数据" class="py-100px" />
+      <div v-if="list.length === 0" class="flex flex-col items-center justify-center gap-4 py-100px">
+        <div class="h-20 w-20 flex items-center justify-center rounded-2xl bg-[rgb(var(--primary-color)/0.08)]">
+          <icon-ic-round-search v-if="!searched" class="text-36px text-[rgb(var(--primary-color)/0.5)]" />
+          <icon-ic-round-search-off v-else class="text-36px text-[rgb(var(--primary-color)/0.5)]" />
+        </div>
+        <div class="text-body text-15px font-500">{{ searched ? '未找到匹配内容' : '输入关键字检索知识库' }}</div>
+        <div class="text-muted text-12px">{{ searched ? '换个关键字试试' : '输入关键字后点击「搜索」开始检索' }}</div>
+      </div>
       <NScrollbar v-else class="max-h-500px">
-        <NCard
-          v-for="(item, index) in list"
-          :key="index"
-          class="my-8"
-          embedded
-          :segmented="{
-            content: true,
-            footer: 'soft'
-          }"
-        >
-          <div class="relative">
-            <NHighlight
-              v-if="highlight(item.textContent)"
-              highlight-class="bg-[rgb(var(--primary-400-color))] color-white px-2 mx-1 rd-sm"
-              :text="item.textContent"
-              :patterns="patterns"
-            />
-            <span v-else>{{ item.textContent }}</span>
-            <NTag
-              :bordered="false"
-              draggable
-              class="absolute right-0 top-0 bg-[rgb(var(--primary-color)/.9)] color-white hover:bg-transparent hover:color-transparent"
-            >
-              Score: {{ item.score }}
-            </NTag>
+        <div class="flex flex-col gap-12px">
+          <div v-for="(item, index) in list" :key="index" class="search-result-item">
+            <div class="mb-8px flex items-center justify-between gap-12px text-12px leading-18px">
+              <button
+                type="button"
+                class="source-file-link min-w-0 truncate text-left"
+                :title="item.fileName"
+                @click="emit('preview', item.fileName, item.fileMd5)"
+              >
+                来源：{{ item.fileName }}
+              </button>
+              <NTag :bordered="false" class="score-tag shrink-0">
+                Score
+                <span class="ml-4px font-mono">{{ item.score }}</span>
+              </NTag>
+            </div>
+            <div class="text-14px leading-24px">
+              <NHighlight
+                v-if="highlight(item.textContent)"
+                highlight-class="bg-[rgb(var(--primary-color)/0.15)] color-[#3634b3] rd-4px dark:color-[#8c96ff]"
+                :text="item.textContent"
+                :patterns="patterns"
+              />
+              <span v-else>{{ item.textContent }}</span>
+            </div>
           </div>
-          <template #footer>
-            <span>来源：{{ item.fileName }}</span>
-          </template>
-        </NCard>
+        </div>
       </NScrollbar>
     </NSpin>
   </NModal>
 </template>
 
-<style scoped></style>
+<style scoped lang="scss">
+.search-result-item {
+  padding: 12px 16px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-subtle);
+}
+
+.score-tag {
+  background: rgb(var(--primary-color) / 0.12);
+  color: #342cd8;
+}
+
+html.dark .score-tag {
+  color: #8c96ff;
+}
+
+.source-file-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: #1890ff;
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color 0.2s;
+
+  &:hover {
+    color: #40a9ff;
+    text-decoration: none;
+  }
+
+  &:active {
+    color: #096dd9;
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgb(var(--primary-color) / 0.38);
+    outline-offset: 2px;
+  }
+}
+</style>

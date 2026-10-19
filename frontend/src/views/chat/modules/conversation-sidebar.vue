@@ -62,13 +62,13 @@ function formatDate(dateStr?: string) {
       <div class="flex items-center justify-between px-4 pb-2 pt-4">
         <span class="text-15px font-600">对话列表</span>
         <div class="flex items-center gap-1">
-          <NButton type="primary" size="small" secondary @click="handleNewChat">
+          <NButton type="primary" size="small" ghost @click="handleNewChat">
             <template #icon>
               <icon-material-symbols:add-rounded />
             </template>
             新对话
           </NButton>
-          <NButton text size="tiny" @click="handleCollapse">
+          <NButton text size="tiny" title="收起侧栏" aria-label="收起侧栏" @click="handleCollapse">
             <template #icon>
               <icon-material-symbols:left-panel-close-outline-rounded />
             </template>
@@ -108,10 +108,17 @@ function formatDate(dateStr?: string) {
           <TransitionGroup name="session-list" tag="div">
             <div
               v-if="filteredSessions.length === 0 && !sessionsLoading"
-              class="flex flex-col items-center justify-center gap-3 py-16"
+              class="flex flex-col items-center justify-center gap-4 py-16"
             >
-              <icon-material-symbols:chat-outline-rounded class="text-36px color-#ccc dark:color-#444" />
-              <span class="text-13px color-#aaa">{{ activeTab === 'active' ? '暂无对话记录' : '暂无归档对话' }}</span>
+              <div class="h-20 w-20 flex items-center justify-center rounded-xl bg-[rgb(var(--primary-color)/0.08)]">
+                <icon-material-symbols:chat-outline-rounded class="text-36px text-[rgb(var(--primary-color)/0.5)]" />
+              </div>
+              <div class="text-body text-15px font-500">
+                {{ activeTab === 'active' ? '暂无对话记录' : '暂无归档对话' }}
+              </div>
+              <div class="text-muted text-12px">
+                {{ activeTab === 'active' ? '点击上方「新对话」开始' : '归档的对话会保存在这里' }}
+              </div>
             </div>
 
             <div
@@ -137,7 +144,7 @@ function formatDate(dateStr?: string) {
               </div>
               <div class="min-w-0 flex-1">
                 <div
-                  class="truncate text-13px font-500"
+                  class="truncate text-14px font-500"
                   :class="session.conversationId === conversationId ? 'text-[rgb(var(--primary-color))]' : ''"
                 >
                   {{ session.title }}
@@ -153,6 +160,8 @@ function formatDate(dateStr?: string) {
                     :class="session.conversationId === conversationId ? '' : 'opacity-0 group-hover:opacity-100'"
                     text
                     size="tiny"
+                    title="归档对话"
+                    aria-label="归档对话"
                     @click.stop
                   >
                     <template #icon>
@@ -167,6 +176,8 @@ function formatDate(dateStr?: string) {
                 class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                 text
                 size="tiny"
+                title="恢复对话"
+                aria-label="恢复对话"
                 @click.stop="handleUnarchive(session.conversationId)"
               >
                 <template #icon>

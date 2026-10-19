@@ -83,7 +83,7 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
     <div class="h-0 flex flex-col flex-1">
       <!-- Date filter in header -->
 
-      <div v-if="!showEmpty" class="chat-date-filter flex justify-end px-4 py-3">
+      <div v-if="!showEmpty" class="chat-date-filter mx-auto max-w-[960px] w-full flex justify-end px-4 py-3">
         <NForm :model="params" label-placement="left" :show-feedback="false" inline>
           <NFormItem label="时间" size="small">
             <NDatePicker v-model:value="range" type="daterange" clearable size="small" />
@@ -93,7 +93,7 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 
       <!-- Empty state -->
       <div v-if="showEmpty" class="flex flex-col flex-1 items-center justify-center gap-4">
-        <div class="h-20 w-20 flex items-center justify-center rounded-2xl bg-[rgb(var(--primary-color)/0.08)]">
+        <div class="h-20 w-20 flex items-center justify-center rounded-xl bg-[rgb(var(--primary-color)/0.08)]">
           <icon-material-symbols:chat-outline-rounded class="text-36px text-[rgb(var(--primary-color)/0.5)]" />
         </div>
         <div class="text-body text-15px font-500">

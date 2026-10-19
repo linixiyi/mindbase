@@ -104,14 +104,20 @@ registerShortcut();
     <NInputGroup>
       <NInput v-model:value="keyword" clearable :placeholder="$t('common.keywordSearch')" @input="handleSearch">
         <template #prefix>
-          <icon-uil-search class="text-15px text-#c2c2c2" />
+          <icon-uil-search class="text-muted text-15px" />
         </template>
       </NInput>
       <NButton v-if="isMobile" type="primary" ghost @click="handleClose">{{ $t('common.cancel') }}</NButton>
     </NInputGroup>
 
     <div class="mt-20px">
-      <NEmpty v-if="resultOptions.length === 0" :description="$t('common.noData')" />
+      <div v-if="resultOptions.length === 0" class="flex-col-center gap-16px pb-12px">
+        <div class="h-80px w-80px flex-center rounded-6px bg-[rgb(var(--primary-color)/0.08)]">
+          <icon-uil-search class="text-36px text-primary" />
+        </div>
+        <p class="text-body text-15px font-500">{{ $t('common.noData') }}</p>
+        <p class="text-muted text-12px">{{ $t('common.keywordSearch') }}</p>
+      </div>
       <SearchResult v-else v-model:path="activePath" :options="resultOptions" @enter="handleEnter" />
     </div>
     <template #footer>

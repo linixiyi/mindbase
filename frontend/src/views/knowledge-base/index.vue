@@ -51,8 +51,8 @@ function canManageFile(row: Api.KnowledgeBase.UploadTask) {
 function renderIcon(fileName: string) {
   const ext = getFileExt(fileName);
   if (ext) {
-    if (uploadAccept.split(',').includes(`.${ext}`)) return <SvgIcon localIcon={ext} class="mx-4 text-12" />;
-    return <SvgIcon localIcon="dflt" class="mx-4 text-12" />;
+    if (uploadAccept.split(',').includes(`.${ext}`)) return <SvgIcon localIcon={ext} class="mr-8px text-16px" />;
+    return <SvgIcon localIcon="dflt" class="mr-8px text-16px" />;
   }
   return null;
 }
@@ -101,7 +101,7 @@ const { columns, columnChecks, data, getData, loading, mobilePagination } = useT
       render: row => (
         <NEllipsis tooltip>
           <span
-            class="cursor-pointer text-3 font-mono transition-colors hover:text-primary"
+            class="cursor-pointer text-12px font-mono transition-colors hover:text-primary"
             onClick={() => {
               navigator.clipboard.writeText(row.fileMd5);
               window.$message?.success('MD5已复制');
@@ -169,7 +169,7 @@ const { columns, columnChecks, data, getData, loading, mobilePagination } = useT
       title: '操作',
       width: 180,
       render: row => (
-        <div class="flex gap-4">
+        <div class="flex gap-2">
           {canManageFile(row) ? renderResumeUploadButton(row) : null}
           <NButton type="primary" quaternary size="small" onClick={() => handleFilePreview(row.fileName, row.fileMd5)}>
             预览
@@ -363,7 +363,7 @@ function renderActualEmbeddingUsage(row: Api.KnowledgeBase.UploadTask) {
     const actualTokenLabel = Number(row.actualEmbeddingTokens).toLocaleString();
     const actualChunkLabel = Number(row.actualChunkCount || 0).toLocaleString();
     return (
-      <div class="text-xs text-emerald-700 leading-5">
+      <div class="text-xs text-emerald-700 leading-5 dark:text-emerald-400">
         <div>{actualTokenLabel} Tokens</div>
         <div class="text-muted">{actualChunkLabel} 个切片</div>
       </div>
@@ -372,7 +372,7 @@ function renderActualEmbeddingUsage(row: Api.KnowledgeBase.UploadTask) {
 
   if (isVectorizationProcessing(row)) {
     return (
-      <div class="text-xs text-sky-700 leading-5">
+      <div class="text-xs text-sky-700 leading-5 dark:text-sky-400">
         <div>向量化处理中</div>
         <div class="text-muted">完成后会回写实际 Tokens</div>
       </div>
@@ -382,7 +382,7 @@ function renderActualEmbeddingUsage(row: Api.KnowledgeBase.UploadTask) {
   if (row.vectorizationStatus === 'COMPLETED') {
     return (
       <div class="flex flex-col gap-6px text-xs leading-5">
-        <div class="text-emerald-700 font-500">向量化已完成</div>
+        <div class="text-emerald-700 font-500 dark:text-emerald-400">向量化已完成</div>
         <NEllipsis tooltip lineClamp={2} class="text-muted">
           {row.vectorizationErrorMessage || '历史数据未统计实际 Tokens，可按需重试回写'}
         </NEllipsis>
@@ -400,7 +400,7 @@ function renderActualEmbeddingUsage(row: Api.KnowledgeBase.UploadTask) {
   if (row.vectorizationStatus === 'FAILED') {
     return (
       <div class="flex flex-col gap-6px text-xs leading-5">
-        <div class="text-rose-600 font-500">向量化失败</div>
+        <div class="text-rose-600 font-500 dark:text-rose-400">向量化失败</div>
         <NEllipsis tooltip lineClamp={2} class="text-muted">
           {row.vectorizationErrorMessage || '请检查 Embedding 额度或稍后重试'}
         </NEllipsis>
@@ -418,7 +418,7 @@ function renderActualEmbeddingUsage(row: Api.KnowledgeBase.UploadTask) {
   if (canRetryVectorization(row)) {
     return (
       <div class="flex flex-col gap-6px text-xs leading-5">
-        <div class="text-amber-600">暂无实际向量化结果</div>
+        <div class="text-amber-600 dark:text-amber-400">暂无实际向量化结果</div>
         <div class="text-muted">可能仍在处理，或历史任务未回写结果</div>
         <div>
           <NButton size="tiny" quaternary onClick={() => handleRetryVectorization(row)}>
@@ -584,7 +584,7 @@ async function onBeforeUpload(
 </script>
 
 <template>
-  <div class="workspace-page min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
+  <div class="workspace-page min-h-500px flex-col-stretch overflow-hidden lt-sm:overflow-auto">
     <NCard title="文件列表" :bordered="false" size="small" class="page-section sm:flex-1-hidden">
       <template #header-extra>
         <TableHeaderOperation v-model:columns="columnChecks" :loading="loading" @add="handleUpload" @refresh="getList">
@@ -613,7 +613,7 @@ async function onBeforeUpload(
       />
     </NCard>
     <UploadDialog v-model:visible="uploadVisible" />
-    <SearchDialog v-model:visible="searchVisible" />
+    <SearchDialog v-model:visible="searchVisible" @preview="handleFilePreview" />
 
     <!-- 文件预览弹窗 -->
     <NModal v-model:show="previewVisible" class="document-preview-modal" :auto-focus="false">
@@ -630,14 +630,8 @@ async function onBeforeUpload(
 </template>
 
 <style scoped lang="scss">
-.file-list-container {
-  transition: width 0.3s ease;
-}
-
-:deep() {
-  .n-progress-icon.n-progress-icon--as-text {
-    white-space: nowrap;
-  }
+:deep(.n-progress-icon--as-text) {
+  white-space: nowrap;
 }
 
 :deep(.document-preview-modal) {
@@ -646,7 +640,7 @@ async function onBeforeUpload(
 
 .document-preview-modal-shell {
   overflow: hidden;
-  border-radius: 32px;
+  border-radius: 12px;
   box-shadow: 0 36px 120px rgba(15, 23, 42, 0.28);
 }
 </style>

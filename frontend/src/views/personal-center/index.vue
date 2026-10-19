@@ -100,7 +100,7 @@ const setPrimaryOrg = async () => {
 };
 
 // Token 记录相关方法
-const getTokenRecords = async () => {
+async function getTokenRecords() {
   tokenRecordLoading.value = true;
   try {
     const { error, data } = await request({
@@ -120,7 +120,7 @@ const getTokenRecords = async () => {
   } finally {
     tokenRecordLoading.value = false;
   }
-};
+}
 
 const handlePageChange = (page: number) => {
   pagination.value.page = page;

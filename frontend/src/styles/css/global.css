@@ -11,3 +11,8 @@ body,
 html {
   overflow-x: hidden;
 }
+
+/* 裸文本的兜底文字色：跟随主题 token，避免继承 UA 的 CanvasText（系统暗色时为白色） */
+body {
+  color: rgb(var(--base-text-color));
+}

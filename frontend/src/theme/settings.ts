@@ -32,7 +32,13 @@ export const themeSettings: App.Theme.ThemeSetting = {
         'base-text': 'rgb(31, 31, 31)'
       },
       boxShadow: {
+        /** dead token: no `shadow-header` usage anywhere in the repo */
         header: '0 1px 2px rgb(0, 21, 41, 0.08)',
+        /**
+         * dead token: `shadow-sider` was clipped by the floating sider aside's `of-hidden` (admin-layout); the visible
+         * shadow is that aside's own `shadow-2xl`. Both keys are still required by
+         * `App.Theme.ThemeSettingTokenBoxShadow` — delete them there first.
+         */
         sider: '2px 0 8px 0 rgb(29, 35, 41, 0.05)',
         tab: '0 1px 2px rgb(0, 21, 41, 0.08)'
       }
