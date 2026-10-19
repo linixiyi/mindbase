@@ -289,6 +289,39 @@ function handleEdit(row: RechargePackage) {
   visible.value = true;
 }
 
+function buildSubmitPayload() {
+  // 将元转换为分
+  const submitData = {
+    ...model.value,
+    packagePrice: model.value.packagePriceYuan !== null ? Math.round(model.value.packagePriceYuan * 100) : null,
+    llmToken: model.value.llmTokenWan !== null ? Math.round(model.value.llmTokenWan * TOKEN_UNIT) : null,
+    embeddingToken:
+      model.value.embeddingTokenWan !== null ? Math.round(model.value.embeddingTokenWan * TOKEN_UNIT) : null
+  };
+  // 删除 packagePriceYuan 字段，不传递给后端
+  delete (submitData as any).packagePriceYuan;
+  delete (submitData as any).llmTokenWan;
+  delete (submitData as any).embeddingTokenWan;
+  return submitData;
+}
+
+function handleFormSubmitError(e: any) {
+  console.error('提交异常:', e);
+  if (Array.isArray(e)) {
+    window.$message?.error('请填写完整的表单信息!');
+    return;
+  }
+  // validate 失败时会抛出异常，包含验证错误信息
+  if (e?.errors) {
+    // errors 可能是一个数组，取第一个错误的提示信息
+    const firstError = Array.isArray(e.errors) ? e.errors[0] : e.errors;
+    const errorMessage = firstError?.message || '请填写完整的表单信息';
+    window.$message?.warning(errorMessage);
+  } else {
+    window.$message?.error(`操作失败：${(e as Error).message}`);
+  }
+}
+
 async function handleSubmit() {
   console.log('开始提交，editingId:', editingId.value, 'isEditing:', isEditing.value);
 
@@ -303,28 +336,17 @@ async function handleSubmit() {
 
     const method = isEditing.value ? 'put' : 'post';
 
-    // 将元转换为分
-    const submitData = {
-      ...model.value,
-      packagePrice: model.value.packagePriceYuan !== null ? Math.round(model.value.packagePriceYuan * 100) : null,
-      llmToken: model.value.llmTokenWan !== null ? Math.round(model.value.llmTokenWan * TOKEN_UNIT) : null,
-      embeddingToken:
-        model.value.embeddingTokenWan !== null ? Math.round(model.value.embeddingTokenWan * TOKEN_UNIT) : null
-    };
-    // 删除 packagePriceYuan 字段，不传递给后端
-    delete (submitData as any).packagePriceYuan;
-    delete (submitData as any).llmTokenWan;
-    delete (submitData as any).embeddingTokenWan;
+    const submitData = buildSubmitPayload();
 
     console.log('提交数据:', submitData);
 
-    const { error, data } = await request({
+    const { error, data: respData } = await request({
       url,
       method,
       data: submitData
     });
 
-    console.log('返回结果:', error, data);
+    console.log('返回结果:', error, respData);
 
     if (!error) {
       window.$message?.success(isEditing.value ? '更新成功' : '创建成功');
@@ -334,20 +356,7 @@ async function handleSubmit() {
       window.$message?.error(`操作失败：${error.message || '未知错误'}`);
     }
   } catch (e: any) {
-    console.error('提交异常:', e);
-    if (Array.isArray(e)) {
-      window.$message?.error('请填写完整的表单信息!');
-      return;
-    }
-    // validate 失败时会抛出异常，包含验证错误信息
-    if (e?.errors) {
-      // errors 可能是一个数组，取第一个错误的提示信息
-      const firstError = Array.isArray(e.errors) ? e.errors[0] : e.errors;
-      const errorMessage = firstError?.message || '请填写完整的表单信息';
-      window.$message?.warning(errorMessage);
-    } else {
-      window.$message?.error(`操作失败：${(e as Error).message}`);
-    }
+    handleFormSubmitError(e);
   } finally {
     submitting.value = false;
   }
@@ -364,7 +373,7 @@ async function handleDelete(id: number) {
       window.$message?.success('删除成功');
       await getData();
     }
-  } catch (e) {
+  } catch {
     window.$message?.error('删除失败');
   }
 }
@@ -477,5 +486,7 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
-.page-section { min-width: 0; }
+.page-section {
+  min-width: 0;
+}
 </style>

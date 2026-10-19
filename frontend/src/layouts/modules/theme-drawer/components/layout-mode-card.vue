@@ -72,14 +72,14 @@ function handleChangeMode(mode: UnionKey.ThemeLayoutMode) {
     <div
       v-for="(item, key) in layoutConfig"
       :key="key"
-      class="flex cursor-pointer border-2px rounded-6px hover:border-primary"
+      class="flex cursor-pointer border-2px rounded-10px transition-colors duration-150 ease-[var(--app-ease-standard)] hover:border-primary"
       :class="[mode === key ? 'border-primary' : 'border-transparent']"
       @click="handleChangeMode(key)"
     >
       <NTooltip :placement="item.placement">
         <template #trigger>
           <div
-            class="h-64px w-96px gap-6px rd-4px p-6px shadow dark:shadow-coolGray-5"
+            class="h-64px w-96px gap-6px border border-hairline rd-4px border-solid p-6px"
             :class="[key.includes('vertical') ? 'flex' : 'flex-col']"
           >
             <slot :name="key"></slot>

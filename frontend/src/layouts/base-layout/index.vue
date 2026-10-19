@@ -122,6 +122,9 @@ function getSiderCollapsedWidth() {
     :footer-height="themeStore.footer.height"
     :fixed-footer="themeStore.footer.fixed"
     :right-footer="themeStore.footer.right"
+    header-class="top-0! right-0!"
+    sider-class="top-0! left-0! h-full! rounded-none! shadow-none!"
+    mobile-sider-class="bg-transparent! rounded-none!"
   >
     <template #header>
       <GlobalHeader v-bind="headerProps" />
@@ -144,5 +147,10 @@ function getSiderCollapsedWidth() {
 <style lang="scss">
 #__SCROLL_EL_ID__ {
   @include scrollbar();
+}
+
+/* AdminLayout paints the mobile sider mask with a hardcoded rgba; route it through the scrim token */
+[class*='layout-mobile-sider-mask'] {
+  background: var(--app-scrim);
 }
 </style>

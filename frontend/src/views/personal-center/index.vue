@@ -39,6 +39,28 @@ const pagination = ref({
   total: 0,
   pageCount: 0
 });
+const getTokenRecords = async () => {
+  tokenRecordLoading.value = true;
+  try {
+    const { error, data } = await request({
+      url: '/users/token-records',
+      method: 'GET',
+      params: {
+        page: pagination.value.page - 1,
+        size: pagination.value.pageSize
+      }
+    });
+
+    if (!error && data) {
+      tokenRecords.value = data.content || [];
+      pagination.value.total = data.totalElements || 0;
+      pagination.value.pageCount = data.totalPages || 0;
+    }
+  } finally {
+    tokenRecordLoading.value = false;
+  }
+};
+
 const getPersonalData = async () => {
   loading.value = true;
   const [{ error: orgError, data: orgData }, { error: usageError, data: usageData }] = await Promise.all([
@@ -97,29 +119,6 @@ const setPrimaryOrg = async () => {
     getOrgTags();
   }
   submitLoading.value = false;
-};
-
-// Token 记录相关方法
-const getTokenRecords = async () => {
-  tokenRecordLoading.value = true;
-  try {
-    const { error, data } = await request({
-      url: '/users/token-records',
-      method: 'GET',
-      params: {
-        page: pagination.value.page - 1,
-        size: pagination.value.pageSize
-      }
-    });
-
-    if (!error && data) {
-      tokenRecords.value = data.content || [];
-      pagination.value.total = data.totalElements || 0;
-      pagination.value.pageCount = data.totalPages || 0;
-    }
-  } finally {
-    tokenRecordLoading.value = false;
-  }
 };
 
 const handlePageChange = (page: number) => {

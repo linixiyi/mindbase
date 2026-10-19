@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import { useThemeStore } from '@/store/modules/theme';
 import { $t } from '@/locales';
 
 defineOptions({ name: 'SearchResult' });
@@ -15,8 +14,6 @@ interface Emits {
 }
 
 const emit = defineEmits<Emits>();
-
-const theme = useThemeStore();
 
 const active = defineModel<string>('path', { required: true });
 
@@ -34,11 +31,8 @@ function handleTo() {
     <div class="pb-12px">
       <template v-for="item in options" :key="item.routePath">
         <div
-          class="mt-8px h-56px flex-y-center cursor-pointer justify-between rounded-4px bg-#e5e7eb px-14px dark:bg-dark"
-          :style="{
-            background: item.routePath === active ? theme.themeColor : '',
-            color: item.routePath === active ? '#fff' : ''
-          }"
+          class="mt-4px h-44px flex-y-center cursor-pointer justify-between rounded-10px px-14px transition-colors duration-150 ease-[var(--app-ease-standard)]"
+          :class="item.routePath === active ? 'bg-fill-hover text-primary' : 'hover:bg-fill-subtle'"
           @click="handleTo"
           @mouseenter="handleMouseEnter(item)"
         >

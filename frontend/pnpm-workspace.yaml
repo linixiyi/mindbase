@@ -1,7 +1,8 @@
 packages:
   - "packages/*"
+shamefullyHoist: true
 allowBuilds:
-  '@parcel/watcher': set this to true or false
-  esbuild: set this to true or false
-  simple-git-hooks: set this to true or false
-  vue-demi: set this to true or false
+  '@parcel/watcher': true
+  esbuild: true
+  simple-git-hooks: true
+  vue-demi: true

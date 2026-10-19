@@ -11,3 +11,9 @@ body,
 html {
   overflow-x: hidden;
 }
+
+body {
+  /* The ground every surface sits on; follows the theme token */
+  background: rgb(var(--layout-bg-color));
+  color: rgb(var(--base-text-color));
+}

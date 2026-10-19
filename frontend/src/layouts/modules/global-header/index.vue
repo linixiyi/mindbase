@@ -26,10 +26,17 @@ const themeStore = useThemeStore();
 const { isFullscreen, toggle } = useFullscreen();
 
 const isDev = import.meta.env.DEV;
+
+/** Frosted navigation material + bottom hairline (DESIGN.md › Material Vocabulary › nav-material) */
+const navMaterialStyle = {
+  background: 'var(--app-material-nav)',
+  WebkitBackdropFilter: 'var(--app-material-filter)',
+  backdropFilter: 'var(--app-material-filter)'
+};
 </script>
 
 <template>
-  <DarkModeContainer class="h-full flex-y-center justify-between gap-2 bg-transparent px-4">
+  <DarkModeContainer class="h-full flex-y-center justify-between gap-2 px-4 shadow-header" :style="navMaterialStyle">
     <div id="header-extra" class="h-full min-w-0 flex-col flex-1 justify-center"></div>
     <!-- <GlobalLogo v-if="showLogo" class="h-full" :style="{ width: themeStore.sider.width + 'px' }" /> -->
     <MenuToggler

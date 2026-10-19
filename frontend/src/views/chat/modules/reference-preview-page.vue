@@ -78,12 +78,30 @@ function syncFromStorage() {
   }
 }
 
+function hasCachedReferencePreview() {
+  return Boolean(fileMd5.value || matchedChunkText.value || evidenceSnippet.value);
+}
+
+function applyFetchedReferenceDetail(data: Api.Document.ReferenceDetailResponse) {
+  fileName.value = data.fileName || fileName.value;
+  fileMd5.value = data.fileMd5 || fileMd5.value;
+  pageNumber.value = data.pageNumber || pageNumber.value;
+  anchorText.value = data.anchorText || anchorText.value;
+  retrievalMode.value = data.retrievalMode ?? null;
+  retrievalLabel.value = data.retrievalLabel || '';
+  retrievalQuery.value = data.retrievalQuery || '';
+  evidenceSnippet.value = data.evidenceSnippet || '';
+  matchedChunkText.value = data.matchedChunkText || '';
+  score.value = data.score ?? null;
+  chunkId.value = data.chunkId ?? null;
+}
+
 async function loadReferenceDetail() {
   syncFallbackFromQuery();
   const restoredFromStorage = syncFromStorage();
   loadError.value = '';
 
-  if (restoredFromStorage && (fileMd5.value || matchedChunkText.value || evidenceSnippet.value)) {
+  if (restoredFromStorage && hasCachedReferencePreview()) {
     return;
   }
 
@@ -107,17 +125,7 @@ async function loadReferenceDetail() {
       return;
     }
 
-    fileName.value = data.fileName || fileName.value;
-    fileMd5.value = data.fileMd5 || fileMd5.value;
-    pageNumber.value = data.pageNumber || pageNumber.value;
-    anchorText.value = data.anchorText || anchorText.value;
-    retrievalMode.value = data.retrievalMode ?? null;
-    retrievalLabel.value = data.retrievalLabel || '';
-    retrievalQuery.value = data.retrievalQuery || '';
-    evidenceSnippet.value = data.evidenceSnippet || '';
-    matchedChunkText.value = data.matchedChunkText || '';
-    score.value = data.score ?? null;
-    chunkId.value = data.chunkId ?? null;
+    applyFetchedReferenceDetail(data);
   } catch (error: any) {
     loadError.value = error?.message || '引用详情加载失败';
   } finally {
@@ -137,7 +145,7 @@ function handleBack() {
 watch(
   () => route.query,
   () => {
-    void loadReferenceDetail();
+    loadReferenceDetail();
   },
   { immediate: true }
 );
@@ -179,18 +187,28 @@ watch(
 
 <style scoped lang="scss">
 .preview-page-state {
-  @apply flex min-h-220px flex-col items-center justify-center gap-4 rounded-12px bg-white text-stone-500;
+  @apply flex min-h-220px flex-col items-center justify-center gap-4 rounded-18px bg-container text-muted;
 }
 
 .preview-page-empty {
-  @apply rounded-12px bg-white py-10;
+  @apply rounded-18px bg-container py-10;
+
+  border: 1px solid var(--app-border);
 }
 
 .preview-page-shell {
   @apply flex min-h-0 flex-col gap-3;
 }
 
+/* 校验提示：warning 10% 底 + 语义深阶文字（浅 -700 / 暗 -400） */
 .preview-page-tip {
-  @apply rounded-12px border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700;
+  @apply rounded-10px px-4 py-3 text-sm;
+
+  background: rgb(var(--warning-color) / 0.1);
+  color: rgb(var(--warning-700-color));
+}
+
+.dark .preview-page-tip {
+  color: rgb(var(--warning-400-color));
 }
 </style>

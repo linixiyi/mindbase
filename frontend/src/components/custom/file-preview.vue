@@ -1,155 +1,3 @@
-<template>
-  <div class="file-preview-container">
-    <div class="preview-backdrop" />
-
-    <div class="preview-content">
-      <template v-if="loading">
-        <div class="state-panel">
-          <div class="state-orb">
-            <NSpin size="large" />
-          </div>
-          <div class="state-copy">
-            <strong>正在装载引用文档</strong>
-            <span>整理线索、页码定位和可预览内容。</span>
-          </div>
-        </div>
-      </template>
-      <template v-else-if="error">
-        <div class="state-panel state-panel--error">
-          <div class="state-orb state-orb--error">
-            <icon-mdi-alert-circle class="text-34" />
-          </div>
-          <div class="state-copy">
-            <strong>这份文档暂时没能打开</strong>
-            <span>{{ error }}</span>
-          </div>
-        </div>
-      </template>
-      <template v-else>
-        <div class="content-wrapper" :class="{ 'content-wrapper--immersive': previewType === 'pdf' && previewUrl }">
-          <aside class="insight-rail">
-            <section class="info-card source-card">
-              <div class="source-card-top">
-                <div class="file-badge-shell">
-                  <div class="file-badge-icon">
-                    <SvgIcon :local-icon="getFileIcon(fileName)" class="text-18" />
-                  </div>
-                  <div class="file-badge-copy">
-                    <h2 class="preview-title">{{ fileName }}</h2>
-                    <p v-if="headerMetaLine" class="preview-subtitle">{{ headerMetaLine }}</p>
-                  </div>
-                </div>
-              </div>
-              <div class="source-actions">
-                <NButton
-                  v-if="previewType !== 'pdf'"
-                  size="small"
-                  secondary
-                  @click="openPreviewInNewTab"
-                  :disabled="!canOpenInNewTab"
-                >
-                  <template #icon>
-                    <icon-mdi-open-in-new />
-                  </template>
-                  新窗口
-                </NButton>
-                <NButton size="small" secondary @click="downloadFile" :loading="downloading">
-                  <template #icon>
-                    <icon-mdi-download />
-                  </template>
-                  下载
-                </NButton>
-                <NButton size="small" quaternary @click="closePreview">
-                  <template #icon>
-                    <icon-mdi-close />
-                  </template>
-                  关闭
-                </NButton>
-              </div>
-            </section>
-
-            <section class="info-card info-card--hero">
-              <span class="info-label">概览</span>
-              <strong class="info-title">{{ heroHeadline }}</strong>
-              <p class="info-copy">{{ heroDescription }}</p>
-              <div v-if="retrievalQuery" class="info-inline-block">
-                <span class="info-label">检索问题</span>
-                <p class="support-copy">{{ retrievalQuery }}</p>
-              </div>
-            </section>
-
-            <section v-if="evidenceSnippet" class="info-card">
-              <span class="info-label">线索</span>
-              <p class="support-copy">{{ evidenceSnippet }}</p>
-            </section>
-
-            <section v-else-if="resolvedHighlightAnchor" class="info-card">
-              <span class="info-label">定位线索</span>
-              <p class="support-copy">{{ resolvedHighlightAnchor }}</p>
-            </section>
-
-          </aside>
-
-          <section class="preview-stage">
-            <div class="stage-body">
-              <template v-if="previewType === 'pdf' && previewUrl">
-                <div class="pdf-preview-stack">
-                  <PdfDocumentViewer
-                    :url="resolvedPreviewUrl"
-                    :source-url="resolvedSourceUrl"
-                    :file-name="fileName"
-                    :page-number="pageNumber"
-                    :single-page-mode="singlePageMode"
-                    :source-page-number="sourcePageNumber"
-                    :anchor-text="resolvedHighlightAnchor"
-                    :search-text="resolvedHighlightSearchText"
-                    :visible="visible"
-                  />
-                </div>
-              </template>
-              <template v-else-if="previewType === 'image' && resolvedPreviewUrl">
-                <div class="image-preview-shell">
-                  <img :src="resolvedPreviewUrl" :alt="fileName" class="preview-image" />
-                </div>
-              </template>
-              <template v-else-if="previewType === 'text'">
-                <div class="text-preview-shell">
-                  <pre class="preview-text">{{ content }}</pre>
-                </div>
-              </template>
-              <template v-else>
-                <div class="download-placeholder">
-                  <div class="placeholder-icon">
-                    <SvgIcon :local-icon="getFileIcon(fileName)" class="text-28" />
-                  </div>
-                  <div class="state-copy">
-                    <strong>当前格式暂不支持在线预览</strong>
-                    <span>你可以先下载文件，或在新窗口中尝试打开原始资源。</span>
-                  </div>
-                  <div class="placeholder-actions">
-                    <NButton secondary @click="openPreviewInNewTab" :disabled="!canOpenInNewTab">
-                      <template #icon>
-                        <icon-mdi-open-in-new />
-                      </template>
-                      新窗口打开
-                    </NButton>
-                    <NButton type="primary" @click="downloadFile">
-                      <template #icon>
-                        <icon-mdi-download />
-                      </template>
-                      下载后查看
-                    </NButton>
-                  </div>
-                </div>
-              </template>
-            </div>
-          </section>
-        </div>
-      </template>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { NButton, NSpin } from 'naive-ui';
@@ -231,16 +79,19 @@ const displayScore = computed(() => {
 });
 const displayPage = computed(() => sourcePageNumber.value || props.pageNumber || undefined);
 const displayPageLabel = computed(() => (displayPage.value ? `第 ${displayPage.value} 页` : ''));
-const displayScoreLabel = computed(() => (displayScore.value ? `相关分数 ${displayScore.value}` : ''));
 const headerMetaLine = computed(() => {
   if (previewType.value === 'pdf') {
     return [displayPageLabel.value, displayScore.value ? `分数 ${displayScore.value}` : ''].filter(Boolean).join(' / ');
   }
   if (previewType.value === 'image') {
-    return [fileExtensionLabel.value, displayScore.value ? `分数 ${displayScore.value}` : ''].filter(Boolean).join(' / ');
+    return [fileExtensionLabel.value, displayScore.value ? `分数 ${displayScore.value}` : '']
+      .filter(Boolean)
+      .join(' / ');
   }
   if (previewType.value === 'text') {
-    return [fileExtensionLabel.value, displayScore.value ? `分数 ${displayScore.value}` : ''].filter(Boolean).join(' / ');
+    return [fileExtensionLabel.value, displayScore.value ? `分数 ${displayScore.value}` : '']
+      .filter(Boolean)
+      .join(' / ');
   }
   return [fileExtensionLabel.value, displayScore.value ? `分数 ${displayScore.value}` : ''].filter(Boolean).join(' / ');
 });
@@ -304,22 +155,52 @@ function getFileIcon(fileName: string) {
 }
 
 // 监听文件名变化，加载预览内容
-watch(() => props.fileName, async (newFileName) => {
-  if (newFileName && props.visible) {
-    await loadPreviewContent();
-  }
-}, { immediate: true });
+watch(
+  () => props.fileName,
+  async newFileName => {
+    if (newFileName && props.visible) {
+      await loadPreviewContent();
+    }
+  },
+  { immediate: true }
+);
 
 // 监听可见性变化
-watch(() => props.visible, async (visible) => {
-  if (visible && props.fileName) {
-    await loadPreviewContent();
+watch(
+  () => props.visible,
+  async visible => {
+    if (visible && props.fileName) {
+      await loadPreviewContent();
+    }
   }
-});
+);
 
 // 加载预览内容
+type PreviewResponse = {
+  fileName: string;
+  fileSize: number;
+  fileMd5?: string;
+  content?: string;
+  previewUrl?: string;
+  sourceUrl?: string;
+  singlePageMode?: boolean;
+  sourcePageNumber?: number;
+  previewType?: 'pdf' | 'image' | 'text' | 'download';
+};
+
+function applyPreviewResponse(data: PreviewResponse) {
+  previewType.value = data.previewType || 'download';
+  content.value = data.content || '';
+  previewUrl.value = data.previewUrl || '';
+  sourceUrl.value = data.sourceUrl || data.previewUrl || '';
+  singlePageMode.value = Boolean(data.singlePageMode);
+  sourcePageNumber.value = data.sourcePageNumber || props.pageNumber;
+}
+
 async function loadPreviewContent() {
   if (!props.fileName) return;
+
+  const previewMode = props.fileMd5 ? 'MD5' : '文件名';
 
   console.log('[文件预览] 开始加载预览内容:', {
     fileName: props.fileName,
@@ -337,97 +218,32 @@ async function loadPreviewContent() {
   previewType.value = 'text';
 
   try {
-    // 优先使用 MD5 预览（如果存在）
-    if (props.fileMd5) {
-      console.log('[文件预览] 使用MD5模式预览，请求参数:', {
-        fileName: props.fileName,
-        fileMd5: props.fileMd5,
-        pageNumber: props.pageNumber
-      });
+    const params = props.fileMd5
+      ? { fileName: props.fileName, fileMd5: props.fileMd5, pageNumber: props.pageNumber }
+      : { fileName: props.fileName, pageNumber: props.pageNumber };
 
-      const { error: requestError, data } = await request<{
-        fileName: string;
-        fileSize: number;
-        fileMd5?: string;
-        content?: string;
-        previewUrl?: string;
-        sourceUrl?: string;
-        singlePageMode?: boolean;
-        sourcePageNumber?: number;
-        previewType?: 'pdf' | 'image' | 'text' | 'download';
-      }>({
-        url: '/documents/preview',
-        params: {
-          fileName: props.fileName,
-          fileMd5: props.fileMd5,
-          pageNumber: props.pageNumber
-        }
-      });
+    console.log(`[文件预览] 使用${previewMode}模式预览, 请求参数:`, params);
 
-      console.log('[文件预览] MD5模式API响应:', {
-        hasError: !!requestError,
-        error: requestError,
-        hasData: !!data,
-        contentLength: data?.content?.length || 0,
-        contentPreview: data?.content?.substring(0, 100) || ''
-      });
+    const { error: requestError, data } = await request<PreviewResponse>({
+      url: '/documents/preview',
+      params
+    });
 
-      if (requestError) {
-        error.value = '预览失败：' + (requestError.message || '未知错误');
-      } else if (data) {
-        previewType.value = data.previewType || 'download';
-        content.value = data.content || '';
-        previewUrl.value = data.previewUrl || '';
-        sourceUrl.value = data.sourceUrl || data.previewUrl || '';
-        singlePageMode.value = Boolean(data.singlePageMode);
-        sourcePageNumber.value = data.sourcePageNumber || props.pageNumber;
-      }
-    } else {
-      // 降级：使用文件名预览（向后兼容）
-      console.log('[文件预览] 使用文件名模式预览（降级）, 请求参数:', {
-        fileName: props.fileName,
-        pageNumber: props.pageNumber
-      });
+    console.log(`[文件预览] ${previewMode}模式API响应:`, {
+      hasError: Boolean(requestError),
+      error: requestError,
+      hasData: Boolean(data),
+      contentLength: data?.content?.length || 0,
+      contentPreview: data?.content?.substring(0, 100) || ''
+    });
 
-      const { error: requestError, data } = await request<{
-        fileName: string;
-        fileSize: number;
-        fileMd5?: string;
-        content?: string;
-        previewUrl?: string;
-        sourceUrl?: string;
-        singlePageMode?: boolean;
-        sourcePageNumber?: number;
-        previewType?: 'pdf' | 'image' | 'text' | 'download';
-      }>({
-        url: '/documents/preview',
-        params: {
-          fileName: props.fileName,
-          pageNumber: props.pageNumber
-        }
-      });
-
-      console.log('[文件预览] 文件名模式API响应:', {
-        hasError: !!requestError,
-        error: requestError,
-        hasData: !!data,
-        contentLength: data?.content?.length || 0,
-        contentPreview: data?.content?.substring(0, 100) || ''
-      });
-
-      if (requestError) {
-        error.value = '预览失败：' + (requestError.message || '未知错误');
-      } else if (data) {
-        previewType.value = data.previewType || 'download';
-        content.value = data.content || '';
-        previewUrl.value = data.previewUrl || '';
-        sourceUrl.value = data.sourceUrl || data.previewUrl || '';
-        singlePageMode.value = Boolean(data.singlePageMode);
-        sourcePageNumber.value = data.sourcePageNumber || props.pageNumber;
-      }
+    if (requestError) {
+      error.value = `预览失败：${requestError.message || '未知错误'}`;
+    } else if (data) {
+      applyPreviewResponse(data);
     }
   } catch (err: any) {
-    error.value = '预览失败：' + (err.message || '网络错误');
+    error.value = `预览失败：${err.message || '网络错误'}`;
   } finally {
     loading.value = false;
   }
@@ -455,7 +271,7 @@ async function downloadFile() {
       });
 
       if (requestError) {
-        window.$message?.error('下载失败：' + (requestError.message || '未知错误'));
+        window.$message?.error(`下载失败：${requestError.message || '未知错误'}`);
       } else if (data) {
         // 使用预签名URL下载文件
         const link = document.createElement('a');
@@ -480,7 +296,7 @@ async function downloadFile() {
       });
 
       if (requestError) {
-        window.$message?.error('下载失败：' + (requestError.message || '未知错误'));
+        window.$message?.error(`下载失败：${requestError.message || '未知错误'}`);
       } else if (data) {
         // 使用预签名URL下载文件
         const link = document.createElement('a');
@@ -493,7 +309,7 @@ async function downloadFile() {
       }
     }
   } catch (err: any) {
-    window.$message?.error('下载失败：' + (err.message || '网络错误'));
+    window.$message?.error(`下载失败：${err.message || '网络错误'}`);
   } finally {
     downloading.value = false;
   }
@@ -515,8 +331,158 @@ function openPreviewInNewTab() {
 function closePreview() {
   emit('close');
 }
-
 </script>
+
+<template>
+  <div class="file-preview-container">
+    <div class="preview-backdrop" />
+
+    <div class="preview-content">
+      <template v-if="loading">
+        <div class="state-panel">
+          <div class="state-orb">
+            <NSpin size="large" />
+          </div>
+          <div class="state-copy">
+            <strong>正在装载引用文档</strong>
+            <span>整理线索、页码定位和可预览内容。</span>
+          </div>
+        </div>
+      </template>
+      <template v-else-if="error">
+        <div class="state-panel state-panel--error">
+          <div class="state-orb state-orb--error">
+            <icon-mdi-alert-circle class="text-34" />
+          </div>
+          <div class="state-copy">
+            <strong>这份文档暂时没能打开</strong>
+            <span>{{ error }}</span>
+          </div>
+        </div>
+      </template>
+      <template v-else>
+        <div class="content-wrapper" :class="{ 'content-wrapper--immersive': previewType === 'pdf' && previewUrl }">
+          <aside class="insight-rail">
+            <section class="info-card source-card">
+              <div class="source-card-top">
+                <div class="file-badge-shell">
+                  <div class="file-badge-icon">
+                    <SvgIcon :local-icon="getFileIcon(fileName)" class="text-18" />
+                  </div>
+                  <div class="file-badge-copy">
+                    <h2 class="preview-title">{{ fileName }}</h2>
+                    <p v-if="headerMetaLine" class="preview-subtitle">{{ headerMetaLine }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="source-actions">
+                <NButton
+                  v-if="previewType !== 'pdf'"
+                  size="small"
+                  secondary
+                  :disabled="!canOpenInNewTab"
+                  @click="openPreviewInNewTab"
+                >
+                  <template #icon>
+                    <icon-mdi-open-in-new />
+                  </template>
+                  新窗口
+                </NButton>
+                <NButton size="small" secondary :loading="downloading" @click="downloadFile">
+                  <template #icon>
+                    <icon-mdi-download />
+                  </template>
+                  下载
+                </NButton>
+                <NButton size="small" quaternary @click="closePreview">
+                  <template #icon>
+                    <icon-mdi-close />
+                  </template>
+                  关闭
+                </NButton>
+              </div>
+            </section>
+
+            <section class="info-card info-card--hero">
+              <span class="info-label">概览</span>
+              <strong class="info-title">{{ heroHeadline }}</strong>
+              <p class="info-copy">{{ heroDescription }}</p>
+              <div v-if="retrievalQuery" class="info-inline-block">
+                <span class="info-label">检索问题</span>
+                <p class="support-copy">{{ retrievalQuery }}</p>
+              </div>
+            </section>
+
+            <section v-if="evidenceSnippet" class="info-card">
+              <span class="info-label">线索</span>
+              <p class="support-copy">{{ evidenceSnippet }}</p>
+            </section>
+
+            <section v-else-if="resolvedHighlightAnchor" class="info-card">
+              <span class="info-label">定位线索</span>
+              <p class="support-copy">{{ resolvedHighlightAnchor }}</p>
+            </section>
+          </aside>
+
+          <section class="preview-stage">
+            <div class="stage-body">
+              <template v-if="previewType === 'pdf' && previewUrl">
+                <div class="pdf-preview-stack">
+                  <PdfDocumentViewer
+                    :url="resolvedPreviewUrl"
+                    :source-url="resolvedSourceUrl"
+                    :file-name="fileName"
+                    :page-number="pageNumber"
+                    :single-page-mode="singlePageMode"
+                    :source-page-number="sourcePageNumber"
+                    :anchor-text="resolvedHighlightAnchor"
+                    :search-text="resolvedHighlightSearchText"
+                    :visible="visible"
+                  />
+                </div>
+              </template>
+              <template v-else-if="previewType === 'image' && resolvedPreviewUrl">
+                <div class="image-preview-shell">
+                  <img :src="resolvedPreviewUrl" :alt="fileName" class="preview-image" />
+                </div>
+              </template>
+              <template v-else-if="previewType === 'text'">
+                <div class="text-preview-shell">
+                  <pre class="preview-text">{{ content }}</pre>
+                </div>
+              </template>
+              <template v-else>
+                <div class="download-placeholder">
+                  <div class="placeholder-icon">
+                    <SvgIcon :local-icon="getFileIcon(fileName)" class="text-28" />
+                  </div>
+                  <div class="state-copy">
+                    <strong>当前格式暂不支持在线预览</strong>
+                    <span>你可以先下载文件，或在新窗口中尝试打开原始资源。</span>
+                  </div>
+                  <div class="placeholder-actions">
+                    <NButton secondary :disabled="!canOpenInNewTab" @click="openPreviewInNewTab">
+                      <template #icon>
+                        <icon-mdi-open-in-new />
+                      </template>
+                      新窗口打开
+                    </NButton>
+                    <NButton type="primary" @click="downloadFile">
+                      <template #icon>
+                        <icon-mdi-download />
+                      </template>
+                      下载后查看
+                    </NButton>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </section>
+        </div>
+      </template>
+    </div>
+  </div>
+</template>
 
 <style scoped lang="scss">
 .file-preview-container {

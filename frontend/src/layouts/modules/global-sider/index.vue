@@ -17,10 +17,21 @@ const isHorizontalMix = computed(() => themeStore.layout.mode === 'horizontal-mi
 const darkMenu = computed(() => !themeStore.darkMode && !isHorizontalMix.value && themeStore.sider.inverted);
 const showLogo = computed(() => !isVerticalMix.value && !isHorizontalMix.value);
 const menuWrapperClass = computed(() => (showLogo.value ? 'flex-1-hidden' : 'h-full'));
+
+/** Frosted navigation material (DESIGN.md › Material Vocabulary › nav-material) */
+const navMaterialStyle = {
+  background: 'var(--app-material-nav)',
+  WebkitBackdropFilter: 'var(--app-material-filter)',
+  backdropFilter: 'var(--app-material-filter)'
+};
 </script>
 
 <template>
-  <DarkModeContainer class="size-full flex-col-stretch shadow-sider" :inverted="darkMenu">
+  <!--
+    Nav material: frosted glass + inset hairline on the right edge (--sider-box-shadow token).
+    Inline style so the material deterministically wins over DarkModeContainer's baked-in bg-container.
+  -->
+  <DarkModeContainer class="size-full flex-col-stretch shadow-sider" :inverted="darkMenu" :style="navMaterialStyle">
     <GlobalLogo
       v-if="showLogo"
       :show-title="!appStore.siderCollapse"
