@@ -4,6 +4,7 @@ import { NConfigProvider, darkTheme } from 'naive-ui';
 import type { WatermarkProps } from 'naive-ui';
 import { useAppStore } from './store/modules/app';
 import { useThemeStore } from './store/modules/theme';
+import { useRouteStore } from './store/modules/route';
 import { naiveDateLocales, naiveLocales } from './locales/naive';
 
 defineOptions({
@@ -12,6 +13,14 @@ defineOptions({
 
 const appStore = useAppStore();
 const themeStore = useThemeStore();
+
+// backlog#11 调试钩子（仅 dev）：把 wedged 状态下的关键 store/router 暴露到 window 供控制台读取，修复后移除
+if (import.meta.env.DEV) {
+  const routeStore = useRouteStore();
+  import('./router').then(({ router }) => {
+    (window as unknown as Record<string, unknown>).__mbDebug = { appStore, themeStore, routeStore, router };
+  });
+}
 
 const naiveDarkTheme = computed(() => (themeStore.darkMode ? darkTheme : undefined));
 
