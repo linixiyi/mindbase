@@ -71,7 +71,7 @@ async function handleFeedback(message: Api.Chat.Message, rating: 'good' | 'bad')
 const sourceFiles = ref<
   Array<{ fileName: string; id: string; referenceNumber: number; fileMd5?: string; pageNumber?: number }>
 >([]);
-const bareUrlPattern = /https?:\/\/[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+/g;
+const bareUrlPattern = /https?:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]+/g;
 const toolNameLabels: Record<string, string> = {
   search_knowledge: '检索知识库',
   generate_summary: '生成知识摘要',
@@ -105,10 +105,7 @@ function splitTrailingUrlPunctuation(rawUrl: string) {
     if (/[，。！？；：、,.!?;:]/.test(lastChar)) {
       trailing = `${lastChar}${trailing}`;
       url = url.slice(0, -1);
-      continue;
-    }
-
-    if (lastChar === ')' || lastChar === '）') {
+    } else if (lastChar === ')' || lastChar === '）') {
       const openingChar = lastChar === ')' ? '(' : '（';
       const closingChar = lastChar;
       const openingCount = (url.match(new RegExp(`\\${openingChar}`, 'g')) || []).length;
@@ -117,11 +114,12 @@ function splitTrailingUrlPunctuation(rawUrl: string) {
       if (closingCount > openingCount) {
         trailing = `${lastChar}${trailing}`;
         url = url.slice(0, -1);
-        continue;
+      } else {
+        break;
       }
+    } else {
+      break;
     }
-
-    break;
   }
 
   return { url, trailing };
@@ -186,14 +184,16 @@ function processSourceLinks(text: string): string {
   );
   const simplePattern = new RegExp(`来源#(\\d+):\\s*([^<>\\n\\r|;；,，、。！？!?]+?)${entryBoundary}`, 'g');
 
-  let processedText = text.replace(pagePattern, (_match, sourceNum, fileName, pageNum) => {
+  let processedText = text.replace(pagePattern, (...args: unknown[]) => {
+    const [_match, sourceNum, fileName, pageNum] = args as [string, string, string, string];
     return createSourceLink(sourceNum, fileName, {
       pageNumber: Number.parseInt(pageNum, 10),
       displayName: `${fileName.trim()} (第${pageNum}页)`
     });
   });
 
-  processedText = processedText.replace(md5Pattern, (_match, sourceNum, fileName, fileMd5) => {
+  processedText = processedText.replace(md5Pattern, (...args: unknown[]) => {
+    const [_match, sourceNum, fileName, fileMd5] = args as [string, string, string, string];
     return createSourceLink(sourceNum, fileName, {
       fileMd5: fileMd5.trim()
     });
@@ -283,6 +283,57 @@ function handleContentClick(event: MouseEvent) {
 }
 
 // 处理来源文件点击事件
+function hasIncompleteRetrievalEvidence(detail: Api.Chat.ReferenceEvidence | null | undefined) {
+  return !detail?.retrievalQuery || !detail?.matchedChunkText || !detail?.evidenceSnippet;
+}
+
+async function fetchReferenceDetail(sessionId: string, referenceNumber: number) {
+  try {
+    const { error: detailError, data: detailData } = await request<Api.Document.ReferenceDetailResponse>({
+      url: 'documents/reference-detail',
+      params: {
+        sessionId,
+        referenceNumber: referenceNumber.toString()
+      }
+    });
+
+    if (!detailError && detailData?.fileMd5) {
+      return detailData;
+    }
+  } catch (detailErr) {
+    console.warn('通过API查询引用详情失败:', detailErr);
+  }
+  return null;
+}
+
+function buildReferencePreviewPayload(
+  source: Api.Chat.ReferenceEvidence | null,
+  options: {
+    fileName: string;
+    fileMd5: string | null;
+    anchorText?: string;
+    fallbackRetrievalQuery: string;
+    sessionId?: string;
+    referenceNumber: number;
+  }
+) {
+  return {
+    fileName: source?.fileName || options.fileName,
+    fileMd5: options.fileMd5,
+    pageNumber: source?.pageNumber,
+    anchorText: options.anchorText || source?.anchorText || '',
+    retrievalMode: source?.retrievalMode,
+    retrievalLabel: source?.retrievalLabel,
+    retrievalQuery: source?.retrievalQuery || options.fallbackRetrievalQuery,
+    evidenceSnippet: source?.evidenceSnippet,
+    matchedChunkText: source?.matchedChunkText,
+    score: source?.score,
+    chunkId: source?.chunkId,
+    sessionId: options.sessionId,
+    referenceNumber: options.referenceNumber
+  };
+}
+
 async function handleSourceFileClick(fileInfo: {
   fileName: string;
   referenceNumber: number;
@@ -305,65 +356,38 @@ async function handleSourceFileClick(fileInfo: {
   );
 
   try {
-    let detail: Api.Document.ReferenceDetailResponse | null = null;
     const fallbackRetrievalQuery = props.retrievalQueryFallback || '';
 
-    if (
-      referenceSessionId &&
-      (!persistedDetail?.retrievalQuery || !persistedDetail?.matchedChunkText || !persistedDetail?.evidenceSnippet)
-    ) {
-      try {
-        const { error: detailError, data: detailData } = await request<Api.Document.ReferenceDetailResponse>({
-          url: 'documents/reference-detail',
-          params: {
-            sessionId: referenceSessionId,
-            referenceNumber: referenceNumber.toString()
-          }
-        });
-
-        if (!detailError && detailData?.fileMd5) {
-          detail = detailData;
-        }
-      } catch (detailErr) {
-        console.warn('通过API查询引用详情失败:', detailErr);
-      }
+    let detail: Api.Document.ReferenceDetailResponse | null = null;
+    if (referenceSessionId && hasIncompleteRetrievalEvidence(persistedDetail)) {
+      detail = await fetchReferenceDetail(referenceSessionId, referenceNumber);
     }
 
     if (persistedDetail?.fileMd5 && !detail) {
-      openReferencePreviewPage({
-        fileName: persistedDetail.fileName || fileName,
-        fileMd5: persistedDetail.fileMd5,
-        pageNumber: persistedDetail.pageNumber,
-        anchorText: clickedAnchorText || persistedDetail.anchorText || '',
-        retrievalMode: persistedDetail.retrievalMode,
-        retrievalLabel: persistedDetail.retrievalLabel,
-        retrievalQuery: persistedDetail.retrievalQuery || fallbackRetrievalQuery,
-        evidenceSnippet: persistedDetail.evidenceSnippet,
-        matchedChunkText: persistedDetail.matchedChunkText,
-        score: persistedDetail.score,
-        chunkId: persistedDetail.chunkId,
-        sessionId: referenceSessionId,
-        referenceNumber
-      });
+      openReferencePreviewPage(
+        buildReferencePreviewPayload(persistedDetail, {
+          fileName,
+          fileMd5: persistedDetail.fileMd5,
+          anchorText: clickedAnchorText,
+          fallbackRetrievalQuery,
+          sessionId: referenceSessionId,
+          referenceNumber
+        })
+      );
       return;
     }
 
     const targetMd5 = detail?.fileMd5 || extractedMd5 || null;
-    openReferencePreviewPage({
-      fileName: detail?.fileName || fileName,
-      fileMd5: targetMd5,
-      pageNumber: detail?.pageNumber,
-      anchorText: clickedAnchorText || detail?.anchorText || '',
-      retrievalMode: detail?.retrievalMode,
-      retrievalLabel: detail?.retrievalLabel,
-      retrievalQuery: detail?.retrievalQuery || fallbackRetrievalQuery,
-      evidenceSnippet: detail?.evidenceSnippet,
-      matchedChunkText: detail?.matchedChunkText,
-      score: detail?.score,
-      chunkId: detail?.chunkId,
-      sessionId: referenceSessionId,
-      referenceNumber
-    });
+    openReferencePreviewPage(
+      buildReferencePreviewPayload(detail, {
+        fileName,
+        fileMd5: targetMd5,
+        anchorText: clickedAnchorText,
+        fallbackRetrievalQuery,
+        sessionId: referenceSessionId,
+        referenceNumber
+      })
+    );
   } catch (err) {
     console.error('文件下载失败:', err);
     window.$message?.error(`文件下载失败: ${fileName}`);
@@ -372,58 +396,59 @@ async function handleSourceFileClick(fileInfo: {
 </script>
 
 <template>
-  <div class="mb-8 flex-col gap-2">
-    <div v-if="msg.role === 'user'" class="flex items-center gap-4">
-      <NAvatar class="bg-success">
-        <SvgIcon icon="ph:user-circle" class="text-icon-large color-white" />
-      </NAvatar>
-      <div class="flex-col gap-1">
-        <NText class="text-4 font-bold">{{ msg.username || authStore.userInfo.username }}</NText>
-        <NText class="text-muted text-3">{{ formatDate(msg.timestamp) }}</NText>
+  <div
+    class="chat-message mb-6 flex flex-col gap-2"
+    :class="msg.role === 'user' ? 'chat-message--user items-end' : 'chat-message--assistant items-stretch'"
+  >
+    <template v-if="msg.role === 'user'">
+      <div class="chat-user-bubble">{{ content }}</div>
+      <div class="chat-message__meta">
+        <span class="chat-message__author">{{ msg.username || authStore.userInfo.username }}</span>
+        <span class="chat-message__time">{{ formatDate(msg.timestamp) }}</span>
       </div>
-    </div>
-    <div v-else class="flex items-center gap-4">
-      <NAvatar class="bg-primary">
-        <SystemLogo class="text-6 text-white" />
-      </NAvatar>
-      <div class="flex-col gap-1">
-        <NText class="text-4 font-bold">MindBase</NText>
-        <NText class="text-muted text-3">{{ formatDate(msg.timestamp) }}</NText>
+    </template>
+    <template v-else>
+      <div class="chat-message__head">
+        <span class="chat-message__avatar">
+          <SystemLogo class="text-14px" />
+        </span>
+        <span class="chat-message__author">MindBase</span>
+        <span class="chat-message__time">{{ formatDate(msg.timestamp) }}</span>
       </div>
-    </div>
-    <div v-if="msg.role === 'assistant' && toolEvents.length > 0" class="ml-12 mt-3 flex flex-col gap-2">
-      <div
-        v-for="event in toolEvents"
-        :key="event.id || event.tool"
-        class="tool-event"
-        :class="`tool-event--${event.status}`"
-      >
-        <icon-eos-icons:three-dots-loading v-if="event.status === 'executing'" class="text-4" />
-        <icon-material-symbols:check-circle-rounded v-else-if="event.status === 'success'" class="text-4" />
-        <icon-material-symbols:error-rounded v-else class="text-4" />
-        <span class="tool-event__name">{{ getToolLabel(event.tool) }}</span>
-        <span class="tool-event__status">{{ getToolStatusLabel(event.status) }}</span>
+      <div v-if="toolEvents.length > 0" class="chat-tool-events">
+        <div
+          v-for="event in toolEvents"
+          :key="event.id || event.tool"
+          class="chat-tool-event"
+          :class="`chat-tool-event--${event.status}`"
+        >
+          <icon-eos-icons:three-dots-loading v-if="event.status === 'executing'" class="text-14px" />
+          <icon-material-symbols:check-circle-rounded v-else-if="event.status === 'success'" class="text-14px" />
+          <icon-material-symbols:error-rounded v-else class="text-14px" />
+          <span class="chat-tool-event__name">{{ getToolLabel(event.tool) }}</span>
+          <span class="chat-tool-event__status">{{ getToolStatusLabel(event.status) }}</span>
+        </div>
       </div>
-    </div>
-    <NText v-if="msg.status === 'pending' || (msg.status === 'loading' && msg.role === 'assistant' && !msg.content)">
-      <icon-eos-icons:three-dots-loading class="ml-12 mt-2 text-8" />
-    </NText>
-    <NText v-else-if="msg.status === 'error'" class="ml-12 mt-2 color-#d03050 italic">
-      {{ msg.content || '服务器繁忙，请稍后再试' }}
-    </NText>
-    <div v-else-if="msg.role === 'assistant'" class="mt-2 pl-12" @click="handleContentClick">
-      <VueMarkdownIt :content="content" />
-    </div>
-    <NText v-else-if="msg.role === 'user'" class="ml-12 mt-2 text-4">{{ content }}</NText>
-    <div class="ml-12 flex gap-2">
-      <NButton quaternary title="复制回答" aria-label="复制回答" @click="handleCopy(msg.content)">
+      <div v-if="msg.status === 'pending' || (msg.status === 'loading' && !msg.content)" class="chat-stream-indicator">
+        <icon-eos-icons:three-dots-loading class="text-24px" />
+      </div>
+      <div v-else-if="msg.status === 'error'" class="chat-error-text">
+        {{ msg.content || '服务器繁忙，请稍后再试' }}
+      </div>
+      <div v-else class="chat-answer" @click="handleContentClick">
+        <VueMarkdownIt :content="content" />
+      </div>
+    </template>
+    <div class="chat-message__actions" :class="{ 'chat-message__actions--end': msg.role === 'user' }">
+      <NButton quaternary size="tiny" title="复制回答" aria-label="复制回答" @click="handleCopy(msg.content)">
         <template #icon>
-          <icon-mynaui:copy />
+          <icon-mynaui:copy class="text-14px" />
         </template>
       </NButton>
       <NButton
         v-if="msg.role === 'assistant'"
         quaternary
+        size="tiny"
         title="点赞"
         aria-label="点赞"
         :type="msg.feedbackRating === 'good' ? 'primary' : 'default'"
@@ -431,12 +456,13 @@ async function handleSourceFileClick(fileInfo: {
         @click="handleFeedback(msg, 'good')"
       >
         <template #icon>
-          <icon-material-symbols:thumb-up-outline-rounded />
+          <icon-material-symbols:thumb-up-outline-rounded class="text-14px" />
         </template>
       </NButton>
       <NButton
         v-if="msg.role === 'assistant'"
         quaternary
+        size="tiny"
         title="点踩"
         aria-label="点踩"
         :type="msg.feedbackRating === 'bad' ? 'error' : 'default'"
@@ -444,7 +470,7 @@ async function handleSourceFileClick(fileInfo: {
         @click="handleFeedback(msg, 'bad')"
       >
         <template #icon>
-          <icon-material-symbols:thumb-down-outline-rounded />
+          <icon-material-symbols:thumb-down-outline-rounded class="text-14px" />
         </template>
       </NButton>
     </div>
@@ -452,69 +478,249 @@ async function handleSourceFileClick(fileInfo: {
 </template>
 
 <style scoped lang="scss">
-:deep(.source-file-link) {
-  color: #1890ff;
-  cursor: pointer;
-  text-decoration: underline;
-  transition: color 0.2s;
+.chat-message {
+  min-width: 0;
+}
 
-  &:hover {
-    color: #40a9ff;
-    text-decoration: none;
+.chat-message__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+}
+
+.chat-message__avatar {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--app-subtle);
+  color: var(--app-muted);
+}
+
+.chat-message__author {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--app-text);
+}
+
+.chat-message__time {
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgb(var(--base-text-color) / 0.45);
+}
+
+.chat-message__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-right: 4px;
+
+  .chat-message__author {
+    font-size: 12px;
+    color: var(--app-muted);
   }
-
-  &:active {
-    color: #096dd9;
-  }
 }
 
-:deep(.source-file-link--suspicious) {
-  color: rgb(var(--text-color-2));
-  text-decoration: underline dashed;
-  opacity: 0.7;
+.chat-message__actions {
+  display: flex;
+  gap: 2px;
+  margin-top: -4px;
+}
+.chat-message__actions--end {
+  justify-content: flex-end;
 }
 
-:deep(.citation-suspicious-badge) {
-  margin-left: 4px;
-  border: 1px solid #faad14;
-  border-radius: 4px;
-  padding: 0 4px;
-  font-size: 11px;
-  line-height: 16px;
-  color: #d48806;
+/* 用户气泡：靛蓝填充白字、18px 圆角、发信侧（右上）收窄到 6px（DESIGN.md › Chat） */
+.chat-user-bubble {
+  max-width: min(85%, 640px);
+  padding: 10px 14px;
+  border-radius: 18px 6px 18px 18px;
+  background: rgb(var(--primary-color));
+  /* 白字为 DESIGN.md chat-bubble-user 的固定配对常量（textColor 即纯白），非主题变量 */
+  color: rgb(255 255 255);
+  font-size: 15px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.tool-event {
+/* 工具调用：状态胶囊，语义深阶文字（原值只给填充与图形） */
+.chat-tool-events {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chat-tool-event {
   display: inline-flex;
   width: fit-content;
   max-width: 100%;
   align-items: center;
   gap: 8px;
+  padding: 4px 12px;
   border: 1px solid var(--app-border);
-  border-radius: 6px;
+  border-radius: 9999px;
   background: var(--app-subtle);
-  padding: 5px 9px;
   font-size: 12px;
   line-height: 18px;
   color: var(--app-muted);
 }
 
-.tool-event__name {
+.chat-tool-event__name {
   font-weight: 500;
   color: var(--app-text);
 }
 
-.tool-event__status {
+.chat-tool-event__status {
   color: var(--app-muted);
 }
 
-.tool-event--success {
-  border-color: rgb(24 160 88 / 0.25);
-  color: #18a058;
+.chat-tool-event--executing {
+  color: rgb(var(--primary-color));
+}
+.dark .chat-tool-event--executing {
+  color: rgb(var(--primary-400-color));
 }
 
-.tool-event--failed {
-  border-color: rgb(208 48 80 / 0.25);
-  color: #d03050;
+.chat-tool-event--success .chat-tool-event__status {
+  color: rgb(var(--success-700-color));
+}
+.dark .chat-tool-event--success .chat-tool-event__status {
+  color: rgb(var(--success-400-color));
+}
+
+.chat-tool-event--failed .chat-tool-event__status {
+  color: rgb(var(--error-700-color));
+}
+.dark .chat-tool-event--failed .chat-tool-event__status {
+  color: rgb(var(--error-400-color));
+}
+
+/* 流式进行中：一线靛标出"正在进行的事" */
+.chat-stream-indicator {
+  padding: 2px 0;
+  color: rgb(var(--primary-color));
+}
+.dark .chat-stream-indicator {
+  color: rgb(var(--primary-400-color));
+}
+
+.chat-error-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgb(var(--error-700-color));
+}
+.dark .chat-error-text {
+  color: rgb(var(--error-400-color));
+}
+
+/* AI 回答：无气泡，直接坐在画布实底上的印刷排版（15px/1.65） */
+.chat-answer {
+  min-width: 0;
+  overflow-wrap: break-word;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--app-text);
+
+  :deep(.vp-doc) {
+    /* 弃用 vendor 自带的 Inter/Google Fonts 栈，回归系统字体栈（SF Pro + 苹方） */
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 1.65;
+    font-variant-numeric: tabular-nums;
+    /* 把 vendor 的 VitePress 变量吸附到本世界的 token */
+    --vp-c-brand: rgb(var(--primary-color));
+    --vp-c-brand-light: rgb(var(--primary-color));
+    --vp-c-brand-lighter: rgb(var(--primary-color) / 0.12);
+    --vp-c-brand-dark: rgb(var(--primary-color));
+    --vp-c-brand-darker: rgb(var(--primary-color));
+    --vp-c-text-1: var(--app-text);
+    --vp-c-text-2: var(--app-muted);
+    --vp-c-text-code: rgb(var(--primary-color));
+    --vp-c-divider: var(--app-border);
+    --vp-c-border: var(--app-border);
+    --vp-c-bg-soft: var(--app-subtle);
+    --vp-c-mute: var(--app-subtle);
+  }
+
+  :deep(.vp-doc div[class*='language-']) {
+    border-radius: 10px;
+  }
+}
+.dark .chat-answer :deep(.vp-doc) {
+  --vp-c-brand: rgb(var(--primary-400-color));
+  --vp-c-brand-light: rgb(var(--primary-400-color));
+  --vp-c-brand-dark: rgb(var(--primary-400-color));
+  --vp-c-brand-darker: rgb(var(--primary-400-color));
+  --vp-c-text-code: rgb(var(--primary-400-color));
+}
+
+/* 引用标注：只改样式层——DOM 结构、data-file-id 与解析数据流零改动（AGENTS.md 硬约束）。
+   亮色靛蓝 10% 底胶囊，暗色提亮底 + 派生 400 阶文字（DESIGN.md › citation-chip）。 */
+.chat-answer :deep(.source-file-link) {
+  display: inline-block;
+  margin: 0 1px;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  background: rgb(var(--primary-color) / 0.1);
+  color: rgb(var(--primary-color));
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
+}
+
+.chat-answer :deep(.source-file-link:hover) {
+  background: rgb(var(--primary-color) / 0.16);
+}
+
+.chat-answer :deep(.source-file-link:active) {
+  background: rgb(var(--primary-color) / 0.22);
+}
+
+.dark .chat-answer :deep(.source-file-link) {
+  background: rgb(var(--primary-color) / 0.16);
+  color: rgb(var(--primary-400-color));
+}
+
+/* 引用校验不支撑的来源：降级为中性胶囊 + 虚线下划线 */
+.chat-answer :deep(.source-file-link--suspicious) {
+  background: var(--app-subtle);
+  color: var(--app-muted);
+  text-decoration: underline dashed;
+  text-underline-offset: 3px;
+}
+
+.chat-answer :deep(.source-file-link--suspicious:hover) {
+  background: var(--app-fill-hover, var(--app-subtle));
+  color: var(--app-text);
+}
+
+.dark .chat-answer :deep(.source-file-link--suspicious) {
+  background: rgb(var(--base-text-color) / 0.08);
+}
+
+/* "待核实"徽标：warning 深阶文字胶囊 */
+.chat-answer :deep(.citation-suspicious-badge) {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  background: rgb(var(--warning-color) / 0.12);
+  color: rgb(var(--warning-700-color));
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.dark .chat-answer :deep(.citation-suspicious-badge) {
+  color: rgb(var(--warning-400-color));
 }
 </style>

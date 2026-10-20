@@ -115,7 +115,6 @@ watch(
   <div class="register-layout">
     <aside class="invite-side-panel">
       <div class="invite-side-header">
-        <div class="invite-side-kicker">邀请码获取</div>
         <div class="invite-side-title">MindBase 企业知识库，欢迎加入内测。</div>
         <div class="invite-side-desc">
           联系
@@ -254,62 +253,45 @@ watch(
   color: rgb(var(--base-text-color) / 0.66);
 }
 
+/* Flat tinted zone inside the card: fill-subtle surface, md radius, no border, no shadow */
 .invite-side-panel {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  border: 1px solid rgb(var(--primary-color) / 0.16);
-  border-radius: 24px;
+  border-radius: var(--app-radius-md);
   padding: 20px;
-  background:
-    radial-gradient(circle at top right, rgb(var(--primary-color) / 0.16), transparent 36%),
-    linear-gradient(
-      145deg,
-      rgb(var(--primary-50-color) / 0.94),
-      rgb(var(--primary-100-color) / 0.82) 55%,
-      rgb(var(--container-bg-color)) 100%
-    );
-  box-shadow: 0 18px 40px rgb(var(--primary-color) / 0.08);
-}
-
-.invite-side-kicker {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: rgb(var(--primary-700-color));
+  background: var(--app-fill-subtle);
 }
 
 .invite-side-title {
-  margin-top: 8px;
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.45;
-  color: rgb(var(--primary-700-color));
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: rgb(var(--base-text-color));
 }
 
 .invite-side-desc {
   margin-top: 10px;
   font-size: 13px;
   line-height: 1.8;
-  color: rgb(var(--base-text-color) / 0.72);
+  color: var(--app-text-secondary);
 }
 
 .invite-emphasis,
 .invite-keyword-mark {
   display: inline-flex;
   align-items: center;
-  border: 1px solid rgb(var(--primary-color) / 0.18);
-  border-radius: 999px;
+  border-radius: 9999px;
   padding: 2px 8px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.4;
-  color: rgb(var(--primary-700-color));
-  background: rgb(var(--primary-color) / 0.08);
-  box-shadow: inset 0 1px 0 rgb(var(--container-bg-color) / 0.6);
+  color: rgb(var(--base-text-color));
+  background: rgb(var(--container-bg-color));
 }
 
 .invite-keyword-mark {
-  background: linear-gradient(135deg, rgb(var(--primary-color) / 0.16), rgb(var(--primary-200-color) / 0.18));
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
 }
 
 .invite-step-copy {
@@ -336,7 +318,7 @@ watch(
   gap: 10px;
   font-size: 13px;
   line-height: 1.6;
-  color: rgb(var(--base-text-color) / 0.78);
+  color: var(--app-text-secondary);
 }
 
 .invite-side-bottom {
@@ -347,10 +329,9 @@ watch(
 .invite-qr-shell {
   width: min(180px, 52%);
   overflow: hidden;
-  border: 1px solid rgb(var(--primary-color) / 0.14);
-  border-radius: 20px;
-  background: rgb(var(--container-bg-color) / 0.84);
-  backdrop-filter: blur(8px);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  background: rgb(var(--container-bg-color));
 }
 
 .invite-qr-image {
@@ -372,21 +353,21 @@ watch(
 
 .invite-qr-icon {
   font-size: 42px;
-  color: rgb(var(--primary-600-color));
+  color: rgb(var(--primary-color));
 }
 
 .invite-qr-title {
   margin-top: 12px;
   font-size: 14px;
-  font-weight: 700;
-  color: rgb(var(--primary-700-color));
+  font-weight: 600;
+  color: rgb(var(--base-text-color));
 }
 
 .invite-qr-desc {
   margin-top: 8px;
   font-size: 12px;
   line-height: 1.7;
-  color: rgb(var(--base-text-color) / 0.66);
+  color: var(--app-text-secondary);
 }
 
 .invite-channel-step {
@@ -395,11 +376,11 @@ watch(
   height: 20px;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: 9999px;
   font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(135deg, rgb(var(--primary-color)), rgb(var(--primary-700-color)));
+  font-weight: 600;
+  color: var(--app-text-secondary);
+  background: rgb(var(--container-bg-color));
 }
 
 @media (max-width: 900px) {

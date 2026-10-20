@@ -21,18 +21,25 @@ services:
 
   minio:
     container_name: minio
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    # MinIO 已撤出 Docker Hub（历史 tag 全部下架），bitnami legacy 仓库仍提供兼容镜像
+    image: bitnamilegacy/minio:latest
     restart: always
     ports:
       - "19000:19000"
       - "19001:19001"
     volumes:
-      - minio-data:/data
-      - /data/docker/minio/config:/root/.minio
+      # bitnami 镜像以非 root 运行，数据目录用其约定的 /bitnami/minio/data（entrypoint 自动修属主）
+      - minio-data:/bitnami/minio/data
     environment:
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: MindBase2025
-    command: server /data --console-address ":19001" -address ":19000"
+    command:
+      - server
+      - /bitnami/minio/data
+      - --console-address
+      - ":19001"
+      - --address
+      - ":19000"
 
   redis:
     image: redis
@@ -42,7 +49,7 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-      - /data/docker/redis:/logs
+      # 本机（macOS）不挂载 /data/docker/redis 日志目录：该路径仅适用于 Linux 服务器部署
     healthcheck:
       start_period: 5s
       test: ["CMD", "redis-cli", "ping"]

@@ -14,6 +14,16 @@ export default defineConfig<Theme>({
   },
   theme: {
     ...themeVars,
+    colors: {
+      ...themeVars.colors,
+      // Quiet Glass token aliases (values declared in styles/scss/global.scss)
+      elevated: 'var(--app-elevated)',
+      hairline: 'var(--app-border)',
+      'fill-subtle': 'var(--app-fill-subtle)',
+      'fill-hover': 'var(--app-fill-hover)',
+      secondary: 'var(--app-text-secondary)',
+      tertiary: 'var(--app-text-tertiary)'
+    },
     fontSize: {
       'icon-xs': '0.875rem',
       'icon-small': '1rem',
@@ -23,7 +33,11 @@ export default defineConfig<Theme>({
     }
   },
   shortcuts: {
-    'card-wrapper': 'rd-3 shadow-none',
+    // Static panel: opaque container surface, hairline border, zero shadow
+    'card-wrapper': 'rounded-18px border border-solid border-hairline shadow-none',
+    // Frosted navigation material (shell & floating layers only, never reading surfaces)
+    'glass-nav':
+      'bg-[var(--app-material-nav)] [backdrop-filter:var(--app-material-filter)] [-webkit-backdrop-filter:var(--app-material-filter)]',
     'flex-cc': 'flex items-center justify-center'
   },
   transformers: [transformerDirectives(), transformerVariantGroup()],

@@ -23,11 +23,11 @@ defineOptions({ name: 'SearchFooter' });
 </template>
 
 <style lang="scss" scoped>
+/* Keycap styling, token-driven (was hardcoded hex) */
 .operate-shadow {
-  box-shadow:
-    inset 0 -2px #cdcde6,
-    inset 0 0 1px 1px #fff,
-    0 1px 2px 1px #1e235a66;
+  background: var(--app-fill-subtle);
+  border-radius: 4px;
+  box-shadow: inset 0 -2px var(--app-fill-hover);
 }
 
 .operate-item {

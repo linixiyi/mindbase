@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Component } from 'vue';
-import { mixColor } from '@sa/color';
 import { loginModuleRecord } from '@/constants/app';
 import { useAppStore } from '@/store/modules/app';
 import { useThemeStore } from '@/store/modules/theme';
@@ -37,23 +36,22 @@ const moduleMap: Record<UnionKey.LoginModule, LoginModule> = {
 
 const activeModule = computed(() => moduleMap[props.module || 'pwd-login']);
 const isRegisterModule = computed(() => (props.module || 'pwd-login') === 'register');
-
-const bgColor = computed(() => {
-  const ratio = themeStore.darkMode ? 0.9 : 0;
-
-  return mixColor('#fff', '#000', ratio);
-});
 </script>
 
 <template>
-  <div class="relative size-full flex-center" :style="{ backgroundColor: bgColor }">
-    <NCard :bordered="false" class="relative z-4 w-auto card-wrapper">
+  <!-- Quiet ground: the page sits on the layout token, the card is an opaque panel with a hairline -->
+  <div class="relative size-full flex-center bg-layout">
+    <NCard
+      :bordered="false"
+      class="relative z-4 w-auto card-wrapper"
+      :style="{ background: 'rgb(var(--container-bg-color))' }"
+    >
       <div :class="isRegisterModule ? 'login-panel login-panel--register' : 'login-panel'">
         <header class="flex-y-center justify-between">
           <SystemLogo class="text-64px text-primary lt-sm:text-48px" />
-          <h3 class="flex-y-center gap-2 text-28px text-primary font-500 lt-sm:text-22px">
+          <h3 class="flex-y-center gap-2 text-28px text-base-text font-600 lh-1.25 lt-sm:text-22px">
             <span>{{ $t('system.title') }}</span>
-            <span v-if="isRegisterModule" class="text-18px font-medium opacity-80 lt-sm:text-16px">
+            <span v-if="isRegisterModule" class="text-18px text-secondary font-500 lt-sm:text-16px">
               {{ $t(activeModule.label) }}
             </span>
           </h3>
@@ -74,7 +72,9 @@ const bgColor = computed(() => {
           </div>
         </header>
         <main class="pt-24px">
-          <h3 v-if="!isRegisterModule" class="text-18px text-primary font-medium">{{ $t(activeModule.label) }}</h3>
+          <h3 v-if="!isRegisterModule" class="text-17px text-base-text font-600 lh-1.4">
+            {{ $t(activeModule.label) }}
+          </h3>
           <div class="pt-24px">
             <Transition :name="themeStore.page.animateMode" mode="out-in" appear>
               <component :is="activeModule.component" />

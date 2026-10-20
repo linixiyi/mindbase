@@ -151,7 +151,8 @@ public class EmbeddingClient {
         requestBody.put("model", provider.model());
         requestBody.put("input", batch);
         if (provider.dimension() != null) {
-            requestBody.put("dimension", provider.dimension());
+            // OpenAI 兼容参数名为复数 dimensions；单数会被 SiliconFlow 静默忽略，返回模型原生维度（Qwen3-8B 为 4096）导致索引维度不匹配
+            requestBody.put("dimensions", provider.dimension());
         }
         requestBody.put("encoding_format", "float");
 

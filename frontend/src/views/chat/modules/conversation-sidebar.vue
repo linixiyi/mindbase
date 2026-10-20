@@ -55,8 +55,8 @@ function formatDate(dateStr?: string) {
 
 <template>
   <div
-    class="relative h-full flex flex-col shrink-0 overflow-hidden border-r border-#eef0f4 bg-#f8f9fb transition-[width] duration-200 ease-out dark:border-#ffffff0f dark:bg-#ffffff05"
-    :class="collapsed ? 'w-0 min-w-0 border-r-0' : 'w-[260px] min-w-[260px]'"
+    class="chat-sidebar relative h-full flex flex-col shrink-0 overflow-hidden transition-[width]"
+    :class="collapsed ? 'chat-sidebar--collapsed w-0 min-w-0' : 'w-[260px] min-w-[260px]'"
   >
     <div class="w-[260px] flex flex-col flex-1 overflow-hidden" :class="{ 'pointer-events-none invisible': collapsed }">
       <div class="flex items-center justify-between px-4 pb-2 pt-4">
@@ -77,29 +77,23 @@ function formatDate(dateStr?: string) {
       </div>
 
       <!-- Tabs -->
-      <div class="mx-4 mb-2 flex rounded-lg bg-[var(--app-subtle)] p-0.5 dark:bg-[#FFFFFF0A]">
-        <div
-          class="flex-1 cursor-pointer rounded-md px-3 py-1.5 text-center text-12px font-500 transition-all"
-          :class="
-            activeTab === 'active'
-              ? 'bg-white text-[rgb(var(--primary-color))] shadow-sm dark:bg-[#FFFFFF14] dark:text-primary'
-              : 'text-#666 dark:text-#999'
-          "
+      <div class="chat-sidebar__tabs mx-4 mb-2 flex">
+        <button
+          type="button"
+          class="chat-sidebar__tab"
+          :class="{ 'chat-sidebar__tab--active': activeTab === 'active' }"
           @click="setActiveTab('active')"
         >
           活跃
-        </div>
-        <div
-          class="flex-1 cursor-pointer rounded-md px-3 py-1.5 text-center text-12px font-500 transition-all"
-          :class="
-            activeTab === 'archived'
-              ? 'bg-white text-[rgb(var(--primary-color))] shadow-sm dark:bg-[#FFFFFF14] dark:text-primary'
-              : 'text-#666 dark:text-#999'
-          "
+        </button>
+        <button
+          type="button"
+          class="chat-sidebar__tab"
+          :class="{ 'chat-sidebar__tab--active': activeTab === 'archived' }"
           @click="setActiveTab('archived')"
         >
           已归档
-        </div>
+        </button>
       </div>
 
       <!-- List -->
@@ -110,53 +104,40 @@ function formatDate(dateStr?: string) {
               v-if="filteredSessions.length === 0 && !sessionsLoading"
               class="flex flex-col items-center justify-center gap-3 py-16"
             >
-              <icon-material-symbols:chat-outline-rounded class="text-36px color-#ccc dark:color-#444" />
-              <span class="text-13px color-#aaa">{{ activeTab === 'active' ? '暂无对话记录' : '暂无归档对话' }}</span>
+              <icon-material-symbols:chat-outline-rounded class="text-36px text-[rgb(var(--base-text-color)/0.3)]" />
+              <span class="text-muted text-13px">{{ activeTab === 'active' ? '暂无对话记录' : '暂无归档对话' }}</span>
             </div>
 
             <div
               v-for="session in filteredSessions"
               :key="session.conversationId"
-              class="group mx-1 mb-0.5 flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 transition-all"
-              :class="
-                session.conversationId === conversationId
-                  ? 'bg-[rgb(var(--primary-color)/0.08)]'
-                  : 'hover:bg-[var(--app-subtle)] dark:hover:bg-[#FFFFFF08]'
-              "
+              class="chat-session group mx-1 mb-0.5 flex cursor-pointer items-center gap-2.5"
+              :class="{ 'chat-session--active': session.conversationId === conversationId }"
               @click="handleSelect(session.conversationId)"
             >
               <div
-                class="h-7 w-7 flex shrink-0 items-center justify-center rounded-lg text-15px"
-                :class="
-                  session.conversationId === conversationId
-                    ? 'bg-[rgb(var(--primary-color)/0.12)] text-[rgb(var(--primary-color))]'
-                    : 'bg-[var(--app-subtle)] text-#999 dark:bg-[#FFFFFF0A]'
-                "
+                class="chat-session__icon h-7 w-7 flex shrink-0 items-center justify-center rounded-8px text-15px"
+                :class="{ 'chat-session__icon--active': session.conversationId === conversationId }"
               >
                 <icon-material-symbols:chat-outline-rounded />
               </div>
               <div class="min-w-0 flex-1">
-                <div
-                  class="truncate text-13px font-500"
-                  :class="session.conversationId === conversationId ? 'text-[rgb(var(--primary-color))]' : ''"
-                >
-                  {{ session.title }}
-                </div>
-                <div class="text-11px color-#aaa">{{ formatDate(session.updatedAt) }}</div>
+                <div class="chat-session__title truncate text-13px font-500">{{ session.title }}</div>
+                <div class="chat-session__time text-12px">{{ formatDate(session.updatedAt) }}</div>
               </div>
 
               <!-- Action button -->
               <NPopconfirm v-if="activeTab === 'active'" @positive-click="handleArchive(session.conversationId)">
                 <template #trigger>
                   <NButton
-                    class="shrink-0 transition-opacity"
-                    :class="session.conversationId === conversationId ? '' : 'opacity-0 group-hover:opacity-100'"
+                    class="chat-session__action shrink-0 transition-opacity"
+                    :class="{ 'opacity-0 group-hover:opacity-100': session.conversationId !== conversationId }"
                     text
                     size="tiny"
                     @click.stop
                   >
                     <template #icon>
-                      <icon-material-symbols:archive-outline-rounded class="text-15px color-#999 hover:color-#666" />
+                      <icon-material-symbols:archive-outline-rounded class="text-15px" />
                     </template>
                   </NButton>
                 </template>
@@ -164,13 +145,13 @@ function formatDate(dateStr?: string) {
               </NPopconfirm>
               <NButton
                 v-else
-                class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                class="chat-session__action shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                 text
                 size="tiny"
                 @click.stop="handleUnarchive(session.conversationId)"
               >
                 <template #icon>
-                  <icon-material-symbols:unarchive-outline-rounded class="text-15px color-#999 hover:color-#666" />
+                  <icon-material-symbols:unarchive-outline-rounded class="text-15px" />
                 </template>
               </NButton>
             </div>
@@ -181,10 +162,108 @@ function formatDate(dateStr?: string) {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+/* 会话侧栏：导航磨砂材质 + 发丝线分隔（DESIGN.md › Material Vocabulary） */
+.chat-sidebar {
+  background: var(--app-material-nav, var(--app-surface));
+  backdrop-filter: var(--app-material-filter, saturate(180%) blur(20px));
+  border-right: 1px solid var(--app-border);
+  transition-duration: var(--app-dur-base, 250ms);
+  transition-timing-function: var(--app-ease-standard, ease);
+}
+.chat-sidebar--collapsed {
+  border-right-width: 0;
+}
+
+/* 分段控件：fill 轨道 + elevated 选中片，零阴影（DESIGN.md › 静态卡零阴影） */
+.chat-sidebar__tabs {
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--app-fill-subtle, var(--app-subtle));
+}
+
+.chat-sidebar__tab {
+  flex: 1;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--app-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
+    color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
+
+  &:hover {
+    color: var(--app-text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgb(var(--primary-color) / 0.6);
+    outline-offset: 1px;
+  }
+}
+
+.chat-sidebar__tab--active {
+  background: var(--app-elevated, var(--app-surface));
+  color: var(--app-text);
+}
+
+/* 会话行：44px 行高、10px 圆角；选中 = fill-subtle 底 + 主文字色，靛蓝只给图标（DESIGN.md › Navigation） */
+.chat-session {
+  padding: 8px 12px;
+  border-radius: 10px;
+  transition: background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
+
+  &:hover {
+    background: var(--app-fill-hover, var(--app-subtle));
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgb(var(--primary-color) / 0.6);
+    outline-offset: -2px;
+  }
+}
+
+.chat-session--active {
+  background: var(--app-fill-subtle, var(--app-subtle));
+}
+
+.chat-session__icon {
+  background: transparent;
+  color: var(--app-muted);
+  transition:
+    background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
+    color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
+}
+
+.chat-session__icon--active {
+  background: rgb(var(--primary-color) / 0.12);
+  color: rgb(var(--primary-color));
+}
+.dark .chat-session__icon--active {
+  color: rgb(var(--primary-400-color));
+}
+
+.chat-session__title {
+  color: var(--app-text);
+}
+
+.chat-session__time {
+  color: rgb(var(--base-text-color) / 0.45);
+}
+
+.chat-session__action {
+  color: var(--app-muted);
+}
+
 .session-list-enter-active,
 .session-list-leave-active {
-  transition: all 0.2s ease;
+  transition: all var(--app-dur-base, 250ms) var(--app-ease-standard, ease);
 }
 .session-list-enter-from,
 .session-list-leave-to {

@@ -217,8 +217,7 @@ const local: App.I18n.Schema = {
         protocol: '《User Agreement》',
         and: 'and',
         policy: '《Privacy Policy》',
-        inviteCodeTip:
-          'This site is invite-only. If you do not have an invite code yet, contact the administrator.'
+        inviteCodeTip: 'This site is invite-only. If you do not have an invite code yet, contact the administrator.'
       },
       resetPwd: {
         title: 'Reset Password'

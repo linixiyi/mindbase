@@ -1,120 +1,12 @@
-<template>
-  <div class="pdf-viewer-shell">
-    <div v-if="!embeddedHeader" class="pdf-viewer-toolbar">
-      <div class="toolbar-copy">
-        <span class="viewer-badge">{{ singlePagePreviewActive ? '单页定位' : 'PDF 预览' }}</span>
-        <span class="viewer-kicker">{{ viewerKicker }}</span>
-      </div>
-      <div class="toolbar-actions">
-        <span class="toolbar-chip">
-          <template v-if="singlePagePreviewActive">第 {{ displayCurrentPage }} 页</template>
-          <template v-else>第 {{ displayCurrentPage }} / {{ totalPages || 1 }} 页</template>
-        </span>
-        <span class="toolbar-chip">{{ Math.round(zoom * 100) }}%</span>
-        <template v-if="!singlePagePreviewActive">
-          <NButton size="tiny" quaternary :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">
-            <template #icon>
-              <icon-mdi-chevron-left />
-            </template>
-          </NButton>
-          <NButton size="tiny" quaternary :disabled="currentPage >= totalPages" @click="goToPage(currentPage + 1)">
-            <template #icon>
-              <icon-mdi-chevron-right />
-            </template>
-          </NButton>
-        </template>
-        <NButton size="tiny" quaternary :disabled="zoom <= minZoom" @click="zoomOut">
-          <template #icon>
-            <icon-mdi-magnify-minus-outline />
-          </template>
-        </NButton>
-        <NButton size="tiny" quaternary :disabled="zoom >= maxZoom" @click="zoomIn">
-          <template #icon>
-            <icon-mdi-magnify-plus-outline />
-          </template>
-        </NButton>
-        <NButton size="tiny" secondary @click="resetZoom">适应宽度</NButton>
-        <NButton size="tiny" secondary @click="openInNewTab">
-          <template #icon>
-            <icon-mdi-open-in-new />
-          </template>
-          新窗口
-        </NButton>
-      </div>
-    </div>
-
-    <div class="pdf-viewer-body" :class="{ 'is-single-page': singlePagePreviewActive }">
-      <aside v-if="!singlePagePreviewActive" class="page-sidebar">
-        <button
-          v-for="page in pageSummaries"
-          :key="page.pageNumber"
-          type="button"
-          class="page-nav-item"
-          :class="{
-            'is-active': page.pageNumber === currentPage,
-            'is-target': page.pageNumber === targetPageNumber
-          }"
-          @click="goToPage(page.pageNumber)"
-        >
-          <span class="page-nav-number">P{{ displayPageNumber(page.pageNumber) }}</span>
-          <span class="page-nav-summary">{{ page.summary || `第 ${page.pageNumber} 页` }}</span>
-        </button>
-      </aside>
-
-      <div ref="stageRef" class="page-stage">
-        <div v-if="documentLoading" class="stage-feedback">
-          <NSpin size="large" />
-          <span>正在加载 PDF 文档</span>
-        </div>
-        <div v-else-if="renderError" class="stage-feedback is-error">
-          <icon-mdi-alert-circle class="text-24" />
-          <span>{{ renderError }}</span>
-        </div>
-        <div v-else class="page-scroll-shell">
-          <div v-if="!embeddedHeader" class="page-meta-row">
-            <span>第 {{ displayCurrentPage }} 页</span>
-            <span v-if="highlightCount > 0">已匹配到相关文本</span>
-            <span v-else-if="highlightStatus === 'page-only'">已定位到引用页，未框选图片内文字</span>
-            <span v-else-if="currentPage === targetPageNumber">引用定位页</span>
-            <span v-else>浏览当前页</span>
-          </div>
-
-          <div ref="pageShellRef" class="pdf-page-shell">
-            <canvas ref="canvasRef" class="pdf-canvas" />
-            <div v-if="highlightRects.length" class="pdf-highlight-overlay">
-              <div
-                v-for="(rect, index) in highlightRects"
-                :key="`${index}-${rect.left}-${rect.top}`"
-                class="pdf-highlight-rect"
-                :style="{
-                  left: `${rect.left}px`,
-                  top: `${rect.top}px`,
-                  width: `${rect.width}px`,
-                  height: `${rect.height}px`
-                }"
-              />
-            </div>
-            <div ref="textLayerRef" class="pdf-text-layer textLayer" />
-            <div v-if="pageRendering" class="page-loading-mask">
-              <NSpin size="small" />
-              <span>正在渲染页面</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, watchEffect } from 'vue';
 import { useResizeObserver } from '@vueuse/core';
-import { GlobalWorkerOptions, TextLayer, getDocument } from 'pdfjs-dist';
-import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
-import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import { NButton, NSpin } from 'naive-ui';
-import { getAuthorization } from '@/service/request/shared';
+import { GlobalWorkerOptions, TextLayer, getDocument } from 'pdfjs-dist';
+import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy, PageViewport, RenderTask } from 'pdfjs-dist';
+import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { getAuthorization } from '@/service/request/shared';
 
 GlobalWorkerOptions.workerSrc = workerSrc;
 
@@ -132,15 +24,18 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'toolbar-change', payload: {
-    modeLabel: string;
-    helperText: string;
-    pageLabel: string;
-    zoomLabel: string;
-    singlePage: boolean;
-    canPrev: boolean;
-    canNext: boolean;
-  }): void;
+  (
+    e: 'toolbar-change',
+    payload: {
+      modeLabel: string;
+      helperText: string;
+      pageLabel: string;
+      zoomLabel: string;
+      singlePage: boolean;
+      canPrev: boolean;
+      canNext: boolean;
+    }
+  ): void;
 }
 
 interface PageSummary {
@@ -277,19 +172,19 @@ watch(
   async visible => {
     if (!visible || !pdfDocument.value) return;
     await nextTick();
-    void scheduleRender({ immediate: true });
+    scheduleRender({ immediate: true });
   }
 );
 
 watch(currentPage, () => {
   if (!pdfDocument.value) return;
-  void scheduleRender({ immediate: true });
+  scheduleRender({ immediate: true });
   scheduleSummaryLoading(getPrioritySummaryPages(currentPage.value), { prioritize: true });
 });
 
 watch(zoom, () => {
   if (!pdfDocument.value) return;
-  void scheduleRender({ immediate: true });
+  scheduleRender({ immediate: true });
 });
 
 watchEffect(() => {
@@ -304,12 +199,12 @@ useResizeObserver(stageRef, entries => {
   if (Math.abs(observedWidth - lastObservedStageWidth) < 2) return;
 
   lastObservedStageWidth = observedWidth;
-  void scheduleRender({ delay: 120 });
+  scheduleRender({ delay: 120 });
 });
 
 onBeforeUnmount(() => {
-  lifecycleToken++;
-  void cleanupPdfState();
+  lifecycleToken += 1;
+  cleanupPdfState();
 });
 
 function clampPage(page: number, maxPage: number) {
@@ -369,9 +264,7 @@ function buildMatchCandidates(value: string | string[]) {
       .map(segment => normalizeForMatch(segment))
       .filter(segment => segment.length >= 6);
 
-    segments
-      .sort((left, right) => right.length - left.length)
-      .forEach(segment => candidates.add(segment));
+    segments.sort((left, right) => right.length - left.length).forEach(segment => candidates.add(segment));
 
     // 添加冒号分割的前后部分作为额外候选
     const colonSegments = item.split(/[：:]/);
@@ -457,7 +350,7 @@ function scheduleSummaryLoading(pageNumbers: number[], options?: { delay?: numbe
 
   summaryLoadTimer = window.setTimeout(() => {
     summaryLoadTimer = null;
-    void flushSummaryQueue();
+    flushSummaryQueue();
   }, options?.delay ?? 0);
 }
 
@@ -480,32 +373,38 @@ async function flushSummaryQueue() {
   }
 }
 
+async function summarizeQueuedPage(documentProxy: PDFDocumentProxy, pageNumber: number) {
+  summaryLoadingPages.add(pageNumber);
+
+  try {
+    const page = await documentProxy.getPage(pageNumber);
+    if (pdfDocument.value !== documentProxy) return;
+
+    const textContent = await page.getTextContent();
+    if (pdfDocument.value !== documentProxy) return;
+
+    updatePageSummary(pageNumber, textContent.items);
+  } catch {
+    pageSummaries.value[pageNumber - 1] = {
+      pageNumber,
+      summary: buildFallbackSummary(pageNumber)
+    };
+    summaryLoadedPages.add(pageNumber);
+  } finally {
+    summaryLoadingPages.delete(pageNumber);
+  }
+}
+
 async function loadQueuedSummaries() {
   const documentProxy = pdfDocument.value;
   if (!documentProxy) return;
 
   while (summaryQueue.length && pdfDocument.value === documentProxy && props.visible !== false) {
     const pageNumber = summaryQueue.shift();
-    if (!pageNumber || summaryLoadedPages.has(pageNumber) || summaryLoadingPages.has(pageNumber)) continue;
-
-    summaryLoadingPages.add(pageNumber);
-
-    try {
-      const page = await documentProxy.getPage(pageNumber);
-      if (pdfDocument.value !== documentProxy) return;
-
-      const textContent = await page.getTextContent();
-      if (pdfDocument.value !== documentProxy) return;
-
-      updatePageSummary(pageNumber, textContent.items);
-    } catch (error) {
-      pageSummaries.value[pageNumber - 1] = {
-        pageNumber,
-        summary: buildFallbackSummary(pageNumber)
-      };
-      summaryLoadedPages.add(pageNumber);
-    } finally {
-      summaryLoadingPages.delete(pageNumber);
+    if (pageNumber && !summaryLoadedPages.has(pageNumber) && !summaryLoadingPages.has(pageNumber)) {
+      // 逐页串行加载：保证可随时取消渲染并限制内存占用，不能并行
+      // eslint-disable-next-line no-await-in-loop
+      await summarizeQueuedPage(documentProxy, pageNumber);
     }
   }
 }
@@ -537,7 +436,7 @@ function openInNewTab() {
   const targetUrl = props.sourceUrl || props.url;
   if (!targetUrl) return;
 
-  const page = singlePagePreviewActive.value ? (props.sourcePageNumber || props.pageNumber || 1) : currentPage.value;
+  const page = singlePagePreviewActive.value ? props.sourcePageNumber || props.pageNumber || 1 : currentPage.value;
   window.open(`${targetUrl}#page=${page}`, '_blank', 'noopener,noreferrer');
 }
 
@@ -630,7 +529,7 @@ async function scheduleRender(options?: { immediate?: boolean; delay?: number })
 
   queuedRenderVersion += 1;
   const renderVersion = queuedRenderVersion;
-  const delay = options?.immediate ? 0 : options?.delay ?? 0;
+  const delay = options?.immediate ? 0 : (options?.delay ?? 0);
 
   if (renderTimer) {
     window.clearTimeout(renderTimer);
@@ -638,7 +537,7 @@ async function scheduleRender(options?: { immediate?: boolean; delay?: number })
 
   renderTimer = window.setTimeout(() => {
     renderTimer = null;
-    void flushRenderQueue(renderVersion);
+    flushRenderQueue(renderVersion);
   }, delay);
 }
 
@@ -680,13 +579,38 @@ async function flushRenderQueue(renderVersion: number, expectedToken = lifecycle
     if (shouldRenderAgain && pdfDocument.value && !documentLoading.value) {
       await waitForAnimationFrame();
       await flushRenderQueue(queuedRenderVersion, lifecycleToken);
-      return;
-    }
-
-    if (expectedToken === lifecycleToken) {
+    } else if (expectedToken === lifecycleToken) {
       pageRendering.value = false;
     }
   }
+}
+
+function isRenderStale(expectedToken: number, renderVersion: number) {
+  return expectedToken !== lifecycleToken || renderVersion !== activeRenderVersion;
+}
+
+function cancelActiveRenderTasks() {
+  renderTask?.cancel();
+  renderTask = null;
+  textLayerTask?.cancel();
+  textLayerTask = null;
+}
+
+function computeRenderViewport(page: PDFPageProxy, stage: HTMLElement) {
+  const baseViewport = page.getViewport({ scale: 1 });
+  const availableWidth = Math.max(stage.clientWidth - 72, 320);
+  const fitScale = availableWidth / baseViewport.width;
+  const viewport = page.getViewport({ scale: fitScale * zoom.value });
+  return { viewport, availableWidth };
+}
+
+function setupCanvasForViewport(canvas: HTMLCanvasElement, viewport: PageViewport) {
+  const devicePixelRatio = window.devicePixelRatio || 1;
+  canvas.width = Math.floor(viewport.width * devicePixelRatio);
+  canvas.height = Math.floor(viewport.height * devicePixelRatio);
+  canvas.style.width = `${viewport.width}px`;
+  canvas.style.height = `${viewport.height}px`;
+  return devicePixelRatio;
 }
 
 async function renderCurrentPage(expectedToken = lifecycleToken, renderVersion = queuedRenderVersion) {
@@ -701,10 +625,7 @@ async function renderCurrentPage(expectedToken = lifecycleToken, renderVersion =
   highlightRects.value = [];
 
   try {
-    renderTask?.cancel();
-    renderTask = null;
-    textLayerTask?.cancel();
-    textLayerTask = null;
+    cancelActiveRenderTasks();
 
     const page = await documentProxy.getPage(currentPage.value);
     if (expectedToken !== lifecycleToken) return;
@@ -713,8 +634,7 @@ async function renderCurrentPage(expectedToken = lifecycleToken, renderVersion =
     stage = stageRef.value;
     if (!stage || expectedToken !== lifecycleToken) return;
 
-    const baseViewport = page.getViewport({ scale: 1 });
-    const availableWidth = Math.max(stage.clientWidth - 72, 320);
+    const { viewport, availableWidth } = computeRenderViewport(page, stage);
     const renderSignature = `${expectedToken}:${currentPage.value}:${zoom.value}:${Math.round(availableWidth)}`;
 
     if (lastSuccessfulRenderSignature === renderSignature && canvas.width > 0 && canvas.height > 0) {
@@ -722,21 +642,13 @@ async function renderCurrentPage(expectedToken = lifecycleToken, renderVersion =
       return;
     }
 
-    const fitScale = availableWidth / baseViewport.width;
-    const renderScale = fitScale * zoom.value;
-    const viewport = page.getViewport({ scale: renderScale });
-
     const context = canvas.getContext('2d', { alpha: false });
     if (!context) {
       renderError.value = '无法初始化 PDF 画布。';
       return;
     }
 
-    const devicePixelRatio = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(viewport.width * devicePixelRatio);
-    canvas.height = Math.floor(viewport.height * devicePixelRatio);
-    canvas.style.width = `${viewport.width}px`;
-    canvas.style.height = `${viewport.height}px`;
+    const devicePixelRatio = setupCanvasForViewport(canvas, viewport);
 
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, canvas.width, canvas.height);
@@ -753,7 +665,7 @@ async function renderCurrentPage(expectedToken = lifecycleToken, renderVersion =
     });
 
     await renderTask.promise;
-    if (expectedToken !== lifecycleToken || renderVersion !== activeRenderVersion) return;
+    if (isRenderStale(expectedToken, renderVersion)) return;
 
     const textContent = await page.getTextContent({
       includeMarkedContent: true
@@ -768,11 +680,11 @@ async function renderCurrentPage(expectedToken = lifecycleToken, renderVersion =
 
     await textLayerTask.render();
     await nextTick();
-    if (expectedToken !== lifecycleToken || renderVersion !== activeRenderVersion) return;
+    if (isRenderStale(expectedToken, renderVersion)) return;
     lastSuccessfulRenderSignature = renderSignature;
     highlightCount.value = applyHighlight();
   } catch (error: any) {
-    if (isBenignRenderError(error) || expectedToken !== lifecycleToken || renderVersion !== activeRenderVersion) {
+    if (isBenignRenderError(error) || isRenderStale(expectedToken, renderVersion)) {
       return;
     }
     console.error('[PDF 预览] 页面渲染失败:', error);
@@ -796,9 +708,7 @@ function applyHighlight() {
 
   const directSource = props.anchorText || props.searchText || '';
   const directMatch = resolveDirectClueHighlight(
-    textLayer,
-    textLayerTask.textDivs,
-    textLayerTask.textContentItemsStr,
+    { container: textLayer, textDivs: textLayerTask.textDivs, textItems: textLayerTask.textContentItemsStr },
     directSource
   );
   if (directMatch) {
@@ -811,7 +721,10 @@ function applyHighlight() {
     return 1;
   }
 
-  const paragraphMatch = resolveParagraphHighlight(textLayer, textLayerTask.textDivs, textLayerTask.textContentItemsStr, candidates);
+  const paragraphMatch = resolveParagraphHighlight(
+    { container: textLayer, textDivs: textLayerTask.textDivs, textItems: textLayerTask.textContentItemsStr },
+    candidates
+  );
   if (paragraphMatch) {
     highlightRects.value = [paragraphMatch.rect];
     highlightStatus.value = 'matched';
@@ -884,12 +797,14 @@ function getPageOnlyStatus(): 'idle' | 'page-only' {
   return 'idle';
 }
 
-function resolveDirectClueHighlight(
-  container: HTMLElement,
-  textDivs: HTMLElement[],
-  textItems: string[],
-  clueText: string
-) {
+type HighlightContext = {
+  container: HTMLElement;
+  textDivs: HTMLElement[];
+  textItems: string[];
+};
+
+function resolveDirectClueHighlight(context: HighlightContext, clueText: string) {
+  const { container, textDivs, textItems } = context;
   const compactClue = compactForMatch(clueText);
   if (compactClue.length < 8) return null;
 
@@ -957,49 +872,69 @@ function resolveMatchRange(target: string, anchors: string[]): [number, number] 
   if (!target || !anchors.length) return null;
 
   for (const anchor of anchors) {
-    if (!anchor) continue;
+    if (anchor) {
+      const exactMatchIndex = target.indexOf(anchor);
+      if (exactMatchIndex >= 0) {
+        return [exactMatchIndex, exactMatchIndex + anchor.length];
+      }
 
-    const exactMatchIndex = target.indexOf(anchor);
-    if (exactMatchIndex >= 0) {
-      return [exactMatchIndex, exactMatchIndex + anchor.length];
-    }
-
-    const partialAnchor = anchor.slice(0, Math.min(anchor.length, 48)).trim();
-    if (partialAnchor.length < 8) continue;
-
-    const partialMatchIndex = target.indexOf(partialAnchor);
-    if (partialMatchIndex >= 0) {
-      return [partialMatchIndex, partialMatchIndex + partialAnchor.length];
+      const partialAnchor = anchor.slice(0, Math.min(anchor.length, 48)).trim();
+      if (partialAnchor.length >= 8) {
+        const partialMatchIndex = target.indexOf(partialAnchor);
+        if (partialMatchIndex >= 0) {
+          return [partialMatchIndex, partialMatchIndex + partialAnchor.length];
+        }
+      }
     }
   }
 
   return null;
 }
 
-function resolveParagraphHighlight(
-  container: HTMLElement,
-  textDivs: HTMLElement[],
-  textItems: string[],
-  anchors: string[]
+type ParagraphMatchCandidate = { rect: HighlightRect; firstElement?: HTMLElement; score: number };
+type ParagraphMatchState = {
+  bestPrimaryMatch: ParagraphMatchCandidate | null;
+  bestFallbackMatch: ParagraphMatchCandidate | null;
+};
+
+function recordParagraphMatch(
+  state: ParagraphMatchState,
+  evaluation: {
+    primaryScore: number;
+    secondaryScore: number;
+    score: number;
+    rect: HighlightRect;
+    firstElement?: HTMLElement;
+    primaryMinimum: number;
+  }
 ) {
-  const lines = buildTextLines(container, textDivs, textItems);
-  if (!lines.length) return null;
+  const { primaryScore, secondaryScore, score, rect, firstElement, primaryMinimum } = evaluation;
+  if (primaryScore >= primaryMinimum) {
+    if (!state.bestPrimaryMatch || score > state.bestPrimaryMatch.score) {
+      state.bestPrimaryMatch = {
+        rect,
+        firstElement,
+        score
+      };
+    }
+  } else if (secondaryScore >= 0.62 && (!state.bestFallbackMatch || secondaryScore > state.bestFallbackMatch.score)) {
+    state.bestFallbackMatch = {
+      rect,
+      firstElement,
+      score: secondaryScore
+    };
+  }
+}
 
-  const normalizedAnchors = anchors
-    .map(anchor => ({
-      normalized: normalizeForMatch(anchor),
-      compact: compactForMatch(anchor)
-    }))
-    .filter(anchor => anchor.normalized.length >= 6 && anchor.compact.length >= 6)
-    .sort((left, right) => right.compact.length - left.compact.length);
-
-  if (!normalizedAnchors.length) return null;
-  const primaryAnchor = normalizedAnchors[0];
-  const secondaryAnchors = normalizedAnchors.slice(1);
-
-  const maxWindowSize = Math.min(6, lines.length);
-  let bestPrimaryMatch: { rect: HighlightRect; firstElement?: HTMLElement; score: number } | null = null;
-  let bestFallbackMatch: { rect: HighlightRect; firstElement?: HTMLElement; score: number } | null = null;
+function scoreParagraphWindows(scoring: {
+  lines: TextLine[];
+  maxWindowSize: number;
+  primaryAnchor: { normalized: string; compact: string };
+  secondaryAnchors: Array<{ normalized: string; compact: string }>;
+  container: HTMLElement;
+  state: ParagraphMatchState;
+}) {
+  const { lines, maxWindowSize, primaryAnchor, secondaryAnchors, container, state } = scoring;
 
   for (let start = 0; start < lines.length; start += 1) {
     let mergedText = '';
@@ -1038,55 +973,74 @@ function resolveParagraphHighlight(
       bottom = Math.max(bottom, line.rect.top + line.rect.height);
       firstElement ??= line.elements[0];
 
-      if (mergedCompactText.length < 6) continue;
+      if (mergedCompactText.length >= 6) {
+        const primaryScore = scoreAgainstAnchor(mergedText, mergedCompactText, primaryAnchor);
+        const secondaryScore = secondaryAnchors.length
+          ? scoreParagraphMatch(mergedText, mergedCompactText, secondaryAnchors)
+          : 0;
+        const score = Math.max(primaryScore * 1.12, secondaryScore);
 
-      const primaryScore = scoreAgainstAnchor(mergedText, mergedCompactText, primaryAnchor);
-      const secondaryScore = secondaryAnchors.length
-        ? scoreParagraphMatch(mergedText, mergedCompactText, secondaryAnchors)
-        : 0;
-      const score = Math.max(primaryScore * 1.12, secondaryScore);
-      if (score <= 0) continue;
+        if (score > 0) {
+          const paddedRect = clampRectToContainer(
+            {
+              left: left - 6,
+              top: top - 5,
+              width: right - left + 12,
+              height: bottom - top + 24
+            },
+            container.clientWidth,
+            container.clientHeight
+          );
 
-      const paddedRect = clampRectToContainer(
-        {
-          left: left - 6,
-          top: top - 5,
-          width: right - left + 12,
-          height: bottom - top + 24
-        },
-        container.clientWidth,
-        container.clientHeight
-      );
-
-      const primaryMinimum = getPrimaryMatchMinimum(primaryAnchor.compact.length);
-      if (primaryScore >= primaryMinimum) {
-        if (!bestPrimaryMatch || score > bestPrimaryMatch.score) {
-          bestPrimaryMatch = {
+          recordParagraphMatch(state, {
+            primaryScore,
+            secondaryScore,
+            score,
             rect: paddedRect,
             firstElement,
-            score
-          };
+            primaryMinimum: getPrimaryMatchMinimum(primaryAnchor.compact.length)
+          });
         }
-      } else if (secondaryScore >= 0.62 && (!bestFallbackMatch || secondaryScore > bestFallbackMatch.score)) {
-        bestFallbackMatch = {
-          rect: paddedRect,
-          firstElement,
-          score: secondaryScore
-        };
-      }
 
-      // 当窗口文本已完整覆盖较长锚点时，避免继续扩大导致误框
-      if (primaryAnchor && mergedCompactText.includes(primaryAnchor.compact)) {
-        break;
-      }
+        // 当窗口文本已完整覆盖较长锚点，或窗口以完整句子收尾且主锚点分数达标时，停止继续扩大
+        const windowComplete =
+          score > 0 &&
+          ((primaryAnchor && mergedCompactText.includes(primaryAnchor.compact)) ||
+            (/[。！？!?]$/.test(line.rawText.trim()) && primaryScore >= 0.52));
 
-      if (/[。！？!?]$/.test(line.rawText.trim()) && primaryScore >= 0.52) {
-        break;
+        if (windowComplete) {
+          break;
+        }
       }
     }
   }
+}
 
-  return bestPrimaryMatch || bestFallbackMatch;
+function resolveParagraphHighlight(context: HighlightContext, anchors: string[]) {
+  const lines = buildTextLines(context.container, context.textDivs, context.textItems);
+  if (!lines.length) return null;
+
+  const normalizedAnchors = anchors
+    .map(anchor => ({
+      normalized: normalizeForMatch(anchor),
+      compact: compactForMatch(anchor)
+    }))
+    .filter(anchor => anchor.normalized.length >= 6 && anchor.compact.length >= 6)
+    .sort((left, right) => right.compact.length - left.compact.length);
+
+  if (!normalizedAnchors.length) return null;
+
+  const state: ParagraphMatchState = { bestPrimaryMatch: null, bestFallbackMatch: null };
+  scoreParagraphWindows({
+    lines,
+    maxWindowSize: Math.min(6, lines.length),
+    primaryAnchor: normalizedAnchors[0],
+    secondaryAnchors: normalizedAnchors.slice(1),
+    container: context.container,
+    state
+  });
+
+  return state.bestPrimaryMatch || state.bestFallbackMatch;
 }
 
 function getPrimaryMatchMinimum(anchorLength: number) {
@@ -1144,14 +1098,12 @@ function buildTextLines(container: HTMLElement, textDivs: HTMLElement[], textIte
 
     targetLine.rect.left = Math.min(targetLine.rect.left, relativeRect.left);
     targetLine.rect.top = Math.min(targetLine.rect.top, relativeRect.top);
-    targetLine.rect.width = Math.max(
-      targetLine.rect.left + targetLine.rect.width,
-      relativeRect.left + relativeRect.width
-    ) - targetLine.rect.left;
-    targetLine.rect.height = Math.max(
-      targetLine.rect.top + targetLine.rect.height,
-      relativeRect.top + relativeRect.height
-    ) - targetLine.rect.top;
+    targetLine.rect.width =
+      Math.max(targetLine.rect.left + targetLine.rect.width, relativeRect.left + relativeRect.width) -
+      targetLine.rect.left;
+    targetLine.rect.height =
+      Math.max(targetLine.rect.top + targetLine.rect.height, relativeRect.top + relativeRect.height) -
+      targetLine.rect.top;
     targetLine.centerY = (targetLine.centerY * targetLine.elements.length + centerY) / (targetLine.elements.length + 1);
     targetLine.rawText = `${targetLine.rawText} ${rawText}`;
     targetLine.text = `${targetLine.text} ${text}`;
@@ -1170,10 +1122,14 @@ function buildTextLines(container: HTMLElement, textDivs: HTMLElement[], textIte
 function isLikelyListStart(text: string) {
   const value = text.trim();
   if (!value) return false;
-  return /^[•·●○▪▸\-–—\d]+[\.\)、\s]?/.test(value);
+  return /^[•·●○▪▸\-–—\d]+[.)、\s]?/.test(value);
 }
 
-function scoreParagraphMatch(text: string, compactText: string, anchors: Array<{ normalized: string; compact: string }>) {
+function scoreParagraphMatch(
+  text: string,
+  compactText: string,
+  anchors: Array<{ normalized: string; compact: string }>
+) {
   let bestScore = 0;
   for (const anchor of anchors) {
     bestScore = Math.max(bestScore, scoreAgainstAnchor(text, compactText, anchor));
@@ -1280,6 +1236,8 @@ async function waitForStageReady(expectedToken = lifecycleToken) {
       return;
     }
 
+    // 轮询等待布局稳定，必须逐帧串行等待
+    // eslint-disable-next-line no-await-in-loop
     await waitForAnimationFrame();
   }
 }
@@ -1396,6 +1354,114 @@ async function cleanupPdfState() {
   highlightStatus.value = 'idle';
 }
 </script>
+
+<template>
+  <div class="pdf-viewer-shell">
+    <div v-if="!embeddedHeader" class="pdf-viewer-toolbar">
+      <div class="toolbar-copy">
+        <span class="viewer-badge">{{ singlePagePreviewActive ? '单页定位' : 'PDF 预览' }}</span>
+        <span class="viewer-kicker">{{ viewerKicker }}</span>
+      </div>
+      <div class="toolbar-actions">
+        <span class="toolbar-chip">
+          <template v-if="singlePagePreviewActive">第 {{ displayCurrentPage }} 页</template>
+          <template v-else>第 {{ displayCurrentPage }} / {{ totalPages || 1 }} 页</template>
+        </span>
+        <span class="toolbar-chip">{{ Math.round(zoom * 100) }}%</span>
+        <template v-if="!singlePagePreviewActive">
+          <NButton size="tiny" quaternary :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">
+            <template #icon>
+              <icon-mdi-chevron-left />
+            </template>
+          </NButton>
+          <NButton size="tiny" quaternary :disabled="currentPage >= totalPages" @click="goToPage(currentPage + 1)">
+            <template #icon>
+              <icon-mdi-chevron-right />
+            </template>
+          </NButton>
+        </template>
+        <NButton size="tiny" quaternary :disabled="zoom <= minZoom" @click="zoomOut">
+          <template #icon>
+            <icon-mdi-magnify-minus-outline />
+          </template>
+        </NButton>
+        <NButton size="tiny" quaternary :disabled="zoom >= maxZoom" @click="zoomIn">
+          <template #icon>
+            <icon-mdi-magnify-plus-outline />
+          </template>
+        </NButton>
+        <NButton size="tiny" secondary @click="resetZoom">适应宽度</NButton>
+        <NButton size="tiny" secondary @click="openInNewTab">
+          <template #icon>
+            <icon-mdi-open-in-new />
+          </template>
+          新窗口
+        </NButton>
+      </div>
+    </div>
+
+    <div class="pdf-viewer-body" :class="{ 'is-single-page': singlePagePreviewActive }">
+      <aside v-if="!singlePagePreviewActive" class="page-sidebar">
+        <button
+          v-for="page in pageSummaries"
+          :key="page.pageNumber"
+          type="button"
+          class="page-nav-item"
+          :class="{
+            'is-active': page.pageNumber === currentPage,
+            'is-target': page.pageNumber === targetPageNumber
+          }"
+          @click="goToPage(page.pageNumber)"
+        >
+          <span class="page-nav-number">P{{ displayPageNumber(page.pageNumber) }}</span>
+          <span class="page-nav-summary">{{ page.summary || `第 ${page.pageNumber} 页` }}</span>
+        </button>
+      </aside>
+
+      <div ref="stageRef" class="page-stage">
+        <div v-if="documentLoading" class="stage-feedback">
+          <NSpin size="large" />
+          <span>正在加载 PDF 文档</span>
+        </div>
+        <div v-else-if="renderError" class="stage-feedback is-error">
+          <icon-mdi-alert-circle class="text-24" />
+          <span>{{ renderError }}</span>
+        </div>
+        <div v-else class="page-scroll-shell">
+          <div v-if="!embeddedHeader" class="page-meta-row">
+            <span>第 {{ displayCurrentPage }} 页</span>
+            <span v-if="highlightCount > 0">已匹配到相关文本</span>
+            <span v-else-if="highlightStatus === 'page-only'">已定位到引用页，未框选图片内文字</span>
+            <span v-else-if="currentPage === targetPageNumber">引用定位页</span>
+            <span v-else>浏览当前页</span>
+          </div>
+
+          <div ref="pageShellRef" class="pdf-page-shell">
+            <canvas ref="canvasRef" class="pdf-canvas" />
+            <div v-if="highlightRects.length" class="pdf-highlight-overlay">
+              <div
+                v-for="(rect, index) in highlightRects"
+                :key="`${index}-${rect.left}-${rect.top}`"
+                class="pdf-highlight-rect"
+                :style="{
+                  left: `${rect.left}px`,
+                  top: `${rect.top}px`,
+                  width: `${rect.width}px`,
+                  height: `${rect.height}px`
+                }"
+              />
+            </div>
+            <div ref="textLayerRef" class="textLayer pdf-text-layer" />
+            <div v-if="pageRendering" class="page-loading-mask">
+              <NSpin size="small" />
+              <span>正在渲染页面</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
 
 <style scoped lang="scss">
 .pdf-viewer-shell {
@@ -1515,11 +1581,7 @@ async function cleanupPdfState() {
 .pdf-highlight-rect {
   @apply absolute;
   border-radius: 6px;
-  background: linear-gradient(
-    180deg,
-    rgba(64, 169, 255, 0.12) 0%,
-    rgba(24, 144, 255, 0.28) 100%
-  );
+  background: linear-gradient(180deg, rgba(64, 169, 255, 0.12) 0%, rgba(24, 144, 255, 0.28) 100%);
   box-shadow: 0 0 0 1px rgba(24, 144, 255, 0.12);
   opacity: 0.92;
 }

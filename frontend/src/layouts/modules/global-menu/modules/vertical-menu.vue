@@ -59,6 +59,7 @@ watch(
       <MenuToggler
         v-if="!appStore.isMobile"
         class="absolute bottom-0 w-full"
+        :class="{ 'text-white:88 !hover:text-white': inverted }"
         :collapsed="appStore.siderCollapse"
         @click="appStore.toggleSiderCollapse"
       />

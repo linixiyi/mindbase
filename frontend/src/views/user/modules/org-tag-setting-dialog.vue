@@ -75,7 +75,7 @@ watch(visible, () => {
       <NFormItem label="组织标签" path="orgTags">
         <OrgTagCascader v-model:value="model.orgTags" multiple exclude-private />
       </NFormItem>
-      <div class="text-12px text-gray-500">私人空间由账户自动维护，无需分配；此处仅设置加入的组织。</div>
+      <div class="text-muted text-12px">私人空间由账户自动维护，无需分配；此处仅设置加入的组织。</div>
     </NForm>
     <template #action>
       <NSpace :size="16">

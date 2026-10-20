@@ -3,19 +3,19 @@ export const themeSettings: App.Theme.ThemeSetting = {
   themeScheme: 'auto',
   grayscale: false,
   colourWeakness: false,
-  recommendColor: true,
-  themeColor: '#646cff',
-  otherColor: { info: '#2080f0', success: '#52c41a', warning: '#faad14', error: '#f5222d' },
+  recommendColor: false,
+  themeColor: '#5856D6',
+  otherColor: { info: '#5856D6', success: '#34C759', warning: '#FF9500', error: '#FF3B30' },
   isInfoFollowPrimary: true,
   resetCacheStrategy: 'close',
   layout: { mode: 'vertical', scrollMode: 'content', reverseHorizontalMix: false },
   page: { animate: true, animateMode: 'fade-slide' },
-  header: { height: 56, breadcrumb: { visible: false, showIcon: true }, multilingual: { visible: false } },
+  header: { height: 52, breadcrumb: { visible: false, showIcon: true }, multilingual: { visible: false } },
   tab: { visible: false, cache: true, height: 44, mode: 'chrome' },
   fixedHeaderAndTab: true,
   sider: {
     inverted: false,
-    width: 180,
+    width: 220,
     collapsedWidth: 64,
     mixWidth: 90,
     mixCollapsedWidth: 64,
@@ -27,17 +27,29 @@ export const themeSettings: App.Theme.ThemeSetting = {
     light: {
       colors: {
         container: 'rgb(255, 255, 255)',
-        layout: 'rgb(247, 250, 252)',
-        inverted: 'rgb(0, 20, 40)',
-        'base-text': 'rgb(31, 31, 31)'
+        layout: 'rgb(245, 245, 247)',
+        inverted: 'rgb(29, 29, 31)',
+        'base-text': 'rgb(29, 29, 31)'
       },
       boxShadow: {
-        header: '0 1px 2px rgb(0, 21, 41, 0.08)',
-        sider: '2px 0 8px 0 rgb(29, 35, 41, 0.05)',
-        tab: '0 1px 2px rgb(0, 21, 41, 0.08)'
+        header: '0 0.5px 0 rgba(29, 29, 31, 0.12)',
+        sider: 'inset -0.5px 0 0 rgba(29, 29, 31, 0.12)',
+        tab: 'none'
       }
     },
-    dark: { colors: { container: 'rgb(28, 28, 28)', layout: 'rgb(18, 18, 18)', 'base-text': 'rgb(224, 224, 224)' } }
+    dark: {
+      colors: {
+        container: 'rgb(28, 28, 30)',
+        layout: 'rgb(10, 10, 12)',
+        inverted: 'rgb(245, 245, 247)',
+        'base-text': 'rgb(245, 245, 247)'
+      },
+      boxShadow: {
+        header: '0 0.5px 0 rgba(235, 235, 245, 0.14)',
+        sider: 'inset -0.5px 0 0 rgba(235, 235, 245, 0.14)',
+        tab: 'none'
+      }
+    }
   }
 };
 
@@ -46,4 +58,12 @@ export const themeSettings: App.Theme.ThemeSetting = {
  *
  * If publish new version, use `overrideThemeSettings` to override certain theme settings
  */
-export const overrideThemeSettings: Partial<App.Theme.ThemeSetting> = {};
+export const overrideThemeSettings: Partial<App.Theme.ThemeSetting> = {
+  // Quiet Glass redesign: push the new color/shell tokens to sessions with cached settings
+  themeColor: themeSettings.themeColor,
+  otherColor: themeSettings.otherColor,
+  recommendColor: themeSettings.recommendColor,
+  header: { ...themeSettings.header },
+  sider: { ...themeSettings.sider },
+  tokens: themeSettings.tokens
+};

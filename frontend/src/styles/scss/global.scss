@@ -1,12 +1,86 @@
-@forward "scrollbar";
+@forward 'scrollbar';
 
-// Shared surfaces and readable text for both application themes.
+/*
+ * Quiet Glass global tokens (DESIGN.md).
+ * Surfaces/colors that flow through the theme pipeline live in settings.ts + vars.ts;
+ * everything here is the static vocabulary shared by both themes and re-declared per theme.
+ */
 :root {
+  /* --- legacy surface aliases (kept for existing consumers) --- */
   --app-surface: rgb(var(--container-bg-color));
   --app-text: rgb(var(--base-text-color));
   --app-muted: rgb(var(--base-text-color) / 0.68);
   --app-subtle: rgb(var(--base-text-color) / 0.055);
-  --app-border: rgb(var(--base-text-color) / 0.1);
+
+  /* --- hairline: every static separation --- */
+  --app-border: rgb(var(--base-text-color) / 0.09);
+
+  /* --- text roles --- */
+  --app-text-secondary: #6e6e73;
+  --app-text-tertiary: #86868b;
+  --app-scrollbar: rgba(29, 29, 31, 0.28);
+
+  /* --- fills and elevated surface --- */
+  --app-fill-subtle: rgba(120, 120, 128, 0.08);
+  --app-fill-hover: rgba(120, 120, 128, 0.12);
+  --app-elevated: #ffffff;
+
+  /* --- materials: nav & overlay frosted glass, body reading surfaces stay opaque --- */
+  --app-material-nav: rgba(255, 255, 255, 0.72);
+  --app-material-overlay: rgba(255, 255, 255, 0.76);
+  --app-material-filter: saturate(180%) blur(20px);
+  --app-scrim: rgba(0, 0, 0, 0.3);
+
+  /* --- corner scale: 10 / 14 / 18 / 24 / capsule --- */
+  --app-radius-sm: 10px;
+  --app-radius-md: 14px;
+  --app-radius-lg: 18px;
+  --app-radius-xl: 24px;
+
+  /* --- elevation: shadows belong to floating layers only --- */
+  --app-shadow-e1: 0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.08);
+  --app-shadow-e2: 0 4px 12px rgba(0, 0, 0, 0.08), 0 16px 48px rgba(0, 0, 0, 0.18);
+  --app-shadow-e3: 0 8px 24px rgba(0, 0, 0, 0.1), 0 24px 80px rgba(0, 0, 0, 0.24);
+
+  /* --- motion: three durations, three curves --- */
+  --app-dur-fast: 150ms;
+  --app-dur-base: 250ms;
+  --app-dur-slow: 350ms;
+  --app-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --app-ease-emphasized: cubic-bezier(0.32, 0.72, 0, 1);
+  --app-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+html.dark {
+  --app-border: rgb(var(--base-text-color) / 0.14);
+  --app-text-secondary: rgba(235, 235, 245, 0.6);
+  --app-text-tertiary: rgba(235, 235, 245, 0.4);
+  --app-scrollbar: rgba(235, 235, 245, 0.3);
+  --app-fill-subtle: rgba(120, 120, 128, 0.24);
+  --app-fill-hover: rgba(120, 120, 128, 0.32);
+  --app-elevated: #2c2c2e;
+  --app-material-nav: rgba(29, 29, 31, 0.68);
+  --app-material-overlay: rgba(44, 44, 46, 0.72);
+  --app-scrim: rgba(0, 0, 0, 0.5);
+}
+
+/* --- frosted material helpers (shell & floating layers only) --- */
+.app-material-nav {
+  background: var(--app-material-nav);
+  -webkit-backdrop-filter: var(--app-material-filter);
+  backdrop-filter: var(--app-material-filter);
+}
+
+.app-material-overlay {
+  background: var(--app-material-overlay);
+  -webkit-backdrop-filter: var(--app-material-filter);
+  backdrop-filter: var(--app-material-filter);
+}
+
+/* --- focus ring: the indigo line marks focus and action --- */
+.app-focus-ring:focus-visible {
+  outline: 2px solid rgb(var(--primary-color));
+  outline-offset: 2px;
 }
 
 .text-muted {
@@ -19,42 +93,67 @@
   background: var(--app-subtle);
 }
 
+/* --- Naive floating layers ride the overlay material --- */
+.n-popover:not(.n-popover--raw) {
+  --n-color: var(--app-material-overlay);
+  --n-border-radius: var(--app-radius-md);
+  --n-box-shadow: var(--app-shadow-e1);
+
+  -webkit-backdrop-filter: var(--app-material-filter);
+  backdrop-filter: var(--app-material-filter);
+  border: 1px solid var(--app-border);
+}
+
+/* NModal mask: naive hardcodes rgba(0,0,0,.4) in its cssr; the world behind a modal rides the scrim
+   token (DESIGN.md › Material Vocabulary › scrim). Two-class specificity so the override wins
+   regardless of naive's cssr mount order. */
+.n-modal-container .n-modal-mask {
+  background-color: var(--app-scrim);
+}
+
 .workspace-page {
   min-width: 0;
   gap: 24px;
 }
 
+/* Static card: opaque surface, hairline border, zero shadow */
 .page-section.n-card {
-  border: 0;
-  border-radius: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
   box-shadow: none;
   background: var(--app-surface);
 
   > .n-card-header {
-    padding: 24px 28px 20px;
+    padding: 20px 24px 16px;
     gap: 16px;
     flex-wrap: wrap;
 
     .n-card-header__main {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 600;
+      line-height: 1.4;
     }
   }
 
   > .n-card__content {
-    padding: 0 28px 28px;
+    padding: 0 24px 24px;
   }
   > .n-card__footer {
-    padding: 24px 28px 28px;
+    padding: 20px 24px 24px;
   }
 }
 
 .workspace-page .n-data-table {
-  --n-border-radius: 8px;
+  --n-border-radius: var(--app-radius-sm);
+
+  font-variant-numeric: tabular-nums;
 
   .n-data-table-th {
     padding: 12px 16px;
     font-weight: 500;
+    font-size: 13px;
+    color: var(--app-text-secondary);
+    background: transparent;
   }
   .n-data-table-td {
     padding: 14px 16px;
@@ -74,6 +173,15 @@
 
 .n-dialog {
   max-width: calc(100vw - 32px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 @media (max-width: 640px) {

@@ -45,6 +45,7 @@ interface RechargePackageForm {
 }
 
 const loading = ref(false);
+const loadError = ref(false);
 const data = ref<RechargePackage[]>([]);
 const pagination = reactive<PaginationProps>({
   page: 1,
@@ -261,6 +262,9 @@ async function getData() {
     if (!error && resData) {
       data.value = resData;
       pagination.itemCount = resData.length;
+      loadError.value = false;
+    } else {
+      loadError.value = true;
     }
   } finally {
     loading.value = false;
@@ -289,6 +293,39 @@ function handleEdit(row: RechargePackage) {
   visible.value = true;
 }
 
+function buildSubmitPayload() {
+  // 将元转换为分
+  const submitData = {
+    ...model.value,
+    packagePrice: model.value.packagePriceYuan !== null ? Math.round(model.value.packagePriceYuan * 100) : null,
+    llmToken: model.value.llmTokenWan !== null ? Math.round(model.value.llmTokenWan * TOKEN_UNIT) : null,
+    embeddingToken:
+      model.value.embeddingTokenWan !== null ? Math.round(model.value.embeddingTokenWan * TOKEN_UNIT) : null
+  };
+  // 删除 packagePriceYuan 字段，不传递给后端
+  delete (submitData as any).packagePriceYuan;
+  delete (submitData as any).llmTokenWan;
+  delete (submitData as any).embeddingTokenWan;
+  return submitData;
+}
+
+function handleFormSubmitError(e: any) {
+  console.error('提交异常:', e);
+  if (Array.isArray(e)) {
+    window.$message?.error('请填写完整的表单信息!');
+    return;
+  }
+  // validate 失败时会抛出异常，包含验证错误信息
+  if (e?.errors) {
+    // errors 可能是一个数组，取第一个错误的提示信息
+    const firstError = Array.isArray(e.errors) ? e.errors[0] : e.errors;
+    const errorMessage = firstError?.message || '请填写完整的表单信息';
+    window.$message?.warning(errorMessage);
+  } else {
+    window.$message?.error(`操作失败：${(e as Error).message}`);
+  }
+}
+
 async function handleSubmit() {
   console.log('开始提交，editingId:', editingId.value, 'isEditing:', isEditing.value);
 
@@ -303,28 +340,17 @@ async function handleSubmit() {
 
     const method = isEditing.value ? 'put' : 'post';
 
-    // 将元转换为分
-    const submitData = {
-      ...model.value,
-      packagePrice: model.value.packagePriceYuan !== null ? Math.round(model.value.packagePriceYuan * 100) : null,
-      llmToken: model.value.llmTokenWan !== null ? Math.round(model.value.llmTokenWan * TOKEN_UNIT) : null,
-      embeddingToken:
-        model.value.embeddingTokenWan !== null ? Math.round(model.value.embeddingTokenWan * TOKEN_UNIT) : null
-    };
-    // 删除 packagePriceYuan 字段，不传递给后端
-    delete (submitData as any).packagePriceYuan;
-    delete (submitData as any).llmTokenWan;
-    delete (submitData as any).embeddingTokenWan;
+    const submitData = buildSubmitPayload();
 
     console.log('提交数据:', submitData);
 
-    const { error, data } = await request({
+    const { error, data: respData } = await request({
       url,
       method,
       data: submitData
     });
 
-    console.log('返回结果:', error, data);
+    console.log('返回结果:', error, respData);
 
     if (!error) {
       window.$message?.success(isEditing.value ? '更新成功' : '创建成功');
@@ -334,20 +360,7 @@ async function handleSubmit() {
       window.$message?.error(`操作失败：${error.message || '未知错误'}`);
     }
   } catch (e: any) {
-    console.error('提交异常:', e);
-    if (Array.isArray(e)) {
-      window.$message?.error('请填写完整的表单信息!');
-      return;
-    }
-    // validate 失败时会抛出异常，包含验证错误信息
-    if (e?.errors) {
-      // errors 可能是一个数组，取第一个错误的提示信息
-      const firstError = Array.isArray(e.errors) ? e.errors[0] : e.errors;
-      const errorMessage = firstError?.message || '请填写完整的表单信息';
-      window.$message?.warning(errorMessage);
-    } else {
-      window.$message?.error(`操作失败：${(e as Error).message}`);
-    }
+    handleFormSubmitError(e);
   } finally {
     submitting.value = false;
   }
@@ -364,7 +377,7 @@ async function handleDelete(id: number) {
       window.$message?.success('删除成功');
       await getData();
     }
-  } catch (e) {
+  } catch {
     window.$message?.error('删除失败');
   }
 }
@@ -381,7 +394,19 @@ onMounted(() => {
         <NButton type="primary" @click="handleCreate">新增套餐</NButton>
       </template>
 
+      <div v-if="loadError" class="page-state">
+        <icon-material-symbols:error-outline-rounded class="page-state__icon page-state__icon--error" />
+        <p class="page-state__title">套餐列表加载失败</p>
+        <p class="page-state__desc">网络异常导致套餐没有加载，请检查连接后重试</p>
+        <NButton size="small" :disabled="loading" @click="getData">
+          <template #icon>
+            <icon-mdi:refresh />
+          </template>
+          重试
+        </NButton>
+      </div>
       <NDataTable
+        v-else
         :bordered="false"
         :columns="columns"
         :data="data"
@@ -389,7 +414,15 @@ onMounted(() => {
         :pagination="pagination"
         :scroll-x="1200"
         class="mt-4"
-      />
+      >
+        <template #empty>
+          <div class="page-state page-state--table">
+            <icon-mdi:package-variant-closed class="page-state__icon" />
+            <p class="page-state__title">暂无充值套餐</p>
+            <p class="page-state__desc">点击右上角「新增套餐」创建第一个套餐</p>
+          </div>
+        </template>
+      </NDataTable>
     </NCard>
 
     <!-- 新增/编辑弹窗 -->
@@ -477,5 +510,56 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
-.page-section { min-width: 0; }
+.page-section {
+  min-width: 0;
+}
+.page-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 240px;
+  padding: 48px 24px;
+  text-align: center;
+  animation: page-state-in var(--app-dur-base) var(--app-ease-standard);
+}
+.page-state--table {
+  padding: 32px 24px;
+}
+.page-state__icon {
+  font-size: 40px;
+  color: rgb(var(--base-text-color) / 0.24);
+}
+.page-state__icon--error {
+  color: rgb(var(--error-700-color));
+}
+.page-state__title {
+  margin: 8px 0 0;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--app-text);
+}
+.page-state__desc {
+  margin: 0;
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-muted);
+}
+html.dark .page-state__icon--error {
+  color: rgb(var(--error-400-color));
+}
+@keyframes page-state-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 </style>

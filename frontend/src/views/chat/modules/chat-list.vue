@@ -81,9 +81,9 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 <template>
   <Suspense>
     <div class="h-0 flex flex-col flex-1">
-      <!-- Date filter in header -->
+      <!-- 次级工具行：日期筛选收敛到阅读列右端，不与对话内容抢注意力 -->
 
-      <div v-if="!showEmpty" class="chat-date-filter flex justify-end px-4 py-3">
+      <div v-if="!showEmpty" class="chat-date-filter">
         <NForm :model="params" label-placement="left" :show-feedback="false" inline>
           <NFormItem label="时间" size="small">
             <NDatePicker v-model:value="range" type="daterange" clearable size="small" />
@@ -93,19 +93,19 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 
       <!-- Empty state -->
       <div v-if="showEmpty" class="flex flex-col flex-1 items-center justify-center gap-4">
-        <div class="h-20 w-20 flex items-center justify-center rounded-2xl bg-[rgb(var(--primary-color)/0.08)]">
-          <icon-material-symbols:chat-outline-rounded class="text-36px text-[rgb(var(--primary-color)/0.5)]" />
+        <div class="h-20 w-20 flex items-center justify-center rounded-24px bg-[var(--app-subtle)]">
+          <icon-material-symbols:chat-outline-rounded class="text-36px text-[rgb(var(--base-text-color)/0.4)]" />
         </div>
-        <div class="text-body text-15px font-500">
+        <div class="text-body text-15px font-600">
           {{ conversationId ? '开始新对话' : '选择或创建一个对话' }}
         </div>
-        <div class="text-muted text-12px">在左侧选择一个对话，或点击「新对话」开始</div>
+        <div class="text-muted text-13px">在左侧选择一个对话，或点击「新对话」开始</div>
       </div>
 
       <!-- Message list -->
       <NScrollbar v-else ref="scrollbarRef" class="flex-1">
         <NSpin :show="loading">
-          <div class="mx-auto max-w-[960px] w-full px-4">
+          <div class="mx-auto max-w-[800px] w-full px-4 pb-4">
             <VueMarkdownItProvider>
               <ChatMessage
                 v-for="(item, index) in list"
@@ -123,6 +123,38 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 </template>
 
 <style scoped lang="scss">
+/* 日期筛选：与消息列同轨（800px 右对齐）、压缩到工具行高度；
+   选择器静置透明无框，悬停才现发丝线——次级视觉，随 Naive 焦点环保持一线靛。 */
+.chat-date-filter {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 6px 16px 4px;
+
+  :deep(.n-form-item-label) {
+    color: var(--app-text-tertiary);
+    font-size: 12px;
+  }
+
+  :deep(.n-input) {
+    background-color: transparent;
+    border-color: transparent;
+    transition:
+      border-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
+      background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
+  }
+
+  :deep(.n-input:hover) {
+    border-color: var(--app-border);
+  }
+
+  :deep(.n-input.n-input--focus) {
+    border-color: rgb(var(--primary-color) / 0.5);
+  }
+}
+
 @media (max-width: 640px) {
   .chat-date-filter {
     padding-left: 56px;

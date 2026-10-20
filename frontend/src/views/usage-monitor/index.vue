@@ -1,6 +1,6 @@
 <script setup lang="tsx">
 import { computed, onMounted, ref, watch } from 'vue';
-import { NButton, NCard, NEmpty, NTag } from 'naive-ui';
+import { NButton, NCard, NEmpty, NTag, useThemeVars } from 'naive-ui';
 import type { ECOption } from '@/hooks/common/echarts';
 import { useEcharts } from '@/hooks/common/echarts';
 
@@ -8,9 +8,19 @@ const activePanel = ref('overview');
 const trendWindow = ref<7 | 30>(7);
 const overviewLoading = ref(false);
 const overview = ref<Api.Admin.UsageOverview | null>(null);
+const overviewError = ref('');
 const rateLimitLoading = ref(false);
 const rateLimitSaving = ref(false);
 const rateLimits = ref<Api.Admin.RateLimitSettings | null>(null);
+
+// Chart series colors derive from the active Naive theme (token pipeline), so both
+// themes and the indigo accent stay consistent without hardcoding hex values.
+const themeVars = useThemeVars();
+const chartPalette = computed(() => ({
+  llm: themeVars.value.primaryColor,
+  embedding: themeVars.value.textColor2,
+  request: themeVars.value.textColor3
+}));
 
 async function getOverview() {
   overviewLoading.value = true;
@@ -23,6 +33,9 @@ async function getOverview() {
 
   if (!error && data) {
     overview.value = data;
+    overviewError.value = '';
+  } else if (!overview.value) {
+    overviewError.value = '无法获取用量数据，请检查网络后重试';
   }
   overviewLoading.value = false;
 }
@@ -157,8 +170,9 @@ const { domRef: trendChartRef, updateOptions } = useEcharts<ECOption>(() => ({
   series: []
 }));
 
-watch([overview, trendWindow], async () => {
+watch([overview, trendWindow, chartPalette], async () => {
   const trends = overview.value?.trends || [];
+  const { llm, embedding, request } = chartPalette.value;
   await updateOptions(() => ({
     tooltip: {
       trigger: 'axis'
@@ -193,12 +207,14 @@ watch([overview, trendWindow], async () => {
         name: 'LLM Tokens',
         type: 'line',
         smooth: true,
+        color: llm,
         data: trends.map(item => item.llmUsedTokens)
       },
       {
         name: 'Embedding Tokens',
         type: 'line',
         smooth: true,
+        color: embedding,
         data: trends.map(item => item.embeddingUsedTokens)
       },
       {
@@ -206,6 +222,7 @@ watch([overview, trendWindow], async () => {
         type: 'bar',
         yAxisIndex: 1,
         barMaxWidth: 18,
+        color: llm,
         itemStyle: {
           opacity: 0.4
         },
@@ -216,6 +233,7 @@ watch([overview, trendWindow], async () => {
         type: 'bar',
         yAxisIndex: 1,
         barMaxWidth: 18,
+        color: request,
         itemStyle: {
           opacity: 0.32
         },
@@ -226,6 +244,7 @@ watch([overview, trendWindow], async () => {
         type: 'bar',
         yAxisIndex: 1,
         barMaxWidth: 18,
+        color: request,
         itemStyle: {
           opacity: 0.22
         },
@@ -258,7 +277,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="workspace-page min-h-500px flex-col-stretch gap-16px overflow-auto">
+  <div class="workspace-page min-h-500px flex-col-stretch overflow-auto">
     <NTabs v-model:value="activePanel" type="line" size="large">
       <NTab name="overview">用量总览</NTab>
       <NTab name="limits">限流设置</NTab>
@@ -431,7 +450,18 @@ onMounted(() => {
       </template>
 
       <NSpin :show="overviewLoading">
-        <div class="flex flex-col gap-4">
+        <div v-if="overviewError && !overview" class="usage-state usage-state--error">
+          <icon-material-symbols:error-outline-rounded class="usage-state__icon" />
+          <p class="usage-state__title">用量数据加载失败</p>
+          <p class="usage-state__desc">{{ overviewError }}</p>
+          <NButton size="small" :disabled="overviewLoading" @click="getOverview">
+            <template #icon>
+              <icon-mdi:refresh />
+            </template>
+            重试
+          </NButton>
+        </div>
+        <div v-else class="flex flex-col gap-4">
           <div class="summary-grid">
             <div class="summary-card">
               <div class="summary-label">今日聊天消息</div>
@@ -495,7 +525,7 @@ onMounted(() => {
                 <template #header>今日用量排行</template>
                 <div class="flex flex-col gap-4">
                   <div>
-                    <div class="text-muted mb-2 text-xs font-semibold tracking-0.12em uppercase">LLM</div>
+                    <div class="usage-scope-label mb-2">LLM</div>
                     <div v-if="overview?.llmRankings?.length" class="flex flex-col gap-2">
                       <div
                         v-for="(item, index) in overview.llmRankings"
@@ -516,7 +546,7 @@ onMounted(() => {
                   </div>
 
                   <div>
-                    <div class="text-muted mb-2 text-xs font-semibold tracking-0.12em uppercase">Embedding</div>
+                    <div class="usage-scope-label mb-2">Embedding</div>
                     <div v-if="overview?.embeddingRankings?.length" class="flex flex-col gap-2">
                       <div
                         v-for="(item, index) in overview.embeddingRankings"
@@ -571,6 +601,10 @@ onMounted(() => {
   font-size: 12px;
   color: var(--app-muted);
 }
+.limits-layout :deep(.n-input__input-el),
+.limits-layout :deep(.n-input .n-input__placeholder) {
+  font-variant-numeric: tabular-nums;
+}
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -586,19 +620,28 @@ onMounted(() => {
 }
 .summary-value {
   margin-top: 12px;
-  font-size: 30px;
-  line-height: 1.3;
+  font-size: 28px;
+  line-height: 1.25;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--app-text);
 }
+/* Semantic depth rule: warning text on a light surface reads at -700, dark at -400 */
 .summary-card.is-alert .summary-value {
-  color: rgb(var(--warning-color));
+  color: rgb(var(--warning-700-color));
+}
+html.dark .summary-card.is-alert .summary-value {
+  color: rgb(var(--warning-400-color));
 }
 .summary-sub {
   margin-top: 8px;
   font-size: 12px;
   color: var(--app-muted);
+}
+.usage-scope-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--app-text-secondary);
 }
 .overview-section {
   background: transparent;
@@ -624,7 +667,54 @@ onMounted(() => {
   width: 24px;
   text-align: center;
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
   color: var(--app-muted);
+}
+.usage-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 320px;
+  padding: 48px 24px;
+  text-align: center;
+  animation: usage-state-in var(--app-dur-base) var(--app-ease-standard);
+}
+.usage-state__icon {
+  font-size: 40px;
+  color: rgb(var(--base-text-color) / 0.24);
+}
+.usage-state__title {
+  margin: 8px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--app-text);
+}
+.usage-state__desc {
+  margin: 0;
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-muted);
+}
+.usage-state--error .usage-state__icon {
+  color: rgb(var(--error-700-color));
+}
+html.dark .usage-state--error .usage-state__icon {
+  color: rgb(var(--error-400-color));
+}
+@keyframes usage-state-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @media (max-width: 900px) {
   .summary-grid {

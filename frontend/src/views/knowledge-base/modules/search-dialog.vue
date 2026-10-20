@@ -20,6 +20,7 @@ function createDefaultModel(): Api.KnowledgeBase.SearchParams {
 }
 
 const list = ref<Api.KnowledgeBase.SearchResult[]>([]);
+const searched = ref(false);
 
 const patterns = ref<string[]>([]);
 function highlight(text: string) {
@@ -27,6 +28,10 @@ function highlight(text: string) {
   if (text.includes(model.value.query)) return true;
   return false;
 }
+
+const emptyDescription = computed(() =>
+  searched.value ? '未检索到相关内容，可换个关键字或调整 topK 后重试' : '输入关键字，检索知识库中的内容'
+);
 
 async function search() {
   loading.value = true;
@@ -37,6 +42,9 @@ async function search() {
   if (!error) {
     list.value = data;
     patterns.value = [model.value.query];
+    searched.value = true;
+  } else {
+    window.$message?.error('检索失败，请稍后重试');
   }
   loading.value = false;
 }
@@ -45,6 +53,7 @@ function reset() {
   model.value = createDefaultModel();
   patterns.value = [];
   list.value = [];
+  searched.value = false;
   restoreValidation();
 }
 watch(visible, () => {
@@ -94,7 +103,7 @@ watch(visible, () => {
               </template>
               重置
             </NButton>
-            <NButton type="primary" ghost @click="search">
+            <NButton type="primary" @click="search">
               <template #icon>
                 <icon-ic-round-search class="text-icon" />
               </template>
@@ -105,7 +114,7 @@ watch(visible, () => {
       </NGrid>
     </NForm>
     <NSpin :show="loading">
-      <NEmpty v-if="list.length === 0" description="暂无数据" class="py-100px" />
+      <NEmpty v-if="list.length === 0" :description="emptyDescription" class="py-100px" />
       <NScrollbar v-else class="max-h-500px">
         <NCard
           v-for="(item, index) in list"
@@ -117,24 +126,20 @@ watch(visible, () => {
             footer: 'soft'
           }"
         >
-          <div class="relative">
+          <div>
             <NHighlight
               v-if="highlight(item.textContent)"
-              highlight-class="bg-[rgb(var(--primary-400-color))] color-white px-2 mx-1 rd-sm"
+              highlight-class="rounded-full bg-[rgb(var(--primary-color)/0.1)] dark:bg-[rgb(var(--primary-color)/0.16)] text-[rgb(var(--primary-color))] dark:text-[rgb(var(--primary-400-color))] px-2 mx-1"
               :text="item.textContent"
               :patterns="patterns"
             />
             <span v-else>{{ item.textContent }}</span>
-            <NTag
-              :bordered="false"
-              draggable
-              class="absolute right-0 top-0 bg-[rgb(var(--primary-color)/.9)] color-white hover:bg-transparent hover:color-transparent"
-            >
-              Score: {{ item.score }}
-            </NTag>
           </div>
           <template #footer>
-            <span>来源：{{ item.fileName }}</span>
+            <div class="flex items-center justify-between gap-12px">
+              <span class="text-muted text-13px">来源：{{ item.fileName }}</span>
+              <NTag :bordered="false" size="small" class="text-12px tabular-nums">Score: {{ item.score }}</NTag>
+            </div>
           </template>
         </NCard>
       </NScrollbar>

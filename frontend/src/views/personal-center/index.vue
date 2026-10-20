@@ -29,16 +29,44 @@ const usage = ref<Api.User.UsageSnapshot>({
 });
 
 const loading = ref(false);
+const usageLoadError = ref(false);
+const orgTagsError = ref(false);
 
 // Token 记录相关变量
 const tokenRecords = ref<Api.User.TokenRecord[]>([]);
 const tokenRecordLoading = ref(false);
+const tokenRecordError = ref(false);
 const pagination = ref({
   page: 1,
   pageSize: 10,
   total: 0,
   pageCount: 0
 });
+const getTokenRecords = async () => {
+  tokenRecordLoading.value = true;
+  try {
+    const { error, data } = await request({
+      url: '/users/token-records',
+      method: 'GET',
+      params: {
+        page: pagination.value.page - 1,
+        size: pagination.value.pageSize
+      }
+    });
+
+    if (!error && data) {
+      tokenRecords.value = data.content || [];
+      pagination.value.total = data.totalElements || 0;
+      pagination.value.pageCount = data.totalPages || 0;
+      tokenRecordError.value = false;
+    } else {
+      tokenRecordError.value = true;
+    }
+  } finally {
+    tokenRecordLoading.value = false;
+  }
+};
+
 const getPersonalData = async () => {
   loading.value = true;
   const [{ error: orgError, data: orgData }, { error: usageError, data: usageData }] = await Promise.all([
@@ -53,9 +81,13 @@ const getPersonalData = async () => {
   if (!orgError) {
     tags.value = orgData;
   }
+  orgTagsError.value = Boolean(orgError);
 
   if (!usageError) {
     usage.value = usageData;
+    usageLoadError.value = false;
+  } else {
+    usageLoadError.value = true;
   }
 
   // 获取 Token 记录
@@ -97,29 +129,6 @@ const setPrimaryOrg = async () => {
     getOrgTags();
   }
   submitLoading.value = false;
-};
-
-// Token 记录相关方法
-const getTokenRecords = async () => {
-  tokenRecordLoading.value = true;
-  try {
-    const { error, data } = await request({
-      url: '/users/token-records',
-      method: 'GET',
-      params: {
-        page: pagination.value.page - 1,
-        size: pagination.value.pageSize
-      }
-    });
-
-    if (!error && data) {
-      tokenRecords.value = data.content || [];
-      pagination.value.total = data.totalElements || 0;
-      pagination.value.pageCount = data.totalPages || 0;
-    }
-  } finally {
-    tokenRecordLoading.value = false;
-  }
 };
 
 const handlePageChange = (page: number) => {
@@ -210,14 +219,28 @@ const tokenRecordColumns = computed(() => [
       <NCard :bordered="false" class="page-section profile-section">
         <template #header>
           <div class="flex items-center gap-4">
-            <NAvatar size="large"><icon-solar:user-circle-linear class="text-icon-large" /></NAvatar>
+            <div class="profile-avatar">
+              <icon-solar:user-circle-linear class="text-icon-large" />
+            </div>
             <div>
               <div>{{ userInfo.username }}</div>
               <div class="text-muted mt-1 text-xs">今日额度 · {{ usage.day || '未统计' }}</div>
             </div>
           </div>
         </template>
-        <div class="quota-grid">
+
+        <div v-if="usageLoadError" class="page-state">
+          <icon-material-symbols:error-outline-rounded class="page-state__icon page-state__icon--error" />
+          <p class="page-state__title">今日额度加载失败</p>
+          <p class="page-state__desc">网络异常导致用量数据没有加载，请检查连接后重试</p>
+          <NButton size="small" :disabled="loading" @click="getPersonalData">
+            <template #icon>
+              <icon-mdi:refresh />
+            </template>
+            重试
+          </NButton>
+        </div>
+        <div v-else class="quota-grid">
           <section
             v-for="(quota, scope) in { llm: usage.llm, embedding: usage.embedding }"
             :key="scope"
@@ -237,7 +260,7 @@ const tokenRecordColumns = computed(() => [
                 :show-indicator="false"
                 :height="4"
               />
-              <div class="text-muted mt-3 flex flex-wrap justify-between gap-2 text-xs">
+              <div class="text-muted quota-meta mt-3 flex flex-wrap justify-between gap-2 text-xs">
                 <span>已用 {{ quota.usedTokens.toLocaleString() }} / {{ quota.limitTokens.toLocaleString() }}</span>
                 <span>请求 {{ quota.requestCount.toLocaleString() }} 次</span>
               </div>
@@ -248,12 +271,13 @@ const tokenRecordColumns = computed(() => [
 
         <section class="profile-tags">
           <h2>组织标签</h2>
-          <div class="org-tag-grid">
+          <div v-if="tags.orgTagDetails.length > 0" class="org-tag-grid">
             <button
               v-for="tag in tags.orgTagDetails"
               :key="tag.tagId"
               type="button"
               class="org-tag-option"
+              :class="{ 'is-primary': tag.tagId === tags.primaryOrg }"
               @click="showModal(tag.tagId)"
             >
               <div class="flex items-center justify-between gap-3">
@@ -263,13 +287,26 @@ const tokenRecordColumns = computed(() => [
               <p class="text-muted mt-2 text-xs">{{ tag.description }}</p>
             </button>
           </div>
+          <p v-else-if="orgTagsError" class="text-muted profile-note">组织标签加载失败，请刷新页面重试</p>
+          <p v-else class="profile-note text-muted">暂无组织标签，请联系管理员加入组织</p>
         </section>
 
         <section class="profile-records">
           <h2>Token 变动记录</h2>
           <NSpin :show="tokenRecordLoading">
+            <div v-if="tokenRecordError" class="page-state">
+              <icon-material-symbols:error-outline-rounded class="page-state__icon page-state__icon--error" />
+              <p class="page-state__title">Token 记录加载失败</p>
+              <p class="page-state__desc">网络异常导致记录没有加载，请检查连接后重试</p>
+              <NButton size="small" :disabled="tokenRecordLoading" @click="getTokenRecords">
+                <template #icon>
+                  <icon-mdi:refresh />
+                </template>
+                重试
+              </NButton>
+            </div>
             <NDataTable
-              v-if="tokenRecords.length > 0"
+              v-else-if="tokenRecords.length > 0"
               :bordered="false"
               :columns="tokenRecordColumns"
               :data="tokenRecords"
@@ -283,7 +320,11 @@ const tokenRecordColumns = computed(() => [
               :scroll-x="1200"
               size="small"
             />
-            <NEmpty v-else description="暂无记录" />
+            <div v-else class="page-state">
+              <icon-mdi:receipt-outline class="page-state__icon" />
+              <p class="page-state__title">暂无 Token 变动记录</p>
+              <p class="page-state__desc">充值或消耗 Token 之后，每笔记录会汇总到这里</p>
+            </div>
           </NSpin>
         </section>
       </NCard>
@@ -307,20 +348,32 @@ const tokenRecordColumns = computed(() => [
   max-width: 1120px;
   margin: 0 auto;
 }
+.profile-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 9999px;
+  background: var(--app-fill-subtle);
+  color: var(--app-text-secondary);
+}
 .quota-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 48px;
-  padding: 12px 0 32px;
+  padding-top: 8px;
 }
 h2 {
-  margin: 0 0 20px;
-  font-size: 15px;
+  margin: 0 0 16px;
+  font-size: 17px;
   font-weight: 600;
+  line-height: 1.4;
 }
 .quota-value {
   margin: 16px 0;
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -330,31 +383,95 @@ h2 {
   font-weight: 400;
   color: var(--app-muted);
 }
+.quota-meta {
+  font-variant-numeric: tabular-nums;
+}
 .profile-tags,
 .profile-records {
+  margin-top: 32px;
   border-top: 1px solid var(--app-border);
-  padding-top: 28px;
-  margin-top: 8px;
-}
-.profile-tags {
-  padding-bottom: 28px;
+  padding-top: 24px;
 }
 .org-tag-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 16px;
 }
+.profile-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
 .org-tag-option {
   padding: 16px;
-  border: 0;
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--app-radius-sm);
   text-align: left;
-  background: var(--app-subtle);
+  background: var(--app-fill-subtle);
   color: var(--app-text);
   cursor: pointer;
+  transition:
+    background-color var(--app-dur-fast) var(--app-ease-standard),
+    border-color var(--app-dur-fast) var(--app-ease-standard);
+}
+.org-tag-option:hover {
+  background: var(--app-fill-hover);
 }
 .org-tag-option:focus-visible {
   outline: 2px solid rgb(var(--primary-color));
+  outline-offset: 2px;
+}
+.org-tag-option.is-primary {
+  cursor: default;
+}
+.org-tag-option.is-primary:hover {
+  background: var(--app-fill-subtle);
+}
+.page-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 240px;
+  padding: 48px 24px;
+  text-align: center;
+  animation: page-state-in var(--app-dur-base) var(--app-ease-standard);
+}
+.page-state__icon {
+  font-size: 40px;
+  color: rgb(var(--base-text-color) / 0.24);
+}
+.page-state__icon--error {
+  color: rgb(var(--error-700-color));
+}
+.page-state__title {
+  margin: 8px 0 0;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--app-text);
+}
+.page-state__desc {
+  margin: 0;
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-muted);
+}
+html.dark .page-state__icon--error {
+  color: rgb(var(--error-400-color));
+}
+@keyframes page-state-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @media (max-width: 640px) {
   .quota-grid {
@@ -362,7 +479,7 @@ h2 {
     gap: 32px;
   }
   .quota-value {
-    font-size: 26px;
+    font-size: 24px;
   }
   .org-tag-grid {
     grid-template-columns: minmax(0, 1fr);

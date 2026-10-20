@@ -42,7 +42,7 @@ const selectedBgColor = computed(() => {
   const { darkMode, themeColor } = props;
 
   const light = transformColorWithOpacity(themeColor, 0.1, '#ffffff');
-  const dark = transformColorWithOpacity(themeColor, 0.3, '#000000');
+  const dark = transformColorWithOpacity(themeColor, 0.16, '#000000');
 
   return darkMode ? dark : light;
 });
@@ -60,7 +60,7 @@ function toggleSiderCollapse() {
   <!-- define component: MixMenuItem -->
   <DefineMixMenuItem v-slot="{ label, icon, active, isMini }">
     <div
-      class="mx-4px mb-6px flex-col-center cursor-pointer rounded-8px bg-transparent px-4px py-8px transition-300 hover:bg-[rgb(0,0,0,0.08)]"
+      class="mx-4px mb-6px flex-col-center cursor-pointer rounded-10px bg-transparent px-4px py-8px transition-all duration-250 ease-[var(--app-ease-standard)] hover:bg-[var(--app-fill-hover)]"
       :class="{
         'text-primary selected-mix-menu': active,
         'text-white:65 hover:text-white': inverted,
@@ -69,7 +69,7 @@ function toggleSiderCollapse() {
     >
       <component :is="icon" :class="[isMini ? 'text-icon-small' : 'text-icon-large']" />
       <p
-        class="w-full ellipsis-text text-center text-12px transition-height-300"
+        class="w-full ellipsis-text text-center text-12px transition-all duration-250 ease-[var(--app-ease-standard)]"
         :class="[isMini ? 'h-0 pt-0' : 'h-20px pt-4px']"
       >
         {{ label }}

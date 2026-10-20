@@ -1,19 +1,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, ref } from 'vue';
 import type { DataTableColumns } from 'naive-ui';
-import {
-  NButton,
-  NCard,
-  NDataTable,
-  NEmpty,
-  NInputNumber,
-  NModal,
-  NSpace,
-  NSpin,
-  NTabPane,
-  NTabs,
-  NTag
-} from 'naive-ui';
+import { NButton, NCard, NDataTable, NInputNumber, NModal, NSpace, NSpin, NTabPane, NTabs, NTag } from 'naive-ui';
 import QRCode from 'qrcode.vue';
 import {
   fetchCreateRechargeOrder,
@@ -27,6 +15,7 @@ const TOKEN_UNIT = 10000;
 
 const authStore = useAuthStore();
 const loading = ref(false);
+const packagesError = ref(false);
 const packages = ref<Api.Recharge.Package[]>([]);
 const selectedPackageId = ref<number | null>(null);
 const customAmountYuan = ref<number | null>(null); // 自定义充值金额（元）
@@ -34,8 +23,10 @@ const isCustomAmount = ref(false);
 
 // 充值记录相关
 const orderListLoading = ref(false);
+const ordersError = ref(false);
 const orders = ref<Api.Recharge.Order[]>([]);
 const activeTab = ref<string>('all');
+const isFiltered = computed(() => activeTab.value !== 'all');
 
 // 支付弹窗相关
 const showPayModal = ref(false);
@@ -84,6 +75,9 @@ const getPackages = async () => {
   const { error, data } = await fetchRechargePackages();
   if (!error && data) {
     packages.value = data;
+    packagesError.value = false;
+  } else {
+    packagesError.value = true;
   }
   loading.value = false;
 };
@@ -96,6 +90,9 @@ const getOrders = async () => {
     const { error, data } = await fetchRechargeOrders(status);
     if (!error && data) {
       orders.value = data;
+      ordersError.value = false;
+    } else {
+      ordersError.value = true;
     }
   } finally {
     orderListLoading.value = false;
@@ -171,7 +168,7 @@ const checkPayStatus = async () => {
         window.$message?.error('支付失败，请重试');
       }
     }
-  } catch (e) {
+  } catch {
     window.$message?.error('查询支付状态失败');
   }
 };
@@ -253,39 +250,51 @@ onMounted(() => {
     <NCard title="余额充值" :bordered="false" size="small" class="page-section">
       <!-- 余额充值区域 -->
       <template #header-extra>
-        <NTag type="primary">微信支付</NTag>
+        <NTag :bordered="false">微信支付</NTag>
       </template>
 
       <NSpin :show="loading">
-        <div v-if="packages.length > 0" class="grid gap-6 lg:grid-cols-3 md:grid-cols-2">
+        <div v-if="packagesError" class="page-state">
+          <icon-material-symbols:error-outline-rounded class="page-state__icon page-state__icon--error" />
+          <p class="page-state__title">充值套餐加载失败</p>
+          <p class="page-state__desc">网络异常导致套餐没有加载，请检查连接后重试</p>
+          <NButton size="small" :disabled="loading" @click="getPackages">
+            <template #icon>
+              <icon-mdi:refresh />
+            </template>
+            重试
+          </NButton>
+        </div>
+        <div v-else-if="packages.length > 0" class="grid gap-6 lg:grid-cols-3 md:grid-cols-2">
           <!-- 充值套餐卡片 -->
           <NCard
             v-for="pkg in packages"
             :key="pkg.id"
-            hoverable
+            :bordered="false"
             class="package-option"
             :class="{ 'is-selected': selectedPackageId === pkg.id && !isCustomAmount }"
+            tabindex="0"
             @click="selectPackage(pkg.id)"
+            @keydown.enter.prevent="selectPackage(pkg.id)"
+            @keydown.space.prevent="selectPackage(pkg.id)"
           >
             <div class="flex flex-col gap-4">
-              <div class="flex items-center justify-between">
-                <h3 class="text-xl font-bold">{{ pkg.packageName }}</h3>
-              </div>
+              <h3 class="package-name">{{ pkg.packageName }}</h3>
 
               <div class="flex items-baseline gap-2">
-                <span class="text-3xl text-primary font-bold">¥{{ (pkg.packagePrice / 100).toFixed(2) }}</span>
+                <span class="package-price">¥{{ (pkg.packagePrice / 100).toFixed(2) }}</span>
               </div>
 
-              <div class="flex flex-col gap-2 text-sm">
+              <div class="token-lines flex flex-col gap-2">
                 <div class="flex items-center gap-2">
-                  <icon-solar:like-bold-duotone class="text-primary" />
+                  <icon-solar:like-bold-duotone class="text-tertiary" />
                   <span>
                     LLM Token:
                     <strong>{{ formatTokenWan(pkg.llmToken) }}</strong>
                   </span>
                 </div>
                 <div class="flex items-center gap-2">
-                  <icon-solar:like-bold-duotone class="text-primary" />
+                  <icon-solar:like-bold-duotone class="text-tertiary" />
                   <span>
                     Embedding Token:
                     <strong>{{ formatTokenWan(pkg.embeddingToken) }}</strong>
@@ -293,20 +302,17 @@ onMounted(() => {
                 </div>
               </div>
 
-              <NEllipsis :line-clamp="2" class="text-muted text-sm">
+              <NEllipsis :line-clamp="2" class="package-desc">
                 {{ pkg.packageDesc }}
               </NEllipsis>
 
-              <div
-                v-if="packageBenefitLines(pkg.packageBenefit).length"
-                class="text-muted surface-subtle flex flex-col gap-2 rounded-lg p-3 text-sm"
-              >
+              <div v-if="packageBenefitLines(pkg.packageBenefit).length" class="package-perks flex flex-col gap-2 p-3">
                 <div
                   v-for="line in packageBenefitLines(pkg.packageBenefit)"
                   :key="`${pkg.id}-${line}`"
                   class="flex items-start gap-2"
                 >
-                  <span class="mt-1 h-1.5 w-1.5 rounded-full bg-primary"></span>
+                  <span class="perk-dot"></span>
                   <span>{{ line }}</span>
                 </div>
               </div>
@@ -326,22 +332,34 @@ onMounted(() => {
 
           <!-- 自定义充值卡片 -->
           <NCard
-            hoverable
+            :bordered="false"
             class="package-option"
             :class="{ 'is-selected': isCustomAmount }"
+            tabindex="0"
             @click="selectCustomAmount"
+            @keydown.enter.prevent="selectCustomAmount"
+            @keydown.space.prevent="selectCustomAmount"
           >
             <div class="flex flex-col gap-4">
-              <h3 class="text-xl font-bold">自定义充值</h3>
+              <h3 class="package-name">自定义充值</h3>
 
               <div class="flex items-baseline gap-2">
-                <span class="text-3xl text-primary font-bold">灵活充值</span>
+                <span class="package-price">灵活充值</span>
               </div>
 
-              <div class="text-muted flex flex-col gap-2 text-sm">
-                <div>• 充值金额不限</div>
-                <div>• 按比例赠送 Token</div>
-                <div>• 随时充值随时用</div>
+              <div class="package-desc flex flex-col gap-2">
+                <div class="flex items-start gap-2">
+                  <span class="perk-dot"></span>
+                  <span>充值金额不限</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="perk-dot"></span>
+                  <span>按比例赠送 Token</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="perk-dot"></span>
+                  <span>随时充值随时用</span>
+                </div>
               </div>
 
               <div v-if="isCustomAmount" class="mt-4" @click.stop>
@@ -372,7 +390,11 @@ onMounted(() => {
           </NCard>
         </div>
 
-        <NEmpty v-else description="暂无充值套餐" />
+        <div v-else class="page-state">
+          <icon-mdi:package-variant-closed class="page-state__icon" />
+          <p class="page-state__title">暂无充值套餐</p>
+          <p class="page-state__desc">当前没有可用的充值套餐，请稍后再来看看</p>
+        </div>
       </NSpin>
     </NCard>
 
@@ -387,8 +409,19 @@ onMounted(() => {
       </NTabs>
 
       <NSpin :show="orderListLoading">
+        <div v-if="ordersError" class="page-state">
+          <icon-material-symbols:error-outline-rounded class="page-state__icon page-state__icon--error" />
+          <p class="page-state__title">充值记录加载失败</p>
+          <p class="page-state__desc">网络异常导致记录没有加载，请检查连接后重试</p>
+          <NButton size="small" :disabled="orderListLoading" @click="getOrders">
+            <template #icon>
+              <icon-mdi:refresh />
+            </template>
+            重试
+          </NButton>
+        </div>
         <NDataTable
-          v-if="orders.length > 0"
+          v-else-if="orders.length > 0"
           :bordered="false"
           :columns="orderColumns"
           :data="orders"
@@ -396,7 +429,18 @@ onMounted(() => {
           :scroll-x="1200"
           class="mt-4"
         />
-        <NEmpty v-else description="暂无充值记录" />
+        <div v-else class="page-state">
+          <icon-mdi:credit-card-outline class="page-state__icon" />
+          <template v-if="isFiltered">
+            <p class="page-state__title">没有该状态下的订单</p>
+            <p class="page-state__desc">当前筛选下没有订单，可以查看全部订单</p>
+            <NButton size="small" @click="handleTabChange('all')">查看全部订单</NButton>
+          </template>
+          <template v-else>
+            <p class="page-state__title">暂无充值记录</p>
+            <p class="page-state__desc">发起充值并完成支付后，订单会汇总到这里</p>
+          </template>
+        </div>
       </NSpin>
     </NCard>
 
@@ -404,7 +448,8 @@ onMounted(() => {
     <NModal v-model:show="showPayModal" preset="dialog" title="扫码支付" :show-icon="false" class="w-480px">
       <div class="flex flex-col items-center gap-6 py-6">
         <div v-if="orderInfo" class="flex flex-col items-center gap-4">
-          <div class="border-2 border-primary rounded-lg bg-white p-6">
+          <!-- QR 码是内容而非界面：黑白高对比是扫码识别的硬性条件，不随主题变化 -->
+          <div class="qr-shell">
             <QRCode
               :value="orderInfo.prePayId"
               :size="240"
@@ -416,9 +461,11 @@ onMounted(() => {
             />
           </div>
           <div class="text-center">
-            <p class="text-lg font-semibold">请使用微信扫码支付</p>
-            <p class="text-muted mt-2 text-sm">订单号：{{ currentTradeNo }}</p>
-            <p class="text-muted mt-1 text-sm">支付金额：¥{{ (getOrderAmount / 100).toFixed(2) }}</p>
+            <p class="text-17px font-semibold">请使用微信扫码支付</p>
+            <p class="text-muted mt-2 text-13px leading-20px font-mono">订单号：{{ currentTradeNo }}</p>
+            <p class="text-muted mt-1 text-13px leading-20px tabular-nums">
+              支付金额：¥{{ (getOrderAmount / 100).toFixed(2) }}
+            </p>
           </div>
         </div>
 
@@ -431,23 +478,127 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
-.package-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-  gap: 24px;
-}
+/* 可选套餐磁贴：卡片内的小面板 → md 14px，静态零阴影，hover 以底色回应 */
 .package-option {
   cursor: pointer;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: var(--app-subtle);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-fill-subtle);
   box-shadow: none;
-  transition: border-color 0.15s;
+  transition:
+    background-color var(--app-dur-fast) var(--app-ease-standard),
+    border-color var(--app-dur-fast) var(--app-ease-standard),
+    box-shadow var(--app-dur-fast) var(--app-ease-standard);
+
   &:hover {
-    border-color: var(--app-border);
+    background: var(--app-fill-hover);
   }
+
+  &:focus-visible {
+    outline: 2px solid rgb(var(--primary-color));
+    outline-offset: 2px;
+  }
+
   &.is-selected {
     border-color: rgb(var(--primary-color));
+    box-shadow: 0 0 0 1px rgb(var(--primary-color));
+  }
+}
+.package-name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--app-text);
+}
+.package-price {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--app-text);
+  font-variant-numeric: tabular-nums;
+}
+.token-lines {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-text-secondary);
+
+  strong {
+    font-weight: 600;
+    color: var(--app-text);
+    font-variant-numeric: tabular-nums;
+  }
+}
+.package-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-muted);
+}
+.package-perks {
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-text-secondary);
+}
+.perk-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 9999px;
+  background: var(--app-text-tertiary);
+}
+.qr-shell {
+  padding: 24px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface);
+}
+.page-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 240px;
+  padding: 48px 24px;
+  text-align: center;
+  animation: page-state-in var(--app-dur-base) var(--app-ease-standard);
+}
+.page-state__icon {
+  font-size: 40px;
+  color: rgb(var(--base-text-color) / 0.24);
+}
+.page-state__icon--error {
+  color: rgb(var(--error-700-color));
+}
+.page-state__title {
+  margin: 8px 0 0;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--app-text);
+}
+.page-state__desc {
+  margin: 0;
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-muted);
+}
+html.dark .page-state__icon--error {
+  color: rgb(var(--error-400-color));
+}
+@keyframes page-state-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

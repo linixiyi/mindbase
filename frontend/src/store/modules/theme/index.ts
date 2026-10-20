@@ -44,6 +44,26 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
       ...otherColor,
       info: isInfoFollowPrimary ? themeColor : otherColor.info
     };
+
+    // Quiet Glass: dark mode is not an inversion but real layering — the accent and semantic
+    // colors switch to their normative dark variants, and every derived palette step
+    // (CSS vars + Naive) regenerates from these dark base colors.
+    if (darkMode.value) {
+      const darkColors: App.Theme.ThemeColor = {
+        ...colors,
+        primary: '#5B5BE8',
+        success: '#30D158',
+        warning: '#FF9F0A',
+        error: '#FF453A'
+      };
+
+      if (isInfoFollowPrimary) {
+        darkColors.info = darkColors.primary;
+      }
+
+      return darkColors;
+    }
+
     return colors;
   });
 

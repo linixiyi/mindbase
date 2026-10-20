@@ -207,14 +207,17 @@ interface NaiveColorAction {
  * Get naive theme colors
  *
  * @param colors Theme colors
- * @param [recommended=false] Use recommended color. Default is `false`
+ * @param [_recommended=false] Deprecated: kept for signature compatibility, hover/pressed now derive from fixed 600/700
+ *   steps. Default is `false`
  */
-function getNaiveThemeColors(colors: App.Theme.ThemeColor, recommended = false) {
+function getNaiveThemeColors(colors: App.Theme.ThemeColor, _recommended = false) {
   const colorActions: NaiveColorAction[] = [
     { scene: '', handler: color => color },
     { scene: 'Suppl', handler: color => color },
-    { scene: 'Hover', handler: color => getPaletteColorByNumber(color, 500, recommended) },
-    { scene: 'Pressed', handler: color => getPaletteColorByNumber(color, 700, recommended) },
+    // With `recommendColor: false` the 500 step equals the base color, so hover/pressed
+    // derive from the 600/700 steps of the *active* base color (dark theme swaps automatically).
+    { scene: 'Hover', handler: color => getPaletteColorByNumber(color, 600, false) },
+    { scene: 'Pressed', handler: color => getPaletteColorByNumber(color, 700, false) },
     { scene: 'Active', handler: color => addColorAlpha(color, 0.1) }
   ];
 
@@ -233,6 +236,13 @@ function getNaiveThemeColors(colors: App.Theme.ThemeColor, recommended = false) 
   return themeColors;
 }
 
+/** System font stack of the Quiet Glass world (SF Pro + PingFang SC on macOS) */
+const appFontFamily =
+  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif';
+
+/** Mono font stack of the Quiet Glass world */
+const appFontFamilyMono = 'ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace';
+
 /**
  * Get naive theme
  *
@@ -245,13 +255,73 @@ export function getNaiveTheme(colors: App.Theme.ThemeColor, recommended = false)
   const theme: GlobalThemeOverrides = {
     common: {
       ...getNaiveThemeColors(colors, recommended),
-      borderRadius: '6px'
+      fontFamily: appFontFamily,
+      fontFamilyMono: appFontFamilyMono,
+      fontWeight: '400',
+      fontWeightStrong: '600',
+      lineHeight: '1.65',
+      fontSize: '14px',
+      fontSizeSmall: '13px',
+      heightSmall: '28px',
+      heightMedium: '36px',
+      heightLarge: '44px',
+      borderRadius: '10px',
+      borderRadiusSmall: '6px',
+      boxShadow1: 'var(--app-shadow-e1)',
+      boxShadow2: 'var(--app-shadow-e2)',
+      boxShadow3: 'var(--app-shadow-e3)',
+      cubicBezierEaseInOut: 'var(--app-ease-standard)',
+      cubicBezierEaseOut: 'var(--app-ease-emphasized)',
+      cubicBezierEaseIn: 'var(--app-ease-exit)'
     },
     LoadingBar: {
       colorLoading
     },
+    Button: {
+      fontWeight: '600'
+    },
+    Input: {
+      boxShadowFocus: '0 0 0 3px rgb(var(--primary-color) / 0.2)'
+    },
+    Menu: {
+      itemHeight: '36px',
+      borderRadius: '10px',
+      fontSize: '14px',
+      itemColorHover: 'var(--app-fill-hover)',
+      itemColorActive: 'var(--app-fill-subtle)',
+      itemColorActiveHover: 'var(--app-fill-hover)',
+      itemColorActiveCollapsed: 'var(--app-fill-subtle)',
+      itemTextColor: 'var(--app-text-secondary)',
+      itemTextColorHover: 'rgb(var(--base-text-color))',
+      itemTextColorActive: 'rgb(var(--base-text-color))',
+      itemTextColorActiveHover: 'rgb(var(--base-text-color))',
+      itemTextColorChildActive: 'rgb(var(--primary-color))',
+      itemTextColorChildActiveHover: 'rgb(var(--primary-color))',
+      itemIconColor: 'var(--app-text-secondary)',
+      itemIconColorHover: 'rgb(var(--base-text-color))',
+      itemIconColorActive: 'rgb(var(--primary-color))',
+      itemIconColorActiveHover: 'rgb(var(--primary-color))',
+      itemIconColorChildActive: 'rgb(var(--primary-color))',
+      itemIconColorChildActiveHover: 'rgb(var(--primary-color))',
+      arrowColor: 'var(--app-text-tertiary)',
+      arrowColorHover: 'rgb(var(--base-text-color))',
+      arrowColorActive: 'rgb(var(--primary-color))',
+      arrowColorActiveHover: 'rgb(var(--primary-color))',
+      arrowColorChildActive: 'rgb(var(--primary-color))',
+      arrowColorChildActiveHover: 'rgb(var(--primary-color))',
+      groupTextColor: 'var(--app-text-tertiary)'
+    },
     Tag: {
-      borderRadius: '6px'
+      borderRadius: '9999px'
+    },
+    Card: {
+      borderRadius: '18px'
+    },
+    Dialog: {
+      borderRadius: '18px'
+    },
+    Drawer: {
+      borderRadius: '18px'
     }
   };
 

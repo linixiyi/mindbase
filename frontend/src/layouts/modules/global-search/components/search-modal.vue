@@ -24,6 +24,13 @@ const handleSearch = useDebounceFn(search, 300);
 
 const visible = defineModel<boolean>('show', { required: true });
 
+/** Command palette: overlay material + elevation-3 (DESIGN.md › Material Vocabulary / Shadow Vocabulary) */
+const commandPaletteStyle = {
+  '--n-color': 'var(--app-material-overlay)',
+  WebkitBackdropFilter: 'var(--app-material-filter)',
+  backdropFilter: 'var(--app-material-filter)'
+};
+
 function search() {
   resultOptions.value = routeStore.searchMenus.filter(menu => {
     const trimKeyword = keyword.value.toLocaleLowerCase().trim();
@@ -97,14 +104,15 @@ registerShortcut();
     preset="card"
     auto-focus
     footer-style="padding: 0; margin: 0"
-    class="fixed left-0 right-0"
-    :class="[isMobile ? 'size-full top-0px rounded-0' : 'w-630px top-50px']"
+    class="fixed left-0 right-0 shadow-[var(--app-shadow-e3)]"
+    :style="commandPaletteStyle"
+    :class="[isMobile ? 'size-full top-0px rounded-0' : 'w-630px top-50px rounded-24px']"
     @after-leave="handleClose"
   >
     <NInputGroup>
       <NInput v-model:value="keyword" clearable :placeholder="$t('common.keywordSearch')" @input="handleSearch">
         <template #prefix>
-          <icon-uil-search class="text-15px text-#c2c2c2" />
+          <icon-uil-search class="text-15px text-tertiary" />
         </template>
       </NInput>
       <NButton v-if="isMobile" type="primary" ghost @click="handleClose">{{ $t('common.cancel') }}</NButton>
