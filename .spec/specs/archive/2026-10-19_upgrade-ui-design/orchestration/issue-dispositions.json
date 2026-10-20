@@ -1,0 +1,23 @@
+[
+  {
+    "id": "kb-citation-runtime-visual",
+    "summary": "带真实数据的引用标注渲染目检未完成：真实后端 8081 未运行（按 AGENTS.md 不代启后端），mock 桩只能覆盖守卫与错误/空态。改动本身仅 token 置换（reference-preview-page.vue 文字/背景色）、未动 DOM 与数据流，已有 typecheck + 编译产物核查 + Vite 在线编译 200 覆盖。",
+    "disposition": "external_blocked",
+    "actionable": true,
+    "evidence": "curl 8081 exit 7、lsof 无 Java 监听（工作流运行记录）；改动 diff 仅样式类；orchestration/screenshots/ 六张截图为无数据态"
+  },
+  {
+    "id": "materials-shadow-2xl",
+    "summary": "packages/materials/src/libs/admin-layout/index.vue 浮动侧栏的 shadow-2xl 静止重影未收敛：@sa/* 包在本轮 spec.md §5 明确列为不应触碰边界。",
+    "disposition": "accepted_risk",
+    "actionable": true,
+    "evidence": "DESIGN.md「已知例外」已记录该条目与收敛方向（替换为壳层分隔级细影或去影），留待单独排期"
+  },
+  {
+    "id": "settings-dead-shadow-tokens",
+    "summary": "settings.ts 两枚死阴影 token（header/sider box-shadow）仅注记死因而未物理删除：App.Theme.ThemeSettingTokenBoxShadow 将三键声明为必填，删键即类型错误，src/typings 在本轮边界外。",
+    "disposition": "accepted_risk",
+    "actionable": true,
+    "evidence": "settings.ts:35-39 注记；DESIGN.md 阴影词汇表已同步死 token 说明；待 app.d.ts 放开后一并删除"
+  }
+]
