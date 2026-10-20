@@ -31,14 +31,14 @@
 ## 3. 功能范围
 
 ### 3.1 核心功能（MVP）
-- [ ] 新视觉世界定义：重写 DESIGN.md + sidecar（Apple 级质感世界的完整 token 体系与落地映射）
-- [ ] token/壳层落地：theme settings、themeOverrides、全局 CSS 变量、壳层（侧栏/顶栏/菜单）换新世界
-- [ ] 旗舰页落地：chat 页换新世界（含引用标注样式适配、不破坏数据流）
-- [ ] 门禁通过：typecheck + 全仓 eslint 0 error + impeccable 设计检测器无 error 级发现
-- [ ] PM 视角审查 + 真人场景模拟（登录→提问→引用→知识库四条用户故事）产出体验发现清单
+- [x] 新视觉世界定义：重写 DESIGN.md + sidecar（Apple 级质感世界的完整 token 体系与落地映射）
+- [x] token/壳层落地：theme settings、themeOverrides、全局 CSS 变量、壳层（侧栏/顶栏/菜单）换新世界
+- [x] 旗舰页落地：chat 页换新世界（含引用标注样式适配、不破坏数据流）
+- [x] 门禁通过：typecheck + 全仓 eslint 0 error + impeccable 设计检测器无 error 级发现
+- [x] PM 视角审查 + 真人场景模拟（登录→提问→引用→知识库四条用户故事）产出体验发现清单
 
 ### 3.2 扩展功能
-- [ ] 其余页面（chat-history / knowledge-base / personal-center / login 等）换新世界——下一轮按反馈执行
+- [x] 其余页面（chat-history / knowledge-base / personal-center / login 等）换新世界——下一轮按反馈执行
 
 ### 3.3 不在范围内
 - 后端任何改动；路由结构重组；业务逻辑与 API 契约改动
@@ -73,12 +73,12 @@
 - 主会话保留：浏览器实操验收、反馈汇总、多轮工作流修订（AmendWorkflow）、check/done 门禁
 
 ## 6. 成功标准与验证方式
-- [ ] 新世界 DESIGN.md + sidecar 落地且通过独立复核 -> verify: task-world
-- [ ] token/壳层/旗舰页换新世界后 typecheck 与全仓 eslint 0 error -> verify: task-implement
-- [ ] impeccable 设计检测器无 error 级发现 -> verify: task-gate
-- [ ] PM 视角 + 真人场景模拟发现清单落盘 orchestration/ -> verify: task-pm
-- [ ] 主线程浏览器目检四条用户故事（亮暗双主题）通过 -> verify: task-browser
-- [ ] 对照 §4「暂不引入」清单在验收记录中列出被拒绝的扩展点或确认无 -> verify: task-world
+- [x] 新世界 DESIGN.md + sidecar 落地且通过独立复核 -> verify: task-world
+- [x] token/壳层/旗舰页换新世界后 typecheck 与全仓 eslint 0 error -> verify: task-implement
+- [x] impeccable 设计检测器无 error 级发现 -> verify: task-gate
+- [x] PM 视角 + 真人场景模拟发现清单落盘 orchestration/ -> verify: task-pm
+- [x] 主线程浏览器目检四条用户故事（亮暗双主题）通过 -> verify: task-browser
+- [x] 对照 §4「暂不引入」清单在验收记录中列出被拒绝的扩展点或确认无 -> verify: task-world
 
 ## 7. 风险与约束
 - 风险点：重设计破坏引用标注渲染链路 -> 缓解：boundary 禁改数据流；主线程浏览器目检带真实对话
