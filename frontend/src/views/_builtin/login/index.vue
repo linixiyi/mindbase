@@ -41,7 +41,7 @@ const isRegisterModule = computed(() => (props.module || 'pwd-login') === 'regis
 <template>
   <!--
  Airy 登录：去盒——表单直接坐在页面上；亮色白底大留白，暗色落回 layout 地面；
-       靛紫只出现在品牌标与主行动上（DESIGN.md › 一线靛律） 
+       淡蓝只出现在品牌标与主行动上（DESIGN.md › 一线蓝律） 
 -->
   <div class="login-page relative size-full">
     <div class="login-tools absolute right-24px top-24px z-4 flex-y-center gap-16px">
@@ -107,7 +107,7 @@ html.dark .login-page {
   padding-right: 24px;
 }
 
-/* 居中竖排 hero：品牌标（靛紫）+ Display 32 页题 */
+/* 居中竖排 hero：品牌标（淡蓝）+ Display 32 页题 */
 .login-head {
   display: flex;
   flex-direction: column;

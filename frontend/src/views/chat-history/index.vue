@@ -114,12 +114,12 @@ async function getList() {
     </NForm>
 
     <div v-if="errorMsg" class="history-state history-state--error min-h-0 flex-1">
-      <icon-material-symbols:error-outline-rounded class="history-state__icon" />
+      <icon-lucide:circle-alert class="history-state__icon" />
       <p class="history-state__title">聊天记录加载失败</p>
       <p class="history-state__desc">{{ errorMsg }}</p>
       <NButton size="small" :disabled="loading" @click="getList">
         <template #icon>
-          <icon-mdi:refresh />
+          <icon-lucide:rotate-cw />
         </template>
         重试
       </NButton>
@@ -132,7 +132,7 @@ async function getList() {
           </VueMarkdownItProvider>
         </div>
         <div v-if="!list.length" class="history-state">
-          <icon-mdi:chat-bubble-outline class="history-state__icon" />
+          <icon-lucide:message-square class="history-state__icon" />
           <template v-if="hasActiveFilters">
             <p class="history-state__title">没有符合筛选条件的记录</p>
             <p class="history-state__desc">调整用户或时间范围，或清除筛选后再查询</p>

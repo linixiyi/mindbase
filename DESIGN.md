@@ -1,31 +1,31 @@
 ---
 name: MindBase
-description: 企业级 RAG 知识库 · 静光玻璃（The Quiet Glass · 亮色 airy）——白底大留白的 Apple 质感工作台，默认亮色；Quiet Glass 暗色组完整保留为可选主题
+description: 企业级 RAG 知识库 · 晴空玻璃（The Azure Glass · 亮色 airy 淡蓝）——白底大留白的 Apple 质感工作台，默认亮色、一线淡蓝；Quiet Glass 暗色组完整保留为可选主题
 colors:
-  # ── 亮色组 = 默认主题（normative）──
-  accent: "#5856D6"
-  accent-hover: "#3E3FB0"
-  accent-pressed: "#292E8A"
-  bg-layout: "#F5F5F7"
+  # ── 亮色组 = 默认主题（normative）；第四轮 Azure：强调色靛蓝→淡蓝，中性面染冷蓝 ──
+  accent: "#0071E3"
+  accent-hover: "#0058BD"
+  accent-pressed: "#004196"
+  bg-layout: "#F2F6FC"
   bg-container: "#FFFFFF"
   bg-elevated: "#FFFFFF"
-  bg-inverted: "#1D1D1F"
-  text-primary: "#1D1D1F"
-  text-secondary: "#6E6E73"
-  text-tertiary: "#86868B"
-  hairline: "rgba(29, 29, 31, 0.09)"
-  fill-subtle: "rgba(120, 120, 128, 0.08)"
-  fill-hover: "rgba(120, 120, 128, 0.12)"
+  bg-inverted: "#1C2A3A"
+  text-primary: "#1C2A3A"
+  text-secondary: "#5E6B7E"
+  text-tertiary: "#8493A6"
+  hairline: "rgba(28, 42, 58, 0.09)"
+  fill-subtle: "rgba(70, 110, 168, 0.09)"
+  fill-hover: "rgba(70, 110, 168, 0.14)"
   material-nav: "rgba(255, 255, 255, 0.72)"
   material-overlay: "rgba(255, 255, 255, 0.76)"
   scrim: "rgba(0, 0, 0, 0.30)"
   success: "#34C759"
   warning: "#FF9500"
   error: "#FF3B30"
-  # ── 暗色组 = 保留主题（非默认）；自 Quiet Glass 起原样保留，任何一项不得改动 ──
-  accent-dark: "#5B5BE8"
-  accent-hover-dark: "#4642C2"
-  accent-pressed-dark: "#342D9C"
+  # ── 暗色组 = 保留主题（非默认）；第四轮仅主色随淡蓝换血（#5B5BE8→#0071E3），其余自 Quiet Glass 起原样保留，任何一项不得改动 ──
+  accent-dark: "#0071E3"
+  accent-hover-dark: "#0058BD"
+  accent-pressed-dark: "#004196"
   bg-layout-dark: "#0A0A0C"
   bg-container-dark: "#1C1C1E"
   bg-elevated-dark: "#2C2C2E"
@@ -159,7 +159,7 @@ components:
     rounded: "{rounded.lg}"
     padding: "12px 16px"
   citation-chip:
-    backgroundColor: "rgba(88, 86, 214, 0.10)"
+    backgroundColor: "rgba(0, 113, 227, 0.10)"
     textColor: "{colors.accent}"
     typography: "500 12px/1"
     rounded: "{rounded.capsule}"
@@ -169,35 +169,37 @@ components:
 
 # Design System: MindBase
 
-<!-- 世界替换（departure）：按用户 brief 指定的「Apple 高级感」方向全新定义，替换而非精修旧观感；frontmatter token 为规范值（normative），实现落地后须按「Token 落地映射」逐项核对。第三轮（2026-10-20 亮色 airy 结构改）在其上做结构级修订：默认亮色、悬浮浮岛壳层、聊天去盒、排版与留白放大——见 Overview 与 Layout › 轮廓判定。 -->
+<!-- 世界替换（departure）：按用户 brief 指定的「Apple 高级感」方向全新定义，替换而非精修旧观感；frontmatter token 为规范值（normative），实现落地后须按「Token 落地映射」逐项核对。第三轮（2026-10-20 亮色 airy 结构改）在其上做结构级修订：默认亮色、悬浮浮岛壳层、聊天去盒、排版与留白放大——见 Overview 与 Layout › 轮廓判定。第四轮（2026-10-20 Azure 淡蓝换血）按用户 brief「主题色是淡蓝色」把一线靛换血为一线蓝（#0071E3），亮色中性面染冷蓝，并补齐动效论纲与 delight 时刻——见 Overview 与 Motion & Delight。 -->
 
 ## Overview
 
-**Creative North Star: "静光玻璃（The Quiet Glass）"——一间洒着均匀日光的安静工作室：磨砂玻璃做门与隔断，白色台面承载全部工作，只有一根靛蓝细线标出"正在进行的事"。第三轮把窗帘完全拉开（默认亮色），并把家具从墙上搬下来（侧栏成为悬浮浮岛）——白天的工作室里，家具是浮岛，台面就是房间本身。**
+**Creative North Star: "晴空玻璃（The Azure Glass）"——一间洒着均匀日光的安静工作室：磨砂玻璃做门与隔断，白色台面承载全部工作，只有一根天蓝细线标出"正在进行的事"。第三轮把窗帘完全拉开（默认亮色），并把家具从墙上搬下来（侧栏成为悬浮浮岛）；第四轮把那根靛蓝细线换成了晴天的一线蓝（#0071E3），连地面都透出一点晴空的冷——白天的工作室里，家具是浮岛，台面就是房间本身。**
 
-MindBase 的界面是给企业员工每天提问、给管理员每天治理的工作台，也是给面试官审视的工程门面。它的气质来自三个词：**静**（近单色的中性面，信息本体是唯一的色彩来源）、**磨砂**（导航与浮层用半透明 + backdrop-filter 的真实材质，正文永远坐在实底上）、**一线靛**（全站唯一强调色是 Apple systemIndigo，稀用、克制、出现即意味着"焦点与行动"）。
+MindBase 的界面是给企业员工每天提问、给管理员每天治理的工作台，也是给面试官审视的工程门面。它的气质来自三个词：**静**（近单色的冷调中性面，信息本体是唯一的色彩来源）、**磨砂**（导航与浮层用半透明 + backdrop-filter 的真实材质，正文永远坐在实底上）、**一线蓝**（全站唯一强调色是 apple.com 淡蓝 #0071E3，稀用、克制、出现即意味着"焦点与行动"）。
 
 第三轮（2026-10-20 亮色 airy 结构改）是**结构级**修订，不是细节精修：默认主题定为 light（apple.com 气质——白底、大留白、透），侧栏脱离窗口边缘成为带投影的悬浮浮岛，聊天页拆除圆角盒子改为全幅 airy 画布 + 居中内容列，页面标题与正文字号、区块留白整体拉大。验收标准即「轮廓判定」：并排旧版与新版截图，第一眼必须可辨（见 Layout › 轮廓判定）。密度依然从容——控件高度不动，放大的是排版层与留白：airy 靠空间，不靠大控件。
 
-本文件对旧观感的否决持续有效：SoybeanAdmin 模板默认（Vite 默认紫蓝 `#646cff` 混拼 Ant Design 语义色、6px 碎圆角、静态卡片薄投影、灰阶反转暗色、颜色硬编码绕过 token）不得以"兼容"名义回归；第三轮起，前两轮的旧轮廓（贴边通高侧栏、聊天圆角盒、28px 页题与 24px 区块距）同样不得回归。
+第四轮（2026-10-20 Azure 淡蓝换血）是用户 brief「主题色是淡蓝色」的**色彩级**修订，经 impeccable 八指令（animate/bolder/colorize/delight/layout/overdrive/quieter/typeset）执行：一线靛换血为一线蓝（`#0071E3`，apple.com 官网按钮蓝——比 systemBlue `#007AFF` 深半档换取白字 4.70:1 的 AA 达标），亮色中性面整体染上冷蓝（地面、墨色、发丝线、细填充全部带蓝调），并补齐动效论纲（主题切换 View Transitions morph、呼吸状态、引用微交互）与两个 delight 时刻。第四轮**不是**结构改——第三轮的浮岛、去盒、排版刻度原样保留；也**不是**观感重置——「静」的底色还在，只是晴天来了。
+
+本文件对旧观感的否决持续有效：SoybeanAdmin 模板默认（Vite 默认紫蓝 `#646cff` 混拼 Ant Design 语义色、6px 碎圆角、静态卡片薄投影、灰阶反转暗色、颜色硬编码绕过 token）不得以"兼容"名义回归；第三轮起，前两轮的旧轮廓（贴边通高侧栏、聊天圆角盒、28px 页题与 24px 区块距）同样不得回归；第四轮起，靛蓝 `#5856D6` 及其全部派生阶不得以任何形式残留。
 
 **Key Characteristics:**
 
-- **默认亮色**：白底、大留白、透；暗色（Quiet Glass 暗色组）完整保留为可选主题，全部暗色值原样不变
+- **默认亮色**：白底、大留白、透、冷蓝地面；暗色（Quiet Glass 暗色组）完整保留为可选主题，除主色随淡蓝换血外全部暗色值原样不变
 - **悬浮浮岛壳层**：侧栏与窗口边缘脱开（12px 缘距 + 24px 圆角 + 浮岛档投影），顶栏是唯一贴墙的家具
 - **聊天无盒**：全幅白画布 + 800px 居中内容列；页面结构最多两层，卡片不嵌卡片
-- 近单色中性面 + 单一靛蓝强调色，强调色占任何一屏 ≤10%
+- 近单色冷调中性面 + 单一淡蓝强调色，强调色占任何一屏 ≤10%
 - 系统字体栈（macOS 上即 SF Pro + 苹方），排版层放大（页题 32 / 区块题 20 / 正文 16）、控件层不动
 - 发丝线（hairline）负责静态分隔；阴影只属于浮层与浮岛
 - 150–350ms 标准缓动，状态切换有生命但不喧宾夺主
 
 ## Colors
 
-调色策略是**克制（Restrained）**：中性面全部由同一个冷灰族构成，唯一强调色是靛蓝（Apple systemIndigo 的 Web 落法），语义色只在状态出现时进场。**默认主题为 light**——frontmatter 中无后缀的亮色值即开箱值；`-dark` 后缀的暗色组自 Quiet Glass 起原样保留（非默认、值不变），主题切换入口保留。
+调色策略是**克制（Restrained）**：中性面全部由同一个冷灰蓝族构成（第四轮起带 210° 蓝调），唯一强调色是淡蓝（apple.com 官网按钮蓝的 Web 落法），语义色只在状态出现时进场。**默认主题为 light**——frontmatter 中无后缀的亮色值即开箱值；`-dark` 后缀的暗色组自 Quiet Glass 起保留（非默认），第四轮仅主色随淡蓝换血，其余值不变，主题切换入口保留。
 
 ### Primary
 
-- **静光靛 Quiet Indigo** (`#5856D6`；暗色 `accent-dark #5B5BE8`)：全站唯一强调色。用于：主按钮填充、选中态、链接、聚焦环、引用标注、发送按钮。白字对比 5.65:1（暗色 5.11:1），达标 AA。作为**文字**出现在暗色容器上时对比仅 3.33:1，必须改用深阶——暗色主题下基础色切为 `#5B5BE8`，深阶变量随之由暗色基础色派生（`--primary-400-color` = `#878af5`，5.66:1），或附加下划线。它是 Apple 自己的靛紫系统色：延续产品旧标识的紫调血统，但饱和度与使用密度都大幅降低——用户扫过任何一屏，靛蓝出现的面积不超过 10%。
+- **晴空蓝 Azure Blue** (`#0071E3`；暗色 `accent-dark #0071E3`)：全站唯一强调色。用于：主按钮填充、选中态、链接、聚焦环、引用标注、发送按钮。白字对比 4.70:1（两主题同值），达标 AA；hover `#0058BD`（600 阶）、pressed `#004196`（700 阶）对比更高。作为**文字**出现在暗色容器上时对比仅 3.94:1，必须改用派生亮阶——暗色主题下 `--primary-400-color` = `#2692F0`（对暗色面板 5.24:1），或附加下划线。它是 apple.com 自己的购买按钮蓝：明快、干净、比靛蓝少一分紫调多一分晴天——用户扫过任何一屏，蓝色出现的面积不超过 10%。
 
 ### Semantic
 
@@ -210,23 +212,23 @@ MindBase 的界面是给企业员工每天提问、给管理员每天治理的�
 
 ### Neutral
 
-冷灰一族，色相统一偏向 260°，与靛蓝同族：
+冷灰蓝一族（第四轮起色相统一偏向 210°，与淡蓝同族——中性面本身就透着晴空的冷）：
 
-- **页面地面 Layout** (`bg-layout #F5F5F7`；暗色 `#0A0A0C`)：应用最底面。亮色取 Apple 标志性浅灰，暗色取近黑的真黑感。亮色下它是浮岛与窗口之间 12px 呼吸缝的 color。
+- **页面地面 Layout** (`bg-layout #F2F6FC`；暗色 `#0A0A0C`)：应用最底面。亮色取带蓝调的晴空浅灰（比 Apple 中性浅灰 `#F5F5F7` 更冷半档），暗色取近黑的真黑感。亮色下它是浮岛与窗口之间 12px 呼吸缝的 color。
 - **面板 Container** (`bg-container #FFFFFF`；暗色 `#1C1C1E`)：卡片、表格等一切承载内容的实底面板；聊天页它同时是全幅画布本身。
 - **浮层面 Elevated** (`bg-elevated #FFFFFF`；暗色 `#2C2C2E`)：弹窗、下拉、命令面板等浮层内容底。暗色下靠它与 Container 的层级差表达深度。
-- **主文字 Text Primary** (`text-primary #1D1D1F`；暗色 `#F5F5F7`)：正文与标题墨色。对比 15.46:1（暗色 18.17:1）。
-- **次级文字 Text Secondary** (`text-secondary #6E6E73`；暗色 `rgba(235,235,245,0.60)`)：说明、占位符、表头。对比 5.07:1。
-- **弱文字 Text Tertiary** (`text-tertiary #86868B`；暗色 `rgba(235,235,245,0.40)`)：时间戳、禁用提示。
-- **发丝线 Hairline** (`hairline rgba(29,29,31,0.09)`；暗色 `rgba(235,235,245,0.14)`)：一切静态分隔——卡片描边、分隔线、表格线。
-- **细填充 Fill Subtle** (`fill-subtle rgba(120,120,128,0.08)`；暗色 `0.24`)：次级按钮底、列表行选中/hover 底、标签底。hover 加深一档（`fill-hover` 0.12 / 0.32）。
-- **反色面 Inverted** (`bg-inverted #1D1D1F`；暗色 `#F5F5F7`)：tooltip、深色菜单等反色场景。
+- **主文字 Text Primary** (`text-primary #1C2A3A`；暗色 `#F5F5F7`)：正文与标题墨色（冷墨）。对白底对比 14.9:1。
+- **次级文字 Text Secondary** (`text-secondary #5E6B7E`；暗色 `rgba(235,235,245,0.60)`)：说明、占位符、表头。对比 5.41:1。
+- **弱文字 Text Tertiary** (`text-tertiary #8493A6`；暗色 `rgba(235,235,245,0.40)`)：时间戳、禁用提示。
+- **发丝线 Hairline** (`hairline rgba(28,42,58,0.09)`；暗色 `rgba(235,235,245,0.14)`)：一切静态分隔——卡片描边、分隔线、表格线。
+- **细填充 Fill Subtle** (`fill-subtle rgba(70,110,168,0.09)`；暗色 `rgba(120,120,128,0.24)`)：次级按钮底、列表行选中/hover 底、标签底——蓝调水洗灰。hover 加深一档（`fill-hover` 0.14 / 0.32）。
+- **反色面 Inverted** (`bg-inverted #1C2A3A`；暗色 `#F5F5F7`)：tooltip、深色菜单等反色场景。
 
 ### Named Rules
 
-**色彩主权律。** `settings.ts` 的 `recommendColor` 必须为 `false`。开启推荐调色时，CSS 变量（`--primary-color` 等）被吸附到推荐族的 500 阶——`#5856D6` 会被吸到 `#7177e4`（其在推荐族中的真实位置是 600），而 Naive 的 `primaryColor` 仍取原值，屏幕上同时出现两种靛蓝（现状 `#646cff` 恰好是自身推荐族的 500，所以分歧今天不可见）。关闭后调色板 500 阶 = 原值，CSS 变量、Naive、Uno 三方同源；本文件全部色阶与对比度数值按此路径给出。
+**色彩主权律。** `settings.ts` 的 `recommendColor` 必须为 `false`。开启推荐调色时，CSS 变量（`--primary-color` 等）被吸附到推荐族的 500 阶——`#0071E3` 会被吸到推荐族的别处，而 Naive 的 `primaryColor` 仍取原值，屏幕上同时出现两种蓝。关闭后调色板 500 阶 = 原值，CSS 变量、Naive、Uno 三方同源；本文件全部色阶与对比度数值按此路径给出（AntD 算法实测：500 `#0071E3` / 600 `#0058BD` / 700 `#004196` / 400 `#2692F0` / 50 `#E6F7FF`）。
 
-**一线靛律。** 强调色在一屏内的着色面积 ≤10%。它只标记焦点、选中与主行动；凡是"装饰性变蓝"的地方一律降为中性灰。靛蓝的稀少正是它的高级。
+**一线蓝律。** 强调色在一屏内的着色面积 ≤10%。它只标记焦点、选中与主行动；凡是"装饰性变蓝"的地方一律降为冷调中性灰。蓝色的稀少正是它的高级——蓝感由中性面的冷调供给，不靠多刷强调色。
 
 **语义深阶律。** 语义色原值（-500）只做填充、圆点、描边；作为文字出现在地面上必须取深阶——浅色主题 `-700`、暗色主题 `-400`（浅色 `-600` 中 success `#22a146` 3.36:1、warning `#d97700` 3.19:1 不达标；error `-600` `#d9211e` 5.02:1 虽达标，仍统一收进 `-700` 以保持规则单一）。深阶变量随主题基础色切换自动换值，QA 以 Colors › Semantic 列出的实测值为准。
 
@@ -313,20 +315,48 @@ MindBase 的界面是给企业员工每天提问、给管理员每天治理的�
 
 大圆角属于"浮在空间里的东西"（浮岛、命令面板），不属于"放在地上的东西"——内容面板最高 18px。按钮是 10px 圆角矩形（不是 iOS 胶囊——桌面企业工具要效率感）；标签与状态一律胶囊；用户消息气泡 18px，仅靠发信侧那一角收窄到 6px 形成方向感。控件高度与圆角成对出现：36px 高的控件配 10px 圆角，18px 圆角的面板内边距不小于 28px——圆角越大，呼吸越深。聊天画布不是容器：没有圆角，也没有描边。
 
+## Motion & Delight（第四轮 Azure）
+
+**动效论纲（animate thesis）**：动效只做三件事——**反馈**（操作被收到了）、**状态**（系统正在做什么）、**连续性**（东西从哪来、到哪去）。Operate 模式不排队看开场表演：一切常规切换 ≤250ms，唯一被授权"表演"的时刻是主题切换。
+
+- **焦点时刻（overdrive 授权位）——主题切换 morph**：点击主题切换按钮时，用 View Transitions API（`document.startViewTransition`）从按钮位置做圆形揭示（`clip-path: circle()` 从点击点扩至全屏，350ms emphasized）。暗→亮是"拉开窗帘晒到太阳"，亮→暗是"拉上窗帘"。API 不存在或 `prefers-reduced-motion` 时静默降级为既有 150ms 颜色过渡。只绑主题切换这一处根级入口，不给路由、弹窗、列表套用。
+- **呼吸状态（状态反馈）**：流式回答等待/生成中，AI 侧状态点以 1.6s 轻微透明度脉动"呼吸"（1 → 0.4 → 1）；它表达的是真实的连接/生成状态，连接常驻时静止不动。呼吸循环在文档隐藏时暂停（`animation-play-state` 不需要专门处理，但禁止任何脱离状态的常驻循环）。
+- **微反馈（150ms 档）**：按钮按压 scale 0.97、输入聚焦光晕、列表行 `fill-hover` 底色、引用 chip 悬停提亮 + 下划线偏移——全部已由 token 化缓动承载，本轮只补齐遗漏点，不加新机制。
+- **连续性（既有）**：路由 fade-slide 250ms emphasized、抽屉滑入 350ms、浮层 elevation 过渡 150ms——维持不动。
+
+**Delight 时刻（delight thesis）**：从产品机制派生，第二个百分次使用依然成立。
+
+- **上传成功勾绘**：知识库上传成功的状态图标用 SVG stroke 描绘动画（300ms emphasized，`stroke-dashoffset` 一次性播放）——"文件被可靠接住了"的确认感，对应 Kafka 可靠投递的产品承诺。
+- **回答就绪回落**：流式回答完成的一瞬，聊天输入壳从聚焦投影轻轻回落到静置投影（150ms）——一轮问答的收束感。不加音效、不加彩纸、不延迟任何真实状态。
+
+**Named Rules：**
+
+**morph 边界律。** View Transitions 只属于主题切换根入口；其他任何界面变化靠既有 token 动效表达。`startViewTransition` 必须存在性探测，回调内只做状态变更；不支持的浏览器与 reduced-motion 用户走原路径，功能零损失。
+
+**呼吸律。** 任何循环动效必须绑定真实状态（连接中/生成中/处理中），状态结束循环停止；禁止装饰性常驻动画。
+
+### Brand Mark（第四轮）
+
+MindBase 的品牌标志是「**心智基座**」：一支圆头描边的 **M**（知识基座）+ 中谷上方一枚悬浮圆点（心智火花）——"mind over the base"。几何只有一个概念，没有任何渐变与第二色。
+
+- **Mono 版**（`src/assets/svg-icon/logo.svg`，viewBox 48）：M 起点 (10,34) 上行至 (10,16)，经圆角折峰落到中谷 (24,25) 再对称右上，终点 (38,34)；`stroke-width 4.2`、`round cap/join`；火花 `circle(cx 24, cy 8, r 2.9)`。**填充/描边一律 `currentColor`**——侧栏 Logo 吃冷墨、登录 hero 吃淡蓝（组件处已有 `text-primary`/`rgb(var(--primary-color))`），永不写死色值。
+- **Favicon 版**（`public/favicon.svg`）：Azure 瓷砖（`rect 48×48 rx 11 fill #0071E3`）+ 白色同形标志（整体下移 3.5 光学居中）。旧 Vite 紫 `#646cff` 标志就此退役，任何场合不得回归。
+- **禁区**：不给标志加渐变、投影、描边外框、双色；不改几何比例；最小可用尺寸 16px（favicon 瓷砖版）/ 24px（mono 版）。
+
 ## Components
 
 ### Buttons
 
 - **Shape:** 10px 圆角（sm），高度 36px（small 28 / large 44），左右内边距 16px，字重 600、14px。
-- **Primary:** 靛蓝填充白字（`accent` 上白字 5.65:1）。hover 取基础色深一阶（亮 `accent-hover` `#3E3FB0` / 暗 `accent-hover-dark` `#4642C2`，暗色按 Apple 惯例改为提亮），pressed 再深一阶（`accent-pressed` `#292E8A` / `accent-pressed-dark` `#342D9C`），按压同时整体缩放 0.97。
-- **Secondary:** 细填充灰底（`fill-subtle`）+ 主文字色；hover 加深一档（`fill-hover`）。
-- **Ghost:** 无底透明，靛蓝文字；用于行内次级行动。
-- **Hover / Focus:** hover 是颜色/底色的 150ms 过渡；`focus-visible` 一律 2px 靛蓝描边 + 2px 偏移（或 `0 0 0 3px rgba(88,86,214,0.28)` 外圈），永不移除焦点样式。
+- **Primary:** 淡蓝填充白字（`accent` 上白字 4.70:1，达标 AA）。hover 取基础色深一阶（600 阶 `#0058BD`，两主题同派生），pressed 再深一阶（700 阶 `#004196`），按压同时整体缩放 0.97。
+- **Secondary:** 细填充蓝灰底（`fill-subtle`）+ 主文字色；hover 加深一档（`fill-hover`）。
+- **Ghost:** 无底透明，淡蓝文字；用于行内次级行动。
+- **Hover / Focus:** hover 是颜色/底色的 150ms 过渡；`focus-visible` 一律 2px 淡蓝描边 + 2px 偏移（或 `0 0 0 3px rgba(0, 113, 227, 0.28)` 外圈），永不移除焦点样式。
 
 ### Chips / Tags
 
 - **Style:** 胶囊（9999px），`fill-subtle` 底 + 次级文字色，高 22px，内边距 0 10px，12px/500。
-- **State:** 选中 = 靛蓝 10% 透明底（亮）/ 16%（暗）+ 靛蓝文字；组织标签权限类标签用语义色深阶文字。
+- **State:** 选中 = 淡蓝 10% 透明底（亮）/ 16%（暗）+ 淡蓝文字；组织标签权限类标签用语义色深阶文字。
 
 ### Cards / Containers
 
@@ -339,12 +369,12 @@ MindBase 的界面是给企业员工每天提问、给管理员每天治理的�
 ### Inputs / Fields
 
 - **Style:** `bg-container` 实底 + 发丝线描边 + 10px 圆角，高 36px，文字 15px。聊天输入壳是放大版：18px 圆角、内边距 12px 14px、文字 16px、静置时带 elevation-1 级别的极轻投影+发丝线，聚焦时投影加深为浮层级。
-- **Focus:** 发丝线变靛蓝 + `0 0 0 3px rgba(88,86,214,0.20)` 外圈光晕，150ms。
+- **Focus:** 发丝线变淡蓝 + `0 0 0 3px rgba(0, 113, 227, 0.20)` 外圈光晕，150ms。
 - **Error / Disabled:** 错误描边用 `error` 原值，错误说明文字用 `error-700/-400`；禁用整体 40% 不透明度。
 
 ### Navigation
 
-- **浮岛侧栏（主导航）:** nav-material 磨砂浮岛——缘距 12px、圆角 24px、elevation-island 投影、岛内无边框。导航项 36px 高、10px 圆角、14px/500 次级文字色；选中 = `fill-subtle` 底 + 主文字色（不是靛蓝底！导航的靛蓝只给左侧 3px 指示条或图标）；hover = `fill-hover`。
+- **浮岛侧栏（主导航）:** nav-material 磨砂浮岛——缘距 12px、圆角 24px、elevation-island 投影、岛内无边框。导航项 36px 高、10px 圆角、14px/500 次级文字色；选中 = `fill-subtle` 底 + 主文字色（不是淡蓝底！导航的淡蓝只给左侧 3px 指示条或图标）；hover = `fill-hover`。
 - **顶栏:** 52px 通幅贴顶磨砂材质 + 底缘发丝线投影；工具图标按钮 28px 高、圆角 8px、hover `fill-hover`。
 - **会话侧栏（chat 第二浮岛）:** 同浮岛规格（12px 缘距 / 24px 圆角 / nav-material / elevation-island）；与主浮岛之间露出 12px 地面缝。
 - **Mobile:** ≤640px 浮岛收回为抽屉 + scrim 遮罩，滑入 350ms emphasized 曲线。
@@ -352,8 +382,8 @@ MindBase 的界面是给企业员工每天提问、给管理员每天治理的�
 ### Chat（signature surface）
 
 - **画布:** 全幅白（`bg-container` 直铺内容区），无圆角、无描边、无边距——画布即房间，消息流直接坐在白底上；消息条目间距 32px，正文 16px/1.75。
-- **用户气泡:** 靛蓝填充白字、18px 圆角、右上角 6px、内边距 12px 16px、16px/1.75，右对齐；AI 回答无气泡——直接坐在白画布上的正文排版（16px/1.75），与用户气泡形成"材料 vs 印刷"的对比。
-- **引用标注（数据流不动）:** 回答句末的 `(来源#编号: 文件名 | 第X页)` 一律渲染为引用 chip 样式的行内链接：靛蓝 10% 底胶囊、12px/500 靛蓝文字、悬停提亮。"待核实"徽标用 `warning-700/-400` 文字。只许改样式层（linkClass / `.citation-*` CSS），DOM 结构、解析正则与 referenceMappings 数据流零改动。
+- **用户气泡:** 淡蓝填充白字、18px 圆角、右上角 6px、内边距 12px 16px、16px/1.75，右对齐；AI 回答无气泡——直接坐在白画布上的正文排版（16px/1.75），与用户气泡形成"材料 vs 印刷"的对比。
+- **引用标注（数据流不动）:** 回答句末的 `(来源#编号: 文件名 | 第X页)` 一律渲染为引用 chip 样式的行内链接：淡蓝 10% 底胶囊、12px/500 淡蓝文字、悬停提亮。"待核实"徽标用 `warning-700/-400` 文字。只许改样式层（linkClass / `.citation-*` CSS），DOM 结构、解析正则与 referenceMappings 数据流零改动。
 
 ### Tables
 
@@ -389,10 +419,10 @@ MindBase 的界面是给企业员工每天提问、给管理员每天治理的�
 
 | Token | 落点 |
 | --- | --- |
-| `accent`（亮） | `src/theme/settings.ts` `themeColor: '#5856D6'`（原 `'#646cff'`），**且 `recommendColor: true` → `false`**（settings.ts 第 6 行，色彩主权律）。原理：`createThemePaletteColors`（shared.ts 85–100 行）把 CSS 变量锚在 `getColorPalette(color, recommendColor).get(500)`——推荐路径下 `#5856D6` 的 500 阶是 `#7177e4`（其实际位置是推荐族 600），而 Naive `primaryColor` 取原值，两套靛蓝同屏；关闭后 500 阶 = 原值，三方同源。主题抽屉的推荐色开关（theme-drawer/modules/theme-color.vue 41–42 行）保留但默认关闭 |
-| `accent-hover` / `accent-pressed`（两主题） | `getNaiveThemeColors` 的场景派生（shared.ts 213–219 行）：Hover 处理器 `getPaletteColorByNumber(color, 500, recommended)` 改为 `(color, 600, false)`；Pressed 保持 700 但 `recommended` 实参改 `false`（即 `(color, 700, false)`）。理由：`recommendColor: false` 后 500 阶 = 基础色，hover 将失去反馈；600/700 阶即规范值（亮 `#3E3FB0`/`#292E8A`，暗 `#4642C2`/`#342D9C`），且随暗色基础色切换自动换值，四个颜色统一生效 |
-| `success / warning / error`（亮） | `settings.ts` `otherColor: { info: '#5856D6', success: '#34C759', warning: '#FF9500', error: '#FF3B30' }`（原 Ant Design 值） |
-| `accent-dark` 与语义色（暗）——唯一路线 | `src/store/modules/theme/index.ts` 的 `themeColors` computed（现 40–48 行）读取本 store 的 `darkMode`，暗色时返回 `{ primary: '#5B5BE8', success: '#30D158', warning: '#FF9F0A', error: '#FF453A' }`。下游双通道自动生效：`naiveTheme` computed（index.ts 51 行）→ Naive 全组件；`watch(themeColors)` → `setupThemeVarsToGlobal`（index.ts 139–146、190–198 行）→ CSS 变量与 Uno 色阶。这是唯一同时喂 Naive（App.vue 44–47 行经 `:theme-overrides` 注入 JS 对象，不读全局 CSS 变量）与 CSS 变量的单点 |
+| `accent`（亮） | `src/theme/settings.ts` `themeColor: '#0071E3'`（第四轮 Azure；原 `'#646cff'`，第三轮 `'#5856D6'`），**且 `recommendColor: true` → `false`**（色彩主权律）。原理：`createThemePaletteColors`（shared.ts 85–100 行）把 CSS 变量锚在 `getColorPalette(color, recommendColor).get(500)`——推荐路径下基础色的 500 阶会被吸到推荐族别处，而 Naive `primaryColor` 取原值，两套蓝同屏；关闭后 500 阶 = 原值，三方同源。主题抽屉的推荐色开关（theme-drawer/modules/theme-color.vue 41–42 行）保留但默认关闭 |
+| `accent-hover` / `accent-pressed`（两主题） | `getNaiveThemeColors` 的场景派生（shared.ts 213–219 行）：Hover 处理器 `getPaletteColorByNumber(color, 600, false)`；Pressed `(color, 700, false)`。`recommendColor: false` 后 600/700 阶即规范值（两主题同 `#0058BD`/`#004196`），随主题基础色切换自动换值，四个颜色统一生效 |
+| `success / warning / error`（亮） | `settings.ts` `otherColor: { info: '#0071E3', success: '#34C759', warning: '#FF9500', error: '#FF3B30' }`（success/warning/error 保留 Apple 系统色不变；info 跟随主色） |
+| `accent-dark` 与语义色（暗）——唯一路线 | `src/store/modules/theme/index.ts` 的 `themeColors` computed（现 40–48 行）读取本 store 的 `darkMode`，暗色时返回 `{ primary: '#0071E3', success: '#30D158', warning: '#FF9F0A', error: '#FF453A' }`（第四轮仅 primary 随淡蓝换血）。下游双通道自动生效：`naiveTheme` computed（index.ts 51 行）→ Naive 全组件；`watch(themeColors)` → `setupThemeVarsToGlobal`（index.ts 139–146、190–198 行）→ CSS 变量与 Uno 色阶。这是唯一同时喂 Naive（App.vue 44–47 行经 `:theme-overrides` 注入 JS 对象，不读全局 CSS 变量）与 CSS 变量的单点 |
 | 禁用路线 | **禁止**用 `global.scss` 的 `html.dark` 覆盖 `--primary-color` 等三元组：`addThemeVarsToGlobal` 运行时同时写 `:root` 与 `html.dark` 两块（shared.ts 147–157 行，后者同样声明这批变量），而 global.scss 经 `vite.config.ts` 23–26 行 `additionalData` 编译进每个组件——两者同特异性，胜负取决于样式注入顺序，连 CSS 变量层都不稳，更到不了 Naive |
 | 深阶（`-700`/`-400` 等） | 无需新文件：`createThemePaletteColors` 已从**当前主题基础色**生成 50–950 全阶 CSS 变量（`--success-700-color` 等，vars.ts 3–13 行）。`recommendColor: false` 后，本文档 Colors 节列出的全部色阶 hex 与对比度即真实管线产物；暗色主题下同名变量自动切换为暗色基础色的派生值 |
 
@@ -401,9 +431,9 @@ MindBase 的界面是给企业员工每天提问、给管理员每天治理的�
 | Token | 落点 |
 | --- | --- |
 | `bg-container` | `settings.ts` `tokens.light.colors.container: 'rgb(255, 255, 255)'`（不变）；`tokens.dark.colors.container: 'rgb(28, 28, 30)'` |
-| `bg-layout` | `tokens.light.colors.layout: 'rgb(245, 245, 247)'`；`tokens.dark.colors.layout: 'rgb(10, 10, 12)'` |
-| `bg-inverted` | `tokens.light.colors.inverted: 'rgb(29, 29, 31)'`；`tokens.dark.colors.inverted: 'rgb(245, 245, 247)'` |
-| `text-primary` | `tokens.light.colors['base-text']: 'rgb(29, 29, 31)'`；`tokens.dark.colors['base-text']: 'rgb(245, 245, 247)'` |
+| `bg-layout` | `tokens.light.colors.layout: 'rgb(242, 246, 252)'`（第四轮 Azure 染冷蓝，原 `rgb(245, 245, 247)`）；`tokens.dark.colors.layout: 'rgb(10, 10, 12)'`（不变） |
+| `bg-inverted` | `tokens.light.colors.inverted: 'rgb(28, 42, 58)'`（第四轮冷墨，原 `rgb(29, 29, 31)`）；`tokens.dark.colors.inverted: 'rgb(245, 245, 247)'` |
+| `text-primary` | `tokens.light.colors['base-text']: 'rgb(28, 42, 58)'`（第四轮冷墨）；`tokens.dark.colors['base-text']: 'rgb(245, 245, 247)'` |
 | 上述四键的 CSS 变量与 Uno 工具类 | 经 `src/theme/vars.ts`（`--container-bg-color` 等）→ `addThemeVarsToGlobal` → Uno `bg-container / bg-layout / bg-inverted / text-base-text` 自动生效，无额外文件 |
 | `bg-elevated`（不在四键管线） | `global.scss` `:root { --app-elevated: #FFFFFF }` + `html.dark { --app-elevated: #2C2C2E }`；`uno.config.ts` `theme.colors` 增 `elevated: 'var(--app-elevated)'` 得到 `bg-elevated` 工具类 |
 | `hairline` | `global.scss` 现有 `--app-border` 改为 `:root { --app-border: rgb(var(--base-text-color) / 0.09) }` + `html.dark { --app-border: rgb(var(--base-text-color) / 0.14) }`；`uno.config.ts` `theme.colors` 增 `hairline: 'var(--app-border)'` 得到 `border-hairline` |
@@ -481,3 +511,20 @@ MindBase 的界面是给企业员工每天提问、给管理员每天治理的�
 | 排版层字号 | `src/styles/scss/global.scss` 132 行卡片标题 `17px` → `20px`（行高 1.35）；global.scss 增 `.page-title { font-size: 32px; font-weight: 600; line-height: 1.2; }`；页题元素落在全部 workspace-page 视图首个 `.page-section` 之前（knowledge-base、usage-monitor、user、org-tag、model-provider、invite-code、recharge、recharge-manage、chat-history、personal-center 共 10 页——grep `page-title|text-32px|<h1` 当前零命中，文案取路由标题）；聊天正文（AI 回答、用户气泡、输入壳内文）16px/1.75；控件层（Naive `common.fontSize` 14、按钮 14、输入 15、标签 12、表头 13）不动 |
 | 区块留白 | `global.scss` 116 行 `.workspace-page gap: 24px` → `32px`；127/139/142 行卡片内边距 `20px 24px 16px` / `0 24px 24px` / `20px 24px 24px` → `28px 32px 20px` / `0 32px 32px` / `28px 32px 32px`；表格行高 48 → 52px（158–160 行 `.n-data-table-td` 竖向 padding `14px` → `16px`）；页面左右留白经 `global-content/index.vue` 50 行 `p-4 sm:p-6` → `p-4 sm:p-6 xl:px-40px`（≥1280px 视口横向 40px，1024–1279px 维持 24px，≤640px 16px） |
 | 验收 | Layout › 轮廓判定三条逐条过：①窗口 12px 缝隙 + 岛投影（岛 x∈[12,232]、内容自 244 起）；②聊天白画布无描边；③管理页 32px 页题 + 20px 区块题 + 32px 区块距 + 40px 页边距。在 `http://localhost:9527` 实页与暗色切换各验一遍（暗色仅验证浮岛/去盒/通幅结构同样成立，暗色 token 值零改动） |
+
+### 10. Azure 淡蓝换血（第四轮，2026-10-20）
+
+以下落点在本次编写时对照源码核实。AntD 算法实测色阶：500 `#0071E3` / 600 `#0058BD` / 700 `#004196` / 400 `#2692F0` / 50 `#E6F7FF`。
+
+| Token | 落点 |
+| --- | --- |
+| 主色淡蓝（亮） | `src/theme/settings.ts` `themeColor: '#0071E3'`（原 `'#5856D6'`）；`otherColor.info: '#0071E3'`（跟随主色）。`recommendColor: false` 已就位，600/700 阶自动派生 hover/pressed |
+| 主色淡蓝（暗） | `src/store/modules/theme/index.ts` `themeColors` 暗色分支 `primary: '#0071E3'`（原 `'#5B5BE8'`）。暗色下作为文字出现的场景必须用派生 `--primary-400-color`（`#2692F0`，5.24:1）或下划线——组件代码中"链接/文字用主色"处按此核对 |
+| 亮色中性面染冷蓝 | `settings.ts` `tokens.light.colors.layout: 'rgb(242, 246, 252)'`、`tokens.light.colors['base-text']: 'rgb(28, 42, 58)'`、`tokens.light.colors.inverted: 'rgb(28, 42, 58)'`（原 `rgb(245,245,247)` / `rgb(29,29,31)` / `rgb(29,29,31)`）。发丝线经 `rgb(var(--base-text-color) / 0.09)` 自动变冷；`text-secondary/tertiary` 若走 CSS 变量则同步 `#5E6B7E`/`#8493A6`（global.scss / uno.config 对应别名） |
+| 细填充蓝洗 | `global.scss` `:root` `--app-fill-subtle: rgba(70, 110, 168, 0.09)`、`--app-fill-hover: rgba(70, 110, 168, 0.14)`（原 `rgba(120,120,128,0.08/0.12)`）；暗色两值不动 |
+| 主题切换 morph | 主题切换入口（`layouts/modules/global-header/` 内的暗色切换按钮组件）将状态变更包进 `document.startViewTransition`（存在性探测），配合 `::view-transition-old(root)/new(root)` 与从按钮圆心扩散的 `clip-path: circle()` 动画（350ms `--app-ease-emphasized`）；`@media (prefers-reduced-motion: reduce)` 与无 API 环境直接调用原切换函数。唯一授权位，不加第二处 |
+| 呼吸状态点 | `views/chat/` 生成中状态指示（现有 loading 指示元素）加 1.6s 透明度脉动 keyframes（`--app-dur` 不适用，独立 `@keyframes azure-breathe`）；仅绑定"生成中/等待中"状态类，完成即静止 |
+| 上传成功勾绘 | `views/knowledge-base/` 上传成功状态图标：内联 SVG path `stroke-dasharray/dashoffset` 300ms 描绘动画（一次性，`forwards`）；失败/处理中态不加动画 |
+| 回答就绪回落 | `views/chat/modules/input-box.vue` 输入壳投影随流式状态切换（聚焦档 → 静置档 150ms 过渡）——已有投影机制上补状态联动，不新增阴影档 |
+| 靛蓝残留清零 | 全仓 grep `5856D6\|5B5BE8\|878af5\|靛蓝` 于 `frontend/src` 零命中；引用 chip、选中态、聚焦环全部随 CSS 变量自动换血，无需逐处硬编码排查 |
+| 验收 | ①grep 残留零命中；②实页主按钮/选中态/引用 chip/聚焦环全为淡蓝；③主题切换有圆形揭示且 reduced-motion 降级；④暗色抽查主色变蓝、其余 token 不动；⑤`pnpm typecheck && pnpm exec eslint .` 0 error |

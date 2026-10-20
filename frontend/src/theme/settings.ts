@@ -5,8 +5,10 @@ export const themeSettings: App.Theme.ThemeSetting = {
   grayscale: false,
   colourWeakness: false,
   recommendColor: false,
-  themeColor: '#5856D6',
-  otherColor: { info: '#5856D6', success: '#34C759', warning: '#FF9500', error: '#FF3B30' },
+  // Round 4 (Azure): user brief is a light-blue accent — apple.com button blue #0071E3
+  // (white-text contrast 4.70:1, AA); hover/pressed derive from palette 600/700 (#0058BD/#004196)
+  themeColor: '#0071E3',
+  otherColor: { info: '#0071E3', success: '#34C759', warning: '#FF9500', error: '#FF3B30' },
   isInfoFollowPrimary: true,
   resetCacheStrategy: 'close',
   layout: { mode: 'vertical', scrollMode: 'content', reverseHorizontalMix: false },
@@ -28,12 +30,14 @@ export const themeSettings: App.Theme.ThemeSetting = {
     light: {
       colors: {
         container: 'rgb(255, 255, 255)',
-        layout: 'rgb(245, 245, 247)',
-        inverted: 'rgb(29, 29, 31)',
-        'base-text': 'rgb(29, 29, 31)'
+        // Round 4 (Azure): cool blue-tinted neutrals — layout ground, ink and hairline carry a
+        // 210° blue cast so the light theme reads "light blue" without extra accent paint
+        layout: 'rgb(242, 246, 252)',
+        inverted: 'rgb(28, 42, 58)',
+        'base-text': 'rgb(28, 42, 58)'
       },
       boxShadow: {
-        header: '0 0.5px 0 rgba(29, 29, 31, 0.12)',
+        header: '0 0.5px 0 rgba(28, 42, 58, 0.12)',
         // Round 3: the sider detached from the window edges — it now carries the elevation-island
         // shadow instead of the old inset hairline (DESIGN.md › Elevation › elevation-island)
         sider: '0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.10)',

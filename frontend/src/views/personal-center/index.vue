@@ -215,12 +215,13 @@ const tokenRecordColumns = computed(() => [
 
 <template>
   <div class="workspace-page profile-page overflow-auto">
+    <h1 class="page-title">个人中心</h1>
     <NSpin :show="loading">
       <NCard :bordered="false" class="page-section profile-section">
         <template #header>
           <div class="flex items-center gap-4">
             <div class="profile-avatar">
-              <icon-solar:user-circle-linear class="text-icon-large" />
+              <icon-lucide:circle-user-round class="text-icon-large" />
             </div>
             <div>
               <div>{{ userInfo.username }}</div>
@@ -230,12 +231,12 @@ const tokenRecordColumns = computed(() => [
         </template>
 
         <div v-if="usageLoadError" class="page-state">
-          <icon-material-symbols:error-outline-rounded class="page-state__icon page-state__icon--error" />
+          <icon-lucide:circle-alert class="page-state__icon page-state__icon--error" />
           <p class="page-state__title">今日额度加载失败</p>
           <p class="page-state__desc">网络异常导致用量数据没有加载，请检查连接后重试</p>
           <NButton size="small" :disabled="loading" @click="getPersonalData">
             <template #icon>
-              <icon-mdi:refresh />
+              <icon-lucide:rotate-cw />
             </template>
             重试
           </NButton>
@@ -295,12 +296,12 @@ const tokenRecordColumns = computed(() => [
           <h2>Token 变动记录</h2>
           <NSpin :show="tokenRecordLoading">
             <div v-if="tokenRecordError" class="page-state">
-              <icon-material-symbols:error-outline-rounded class="page-state__icon page-state__icon--error" />
+              <icon-lucide:circle-alert class="page-state__icon page-state__icon--error" />
               <p class="page-state__title">Token 记录加载失败</p>
               <p class="page-state__desc">网络异常导致记录没有加载，请检查连接后重试</p>
               <NButton size="small" :disabled="tokenRecordLoading" @click="getTokenRecords">
                 <template #icon>
-                  <icon-mdi:refresh />
+                  <icon-lucide:rotate-cw />
                 </template>
                 重试
               </NButton>
@@ -321,7 +322,7 @@ const tokenRecordColumns = computed(() => [
               size="small"
             />
             <div v-else class="page-state">
-              <icon-mdi:receipt-outline class="page-state__icon" />
+              <icon-lucide:receipt-text class="page-state__icon" />
               <p class="page-state__title">暂无 Token 变动记录</p>
               <p class="page-state__desc">充值或消耗 Token 之后，每笔记录会汇总到这里</p>
             </div>
@@ -484,5 +485,16 @@ html.dark .page-state__icon--error {
   .org-tag-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* 页题：Display 32/600/1.2（DESIGN.md › Typography）。上方 24px 与 GlobalContent 的 24px 顶距
+   叠成 4xl 48；下方间距交给 .workspace-page 的区块 gap——标题上方留白 ≥ 下方 ×1.5 */
+.page-title {
+  flex-shrink: 0;
+  margin: 24px 0 0;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgb(var(--base-text-color));
 }
 </style>

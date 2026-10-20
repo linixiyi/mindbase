@@ -64,13 +64,13 @@ function formatDate(dateStr?: string) {
         <div class="flex items-center gap-1">
           <NButton type="primary" size="small" secondary @click="handleNewChat">
             <template #icon>
-              <icon-material-symbols:add-rounded />
+              <icon-lucide:plus />
             </template>
             新对话
           </NButton>
           <NButton text size="tiny" @click="handleCollapse">
             <template #icon>
-              <icon-material-symbols:left-panel-close-outline-rounded />
+              <icon-lucide:panel-left-close />
             </template>
           </NButton>
         </div>
@@ -104,7 +104,7 @@ function formatDate(dateStr?: string) {
               v-if="filteredSessions.length === 0 && !sessionsLoading"
               class="flex flex-col items-center justify-center gap-3 py-16"
             >
-              <icon-material-symbols:chat-outline-rounded class="text-36px text-[rgb(var(--base-text-color)/0.3)]" />
+              <icon-lucide:message-circle class="text-36px text-[rgb(var(--base-text-color)/0.3)]" />
               <span class="text-muted text-14px">{{ activeTab === 'active' ? '暂无对话记录' : '暂无归档对话' }}</span>
             </div>
 
@@ -119,7 +119,7 @@ function formatDate(dateStr?: string) {
                 class="chat-session__icon h-8 w-8 flex shrink-0 items-center justify-center rounded-10px text-16px"
                 :class="{ 'chat-session__icon--active': session.conversationId === conversationId }"
               >
-                <icon-material-symbols:chat-outline-rounded />
+                <icon-lucide:message-circle />
               </div>
               <div class="min-w-0 flex-1">
                 <div class="chat-session__title truncate text-16px font-500">{{ session.title }}</div>
@@ -137,7 +137,7 @@ function formatDate(dateStr?: string) {
                     @click.stop
                   >
                     <template #icon>
-                      <icon-material-symbols:archive-outline-rounded class="text-15px" />
+                      <icon-lucide:archive class="text-15px" />
                     </template>
                   </NButton>
                 </template>
@@ -151,7 +151,7 @@ function formatDate(dateStr?: string) {
                 @click.stop="handleUnarchive(session.conversationId)"
               >
                 <template #icon>
-                  <icon-material-symbols:unarchive-outline-rounded class="text-15px" />
+                  <icon-lucide:archive-restore class="text-15px" />
                 </template>
               </NButton>
             </div>
@@ -229,7 +229,7 @@ function formatDate(dateStr?: string) {
   color: var(--app-text);
 }
 
-/* 会话行：10px 圆角；选中 = fill-subtle 底 + 主文字色，靛蓝只给图标（DESIGN.md › Navigation）。
+/* 会话行：10px 圆角；选中 = fill-subtle 底 + 主文字色，淡蓝只给图标（DESIGN.md › Navigation）。
    条目标题取 Title 16px（DESIGN.md › Typography › Hierarchy「会话列表条目标题」），
    字重按 nav-item 的 500 惯例——600 留给上方「对话列表」节头，保住岛内层级。 */
 .chat-session {

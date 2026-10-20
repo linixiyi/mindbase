@@ -422,15 +422,15 @@ async function handleSourceFileClick(fileInfo: {
           class="chat-tool-event"
           :class="`chat-tool-event--${event.status}`"
         >
-          <icon-eos-icons:three-dots-loading v-if="event.status === 'executing'" class="text-14px" />
-          <icon-material-symbols:check-circle-rounded v-else-if="event.status === 'success'" class="text-14px" />
-          <icon-material-symbols:error-rounded v-else class="text-14px" />
+          <icon-lucide:ellipsis v-if="event.status === 'executing'" class="text-14px" />
+          <icon-lucide:circle-check v-else-if="event.status === 'success'" class="text-14px" />
+          <icon-lucide:circle-x v-else class="text-14px" />
           <span class="chat-tool-event__name">{{ getToolLabel(event.tool) }}</span>
           <span class="chat-tool-event__status">{{ getToolStatusLabel(event.status) }}</span>
         </div>
       </div>
       <div v-if="msg.status === 'pending' || (msg.status === 'loading' && !msg.content)" class="chat-stream-indicator">
-        <icon-eos-icons:three-dots-loading class="text-24px" />
+        <icon-lucide:ellipsis class="text-24px" />
       </div>
       <div v-else-if="msg.status === 'error'" class="chat-error-text">
         {{ msg.content || '服务器繁忙，请稍后再试' }}
@@ -442,7 +442,7 @@ async function handleSourceFileClick(fileInfo: {
     <div class="chat-message__actions" :class="{ 'chat-message__actions--end': msg.role === 'user' }">
       <NButton quaternary size="tiny" title="复制回答" aria-label="复制回答" @click="handleCopy(msg.content)">
         <template #icon>
-          <icon-mynaui:copy class="text-14px" />
+          <icon-lucide:copy class="text-14px" />
         </template>
       </NButton>
       <NButton
@@ -456,7 +456,7 @@ async function handleSourceFileClick(fileInfo: {
         @click="handleFeedback(msg, 'good')"
       >
         <template #icon>
-          <icon-material-symbols:thumb-up-outline-rounded class="text-14px" />
+          <icon-lucide:thumbs-up class="text-14px" />
         </template>
       </NButton>
       <NButton
@@ -470,7 +470,7 @@ async function handleSourceFileClick(fileInfo: {
         @click="handleFeedback(msg, 'bad')"
       >
         <template #icon>
-          <icon-material-symbols:thumb-down-outline-rounded class="text-14px" />
+          <icon-lucide:thumbs-down class="text-14px" />
         </template>
       </NButton>
     </div>
@@ -535,7 +535,7 @@ async function handleSourceFileClick(fileInfo: {
   justify-content: flex-end;
 }
 
-/* 用户气泡：靛蓝填充白字、18px 圆角、发信侧（右上）收窄到 6px、内边距 12px 16px、16px/1.75
+/* 用户气泡：淡蓝填充白字、18px 圆角、发信侧（右上）收窄到 6px、内边距 12px 16px、16px/1.75
    （DESIGN.md › Chat / chat-bubble-user） */
 .chat-user-bubble {
   max-width: min(85%, 640px);
@@ -602,13 +602,25 @@ async function handleSourceFileClick(fileInfo: {
   color: rgb(var(--error-400-color));
 }
 
-/* 流式进行中：一线靛标出"正在进行的事" */
+/* 流式进行中：一线蓝标出"正在进行的事"，状态点以 1.6s 透明度脉动呼吸——
+   只绑定等待/生成状态，回答就绪即静止（DESIGN.md › Motion & Delight › 呼吸律） */
 .chat-stream-indicator {
   padding: 2px 0;
   color: rgb(var(--primary-color));
+  animation: azure-breathe 1.6s var(--app-ease-standard, ease) infinite;
 }
 .dark .chat-stream-indicator {
   color: rgb(var(--primary-400-color));
+}
+
+@keyframes azure-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 .chat-error-text {
@@ -662,7 +674,7 @@ async function handleSourceFileClick(fileInfo: {
 }
 
 /* 引用标注：只改样式层——DOM 结构、data-file-id 与解析数据流零改动（AGENTS.md 硬约束）。
-   亮色靛蓝 10% 底胶囊，暗色提亮底 + 派生 400 阶文字（DESIGN.md › citation-chip）。 */
+   亮色淡蓝 10% 底胶囊，暗色提亮底 + 派生 400 阶文字（DESIGN.md › citation-chip）。 */
 .chat-answer :deep(.source-file-link) {
   display: inline-block;
   margin: 0 1px;

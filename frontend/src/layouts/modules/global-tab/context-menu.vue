@@ -41,27 +41,27 @@ const options = computed(() => {
     {
       key: 'closeCurrent',
       label: $t('dropdown.closeCurrent'),
-      icon: SvgIconVNode({ icon: 'ant-design:close-outlined', fontSize: 18 })
+      icon: SvgIconVNode({ icon: 'lucide:x', fontSize: 18 })
     },
     {
       key: 'closeOther',
       label: $t('dropdown.closeOther'),
-      icon: SvgIconVNode({ icon: 'ant-design:column-width-outlined', fontSize: 18 })
+      icon: SvgIconVNode({ icon: 'lucide:columns-2', fontSize: 18 })
     },
     {
       key: 'closeLeft',
       label: $t('dropdown.closeLeft'),
-      icon: SvgIconVNode({ icon: 'mdi:format-horizontal-align-left', fontSize: 18 })
+      icon: SvgIconVNode({ icon: 'lucide:arrow-left', fontSize: 18 })
     },
     {
       key: 'closeRight',
       label: $t('dropdown.closeRight'),
-      icon: SvgIconVNode({ icon: 'mdi:format-horizontal-align-right', fontSize: 18 })
+      icon: SvgIconVNode({ icon: 'lucide:arrow-right', fontSize: 18 })
     },
     {
       key: 'closeAll',
       label: $t('dropdown.closeAll'),
-      icon: SvgIconVNode({ icon: 'ant-design:line-outlined', fontSize: 18 })
+      icon: SvgIconVNode({ icon: 'lucide:circle-x', fontSize: 18 })
     }
   ];
   const { excludeKeys, disabledKeys } = props;

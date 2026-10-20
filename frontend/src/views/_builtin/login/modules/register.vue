@@ -132,7 +132,7 @@ watch(
             class="invite-qr-image"
           />
           <div v-else class="invite-qr-placeholder">
-            <icon-ant-design:wechat-outlined class="invite-qr-icon" />
+            <icon-lucide:message-circle class="invite-qr-icon" />
             <div class="invite-qr-title">二维码位</div>
             <div class="invite-qr-desc">后续把二维码地址填到 `qrCodeImageUrl`，这里会直接展示扫码入口。</div>
           </div>
@@ -174,7 +174,7 @@ watch(
       <NFormItem path="username">
         <NInput v-model:value="model.username" :placeholder="$t('page.login.common.userNamePlaceholder')">
           <template #prefix>
-            <icon-ant-design:user-outlined />
+            <icon-lucide:user />
           </template>
         </NInput>
       </NFormItem>
@@ -186,7 +186,7 @@ watch(
           :placeholder="$t('page.login.common.passwordPlaceholder')"
         >
           <template #prefix>
-            <icon-ant-design:key-outlined />
+            <icon-lucide:key-round />
           </template>
         </NInput>
       </NFormItem>
@@ -198,7 +198,7 @@ watch(
           :placeholder="$t('page.login.common.confirmPasswordPlaceholder')"
         >
           <template #prefix>
-            <icon-ant-design:key-outlined />
+            <icon-lucide:key-round />
           </template>
         </NInput>
       </NFormItem>
@@ -209,7 +209,7 @@ watch(
       >
         <NInput v-model:value="model.inviteCode" :placeholder="$t('page.login.common.inviteCodePlaceholder')">
           <template #prefix>
-            <icon-ant-design:safety-certificate-outlined />
+            <icon-lucide:shield-check />
           </template>
         </NInput>
       </NFormItem>

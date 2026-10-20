@@ -175,6 +175,7 @@ function handleTokenQuota(row: Api.User.Item) {
 
 <template>
   <div class="workspace-page min-h-500px flex-col-stretch overflow-auto">
+    <h1 class="page-title">用户管理</h1>
     <NCard title="用户列表" :bordered="false" size="small" class="page-section sm:flex-1-hidden">
       <template #header-extra>
         <TableHeaderOperation v-model:columns="columnChecks" :addable="false" :loading="loading" @refresh="getData" />
@@ -195,7 +196,7 @@ function handleTokenQuota(row: Api.User.Item) {
       >
         <template #empty>
           <div class="table-state">
-            <icon-mdi:account-group-outline class="table-state__icon" />
+            <icon-lucide:users class="table-state__icon" />
             <template v-if="hasActiveFilters">
               <p class="table-state__title">没有符合筛选条件的用户</p>
               <p class="table-state__desc">调整关键词或组织标签后重试</p>
@@ -257,5 +258,16 @@ function handleTokenQuota(row: Api.User.Item) {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* 页题：Display 32/600/1.2（DESIGN.md › Typography）。上方 24px 与 GlobalContent 的 24px 顶距
+   叠成 4xl 48；下方间距交给 .workspace-page 的区块 gap——标题上方留白 ≥ 下方 ×1.5 */
+.page-title {
+  flex-shrink: 0;
+  margin: 24px 0 0;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgb(var(--base-text-color));
 }
 </style>

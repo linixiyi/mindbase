@@ -411,6 +411,7 @@ onMounted(() => {
 
 <template>
   <div class="workspace-page min-h-500px flex-col-stretch overflow-auto">
+    <h1 class="page-title">邀请码管理</h1>
     <NCard
       title="邀请码管理"
       :bordered="false"
@@ -459,7 +460,7 @@ onMounted(() => {
         >
           <template #empty>
             <div class="table-state">
-              <icon-mdi:ticket-confirmation-outline class="table-state__icon" />
+              <icon-lucide:ticket class="table-state__icon" />
               <template v-if="appliedStatus !== 'all'">
                 <p class="table-state__title">没有符合筛选条件的邀请码</p>
                 <p class="table-state__desc">调整启用状态筛选，或清除筛选查看全部</p>
@@ -562,5 +563,16 @@ onMounted(() => {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* 页题：Display 32/600/1.2（DESIGN.md › Typography）。上方 24px 与 GlobalContent 的 24px 顶距
+   叠成 4xl 48；下方间距交给 .workspace-page 的区块 gap——标题上方留白 ≥ 下方 ×1.5 */
+.page-title {
+  flex-shrink: 0;
+  margin: 24px 0 0;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgb(var(--base-text-color));
 }
 </style>

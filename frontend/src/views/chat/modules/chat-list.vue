@@ -90,7 +90,7 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
             aria-label="按日期筛选消息"
             title="按日期筛选消息"
           >
-            <icon-material-symbols:calendar-month-outline-rounded class="text-18px" />
+            <icon-lucide:calendar class="text-18px" />
           </button>
         </template>
         <div class="chat-filter-panel">
@@ -102,7 +102,7 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
       <!-- Empty state -->
       <div v-if="showEmpty" class="flex flex-col flex-1 items-center justify-center gap-4">
         <div class="h-20 w-20 flex items-center justify-center rounded-24px bg-[var(--app-subtle)]">
-          <icon-material-symbols:chat-outline-rounded class="text-36px text-[rgb(var(--base-text-color)/0.4)]" />
+          <icon-lucide:message-circle class="text-36px text-[rgb(var(--base-text-color)/0.4)]" />
         </div>
         <div class="text-body text-20px font-600">
           {{ conversationId ? '开始新对话' : '选择或创建一个对话' }}
@@ -132,7 +132,7 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 
 <style scoped lang="scss">
 /* 筛选入口：与左侧 conversation-toggle 同款的悬浮小钮（nav-material + e1），
-   有筛选值时一线靛标示激活。absolute 相对 chat/index.vue 的画布列定位。 */
+   有筛选值时一线蓝标示激活。absolute 相对 chat/index.vue 的画布列定位。 */
 .chat-filter-toggle {
   background: var(--app-material-nav, var(--app-surface));
   -webkit-backdrop-filter: var(--app-material-filter, saturate(180%) blur(20px));

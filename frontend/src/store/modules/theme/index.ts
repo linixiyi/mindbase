@@ -48,10 +48,12 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
     // Quiet Glass: dark mode is not an inversion but real layering — the accent and semantic
     // colors switch to their normative dark variants, and every derived palette step
     // (CSS vars + Naive) regenerates from these dark base colors.
+    // Round 4 (Azure): primary rides the light-blue #0071E3 in both themes; text-on-dark usage
+    // must take the derived bright step --primary-400-color (#2692F0) instead (DESIGN.md › Primary).
     if (darkMode.value) {
       const darkColors: App.Theme.ThemeColor = {
         ...colors,
-        primary: '#5B5BE8',
+        primary: '#0071E3',
         success: '#30D158',
         warning: '#FF9F0A',
         error: '#FF453A'

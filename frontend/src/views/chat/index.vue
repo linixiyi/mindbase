@@ -38,7 +38,7 @@ watch(
         aria-label="展开对话列表"
         @click="sidebarCollapsed = false"
       >
-        <icon-material-symbols:left-panel-open-outline-rounded class="text-18px" />
+        <icon-lucide:panel-left-open class="text-18px" />
       </button>
       <ChatList />
       <InputBox />
