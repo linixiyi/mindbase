@@ -410,7 +410,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="workspace-page min-h-500px flex-col-stretch gap-16px overflow-auto">
+  <div class="workspace-page min-h-500px flex-col-stretch overflow-auto">
     <NCard
       title="邀请码管理"
       :bordered="false"
@@ -456,7 +456,23 @@ onMounted(() => {
           :checked-row-keys="checkedRowKeys"
           class="sm:h-full"
           @update:checked-row-keys="handleCheck"
-        />
+        >
+          <template #empty>
+            <div class="table-state">
+              <icon-mdi:ticket-confirmation-outline class="table-state__icon" />
+              <template v-if="appliedStatus !== 'all'">
+                <p class="table-state__title">没有符合筛选条件的邀请码</p>
+                <p class="table-state__desc">调整启用状态筛选，或清除筛选查看全部</p>
+                <NButton size="small" :disabled="loading" @click="resetFilters">清除筛选</NButton>
+              </template>
+              <template v-else>
+                <p class="table-state__title">暂无邀请码</p>
+                <p class="table-state__desc">创建邀请码后，成员可凭码注册加入</p>
+                <NButton size="small" type="primary" :disabled="loading" @click="openCreateDialog">创建邀请码</NButton>
+              </template>
+            </div>
+          </template>
+        </NDataTable>
       </div>
     </NCard>
 
@@ -504,4 +520,47 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped lang="scss">
+.table-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 24px;
+  text-align: center;
+  animation: table-state-in var(--app-dur-base) var(--app-ease-standard);
+}
+
+.table-state__icon {
+  font-size: 40px;
+  color: rgb(var(--base-text-color) / 0.24);
+}
+
+.table-state__title {
+  margin: 8px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--app-text);
+}
+
+.table-state__desc {
+  margin: 0;
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-muted);
+}
+
+@keyframes table-state-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+</style>

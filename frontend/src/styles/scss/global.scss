@@ -104,6 +104,13 @@ html.dark {
   border: 1px solid var(--app-border);
 }
 
+/* NModal mask: naive hardcodes rgba(0,0,0,.4) in its cssr; the world behind a modal rides the scrim
+   token (DESIGN.md › Material Vocabulary › scrim). Two-class specificity so the override wins
+   regardless of naive's cssr mount order. */
+.n-modal-container .n-modal-mask {
+  background-color: var(--app-scrim);
+}
+
 .workspace-page {
   min-width: 0;
   gap: 24px;

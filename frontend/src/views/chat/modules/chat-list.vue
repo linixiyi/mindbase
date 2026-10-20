@@ -81,9 +81,9 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 <template>
   <Suspense>
     <div class="h-0 flex flex-col flex-1">
-      <!-- Date filter in header -->
+      <!-- 次级工具行：日期筛选收敛到阅读列右端，不与对话内容抢注意力 -->
 
-      <div v-if="!showEmpty" class="chat-date-filter flex justify-end px-4 py-3">
+      <div v-if="!showEmpty" class="chat-date-filter">
         <NForm :model="params" label-placement="left" :show-feedback="false" inline>
           <NFormItem label="时间" size="small">
             <NDatePicker v-model:value="range" type="daterange" clearable size="small" />
@@ -123,6 +123,38 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 </template>
 
 <style scoped lang="scss">
+/* 日期筛选：与消息列同轨（800px 右对齐）、压缩到工具行高度；
+   选择器静置透明无框，悬停才现发丝线——次级视觉，随 Naive 焦点环保持一线靛。 */
+.chat-date-filter {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 6px 16px 4px;
+
+  :deep(.n-form-item-label) {
+    color: var(--app-text-tertiary);
+    font-size: 12px;
+  }
+
+  :deep(.n-input) {
+    background-color: transparent;
+    border-color: transparent;
+    transition:
+      border-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
+      background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
+  }
+
+  :deep(.n-input:hover) {
+    border-color: var(--app-border);
+  }
+
+  :deep(.n-input.n-input--focus) {
+    border-color: rgb(var(--primary-color) / 0.5);
+  }
+}
+
 @media (max-width: 640px) {
   .chat-date-filter {
     padding-left: 56px;

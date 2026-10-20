@@ -37,7 +37,7 @@ const { columns, columnChecks, data, loading, getData, mobilePagination } = useT
       width: 240,
       render: row => (
         <div class="flex gap-2">
-          <NButton type="success" quaternary size="small" onClick={() => addChild(row)}>
+          <NButton quaternary size="small" onClick={() => addChild(row)}>
             新增下级
           </NButton>
           <NButton type="primary" quaternary size="small" onClick={() => edit(row)}>
@@ -88,7 +88,7 @@ async function handleDelete(tagId: string) {
 </script>
 
 <template>
-  <div class="workspace-page flex-col-stretch gap-16px overflow-hidden <sm:overflow-auto">
+  <div class="workspace-page flex-col-stretch overflow-hidden <sm:overflow-auto">
     <NCard title="组织标签" :bordered="false" size="small" class="page-section sm:flex-1-hidden">
       <template #header-extra>
         <TableHeaderOperation v-model:columns="columnChecks" :loading="loading" @add="handleAdd" @refresh="getData" />
@@ -105,7 +105,16 @@ async function handleDelete(tagId: string) {
         :pagination="mobilePagination"
         :row-key="item => item.tagId"
         class="sm:h-full"
-      />
+      >
+        <template #empty>
+          <div class="table-state">
+            <icon-mdi:label-outline class="table-state__icon" />
+            <p class="table-state__title">暂无组织标签</p>
+            <p class="table-state__desc">组织标签用于划分知识库可见范围与上传配额</p>
+            <NButton size="small" type="primary" :disabled="loading" @click="handleAdd">新增标签</NButton>
+          </div>
+        </template>
+      </NDataTable>
       <OrgTagOperateDialog
         v-model:visible="dialogVisible"
         :operate-type="operateType"
@@ -117,4 +126,47 @@ async function handleDelete(tagId: string) {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped lang="scss">
+.table-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 24px;
+  text-align: center;
+  animation: table-state-in var(--app-dur-base) var(--app-ease-standard);
+}
+
+.table-state__icon {
+  font-size: 40px;
+  color: rgb(var(--base-text-color) / 0.24);
+}
+
+.table-state__title {
+  margin: 8px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--app-text);
+}
+
+.table-state__desc {
+  margin: 0;
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-muted);
+}
+
+@keyframes table-state-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+</style>
