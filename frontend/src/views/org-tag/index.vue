@@ -89,10 +89,13 @@ async function handleDelete(tagId: string) {
 
 <template>
   <div class="workspace-page flex-col-stretch overflow-hidden <sm:overflow-auto">
-    <h1 class="page-title">组织标签</h1>
+    <div class="page-header">
+      <h1 class="page-title">组织标签</h1>
+      <NButton type="primary" :disabled="loading" @click="handleAdd">新增标签</NButton>
+    </div>
     <NCard title="组织标签" :bordered="false" size="small" class="page-section sm:flex-1-hidden">
       <template #header-extra>
-        <TableHeaderOperation v-model:columns="columnChecks" :loading="loading" @add="handleAdd" @refresh="getData" />
+        <TableHeaderOperation v-model:columns="columnChecks" :addable="false" :loading="loading" @refresh="getData" />
       </template>
       <NDataTable
         :bordered="false"

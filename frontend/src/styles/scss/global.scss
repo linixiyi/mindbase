@@ -80,10 +80,52 @@ html.dark {
   backdrop-filter: var(--app-material-filter);
 }
 
-/* --- focus ring: the indigo line marks focus and action --- */
+/* --- focus ring: the azure line marks focus and action --- */
 .app-focus-ring:focus-visible {
   outline: 2px solid rgb(var(--primary-color));
   outline-offset: 2px;
+}
+
+/* --- Round R1 surface: browser-owned surfaces wear the brand ---
+   Text selection and the input caret are the cheapest "built, not assembled"
+   signals — they ship with browser defaults unless the design claims them
+   (DESIGN.md › craft floor › browser surfaces). */
+::selection {
+  background: rgb(var(--primary-color) / 0.22);
+  color: rgb(var(--base-text-color));
+}
+
+html.dark ::selection {
+  background: rgb(var(--primary-400-color) / 0.3);
+  color: rgb(var(--base-text-color));
+}
+
+input,
+textarea,
+[contenteditable] {
+  caret-color: rgb(var(--primary-color));
+}
+
+/* --- Round R1 layout: page-header zone — page title and the page's one primary action
+   share a baseline-aligned row, so the scan path reads 页题 → 主行动 → 表格.
+   Applied where the primary action is a standalone button; actions embedded in
+   TableHeaderOperation stay put (pattern-first, no forced rollout). */
+.page-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Table empty state: default Naive empties get quiet tertiary type and room to breathe;
+   views with their own empty-state blocks (e.g. .table-state) keep theirs. */
+.n-data-table .n-data-table-empty:not(:has(.table-state)) {
+  padding: 28px 0 36px;
+}
+
+.n-data-table .n-data-table-empty:not(:has(.table-state)) .n-empty__description {
+  color: var(--app-text-tertiary);
 }
 
 .text-muted {
