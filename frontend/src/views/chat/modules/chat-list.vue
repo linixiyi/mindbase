@@ -26,6 +26,17 @@ function scrollToBottom() {
 
 const range = ref<[number, number] | null>(null);
 
+// R2 welcome：建议问法来自本会话真实回答过的产品能力（知识库问答/引用溯源/混合检索/总结）
+const suggestions = [
+  'MindBase 的引用标注如何做到可溯源？',
+  '什么是混合检索？',
+  '帮我总结知识库里的内容'
+];
+
+function applySuggestion(q: string) {
+  chatStore.input = { message: q, conversationId: chatStore.conversationId || undefined };
+}
+
 function getRetrievalQueryFallback(index: number) {
   for (let i = index - 1; i >= 0; i -= 1) {
     const candidate = list.value[i];
@@ -99,15 +110,29 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
         </div>
       </NPopover>
 
-      <!-- Empty state -->
-      <div v-if="showEmpty" class="flex flex-col flex-1 items-center justify-center gap-4">
-        <div class="h-20 w-20 flex items-center justify-center rounded-24px bg-[var(--app-subtle)]">
-          <icon-lucide:message-circle class="text-36px text-[rgb(var(--base-text-color)/0.4)]" />
+      <!-- Empty state → welcome（R2 animate+delight）：产品语言直接引导提问，建议问法一键填入输入框；
+           入场为一次性 stagger（250ms emphasized），reduced-motion 下被全局压扁 -->
+      <div v-if="showEmpty" class="chat-welcome">
+        <div class="chat-welcome__badge">
+          <icon-lucide:message-circle class="text-36px text-[rgb(var(--primary-color))]" />
         </div>
-        <div class="text-body text-20px font-600">
+        <div class="chat-welcome__title">
           {{ conversationId ? '开始新对话' : '选择或创建一个对话' }}
         </div>
-        <div class="text-muted text-14px">在左侧选择一个对话，或点击「新对话」开始</div>
+        <div class="chat-welcome__desc">直接在下方提问——回答基于知识库检索生成，句末附引用标注</div>
+        <div class="chat-welcome__suggest">
+          <span class="chat-welcome__label">试试这样问</span>
+          <button
+            v-for="(q, i) in suggestions"
+            :key="q"
+            type="button"
+            class="chat-welcome__chip"
+            :style="{ animationDelay: `${140 + i * 60}ms` }"
+            @click="applySuggestion(q)"
+          >
+            {{ q }}
+          </button>
+        </div>
       </div>
 
       <!-- Message list -->
@@ -171,5 +196,90 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 .chat-filter-panel__label {
   font-size: 12px;
   color: var(--app-text-tertiary);
+}
+
+/* R2 welcome：一次性 stagger 入场（250ms emphasized）；建议问法为胶囊，hover 提到主色 */
+.chat-welcome {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.chat-welcome__badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 24px;
+  background: rgb(var(--primary-color) / 0.08);
+  animation: chat-welcome-rise var(--app-dur-base, 250ms) var(--app-ease-emphasized, ease) both;
+}
+
+.chat-welcome__title {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: rgb(var(--base-text-color));
+  animation: chat-welcome-rise var(--app-dur-base, 250ms) var(--app-ease-emphasized, ease) 60ms both;
+}
+
+.chat-welcome__desc {
+  color: var(--app-text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+  animation: chat-welcome-rise var(--app-dur-base, 250ms) var(--app-ease-emphasized, ease) 120ms both;
+}
+
+.chat-welcome__suggest {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  max-width: 560px;
+  animation: chat-welcome-rise var(--app-dur-base, 250ms) var(--app-ease-emphasized, ease) 180ms both;
+}
+
+.chat-welcome__label {
+  width: 100%;
+  font-size: 12px;
+  color: var(--app-text-tertiary);
+}
+
+.chat-welcome__chip {
+  padding: 6px 14px;
+  border: 1px solid var(--app-border);
+  border-radius: 9999px;
+  background: var(--app-elevated, var(--app-surface));
+  font-size: 13px;
+  color: var(--app-text-secondary);
+  cursor: pointer;
+  transition:
+    background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
+    color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
+    border-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
+}
+
+.chat-welcome__chip:hover {
+  border-color: rgb(var(--primary-color) / 0.4);
+  background: rgb(var(--primary-color) / 0.08);
+  color: rgb(var(--primary-color));
+}
+
+@keyframes chat-welcome-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 </style>

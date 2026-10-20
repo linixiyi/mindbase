@@ -128,6 +128,18 @@ textarea,
   color: var(--app-text-tertiary);
 }
 
+/* --- Round R2 overdrive: command-palette entry lands at full speed — the first frame
+   starts a touch scaled/offset (@starting-style, CSS-only) and settles in 150ms.
+   Scoped to the desktop global-search palette (top-50px variant); unsupported
+   browsers keep NModal's own fade. */
+.n-modal.n-card.top-50px {
+  transition: transform var(--app-dur-fast, 150ms) var(--app-ease-emphasized, ease);
+
+  @starting-style {
+    transform: scale(0.985) translateY(6px);
+  }
+}
+
 .text-muted {
   color: var(--app-muted);
 }
