@@ -23,6 +23,7 @@
 | 8 | 存量 no-console / console.log | 低优 | airy 包 round-2 记录 | `chat-message.vue` 3 处、`recharge-manage/index.vue` 5 处（313/330/335/345/353），业务调试代码，触碰时顺手清 |
 | 9 | 无映射会话的引用 chip 点击静默 | P3 观察 | 2026-10-20 主会话目检 | 经 WS 冒烟脚本创建、未持久化 referenceMappings 的历史消息中，引用 chip 点击无任何响应（正常会话 chip 可打开预览）。确认是否需要提示（如"该消息无引用详情"）或隐藏 chip |
 | 10 | dev 模式 SPA 半更新空白态 | 观察项 | azure 包 `spa-half-update-blank` | 改 `settings.ts`/`theme store` 触发 Vite `page reload` 广播后，旧标签页可能进入"路由 title 更新但组件不挂载"的半更新态（main 只剩注释节点、零报错），硬刷新恢复。复现依赖编辑时序，生产构建无此通道。dev 下遇到先整页刷新再排查 |
+| 11 | 主题切换后 SPA 导航全空白（P1 级，疑似既有） | 待排查 | azure 收口轮 `theme-switch-nav-wedge` | **归因实验**（2026-10-20 收口轮）：真机 reload → 点主题切换（View Transitions 已 stub 掉仍复现）→ 之后任意 SPA 导航 main 只剩注释节点（render=54）、零报错，整页刷新恢复；不点主题则 10/10 导航全绿。根因在 themeScheme 切换链（Naive themeOverrides 重渲染 / 路由守卫交互），与第四轮 morph 无关。复现：登录 → 点右上角主题按钮一次 → 侧栏切任意页面。建议下一轮触碰 theme store / 路由守卫时优先排查（疑似影响所有历史版本，生产构建待验证） |
 
 ## UI 打磨候选（PM 各轮 P2/P3 汇总）
 
