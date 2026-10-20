@@ -44,7 +44,7 @@
     - 成功判定：exit 0（清单存在、含用户故事走查与分级发现）
     - 失败处理：补走缺失故事后重验
 - [x] 主线程浏览器目检：登录→chat（真实对话+引用）→chat-history→knowledge-base 亮暗双主题
-  - 执行记录（2026-10-20，主会话）：真实登录 admin/admin-mindbase-2026 通过（P0 热修实测）→ chat 真实对话暗色截图（引用 chip/磨砂侧栏/输入壳全部新世界）→ 知识库/个人中心等 8 管理页 DOM 级挂载验证（无错误浮层）→ 亮色与引用预览模态补拍受内嵌浏览器截图面超时限制（P2 观察项：磨砂顶栏大面积 backdrop-filter 在软件光栅化下超 3s 预算），证据截图见 orchestration/screenshots/
+  - 执行记录（2026-10-20，主会话）：真实登录 admin/<bootstrap-password-见-.env> 通过（P0 热修实测）→ chat 真实对话暗色截图（引用 chip/磨砂侧栏/输入壳全部新世界）→ 知识库/个人中心等 8 管理页 DOM 级挂载验证（无错误浮层）→ 亮色与引用预览模态补拍受内嵌浏览器截图面超时限制（P2 观察项：磨砂顶栏大面积 backdrop-filter 在软件光栅化下超 3s 预算），证据截图见 orchestration/screenshots/
   - id: task-browser
   - depends-on: task-pm
   - boundary: 只在真实浏览器目检截图（真实后端 8081 已可用），不改代码；发现回写本包进入下一轮工作流
