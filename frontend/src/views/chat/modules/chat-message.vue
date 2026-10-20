@@ -397,7 +397,7 @@ async function handleSourceFileClick(fileInfo: {
 
 <template>
   <div
-    class="chat-message mb-6 flex flex-col gap-2"
+    class="chat-message mb-8 flex flex-col gap-2"
     :class="msg.role === 'user' ? 'chat-message--user items-end' : 'chat-message--assistant items-stretch'"
   >
     <template v-if="msg.role === 'user'">
@@ -535,16 +535,17 @@ async function handleSourceFileClick(fileInfo: {
   justify-content: flex-end;
 }
 
-/* 用户气泡：靛蓝填充白字、18px 圆角、发信侧（右上）收窄到 6px（DESIGN.md › Chat） */
+/* 用户气泡：靛蓝填充白字、18px 圆角、发信侧（右上）收窄到 6px、内边距 12px 16px、16px/1.75
+   （DESIGN.md › Chat / chat-bubble-user） */
 .chat-user-bubble {
   max-width: min(85%, 640px);
-  padding: 10px 14px;
+  padding: 12px 16px;
   border-radius: 18px 6px 18px 18px;
   background: rgb(var(--primary-color));
   /* 白字为 DESIGN.md chat-bubble-user 的固定配对常量（textColor 即纯白），非主题变量 */
   color: rgb(255 255 255);
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: 16px;
+  line-height: 1.75;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -619,19 +620,19 @@ async function handleSourceFileClick(fileInfo: {
   color: rgb(var(--error-400-color));
 }
 
-/* AI 回答：无气泡，直接坐在画布实底上的印刷排版（15px/1.65） */
+/* AI 回答：无气泡，直接坐在画布实底上的印刷排版（Body 16px/1.75——DESIGN.md › Chat「正文 16px/1.75」） */
 .chat-answer {
   min-width: 0;
   overflow-wrap: break-word;
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: 16px;
+  line-height: 1.75;
   color: var(--app-text);
 
   :deep(.vp-doc) {
     /* 弃用 vendor 自带的 Inter/Google Fonts 栈，回归系统字体栈（SF Pro + 苹方） */
     font-family: inherit;
-    font-size: 15px;
-    line-height: 1.65;
+    font-size: 16px;
+    line-height: 1.75;
     font-variant-numeric: tabular-nums;
     /* 把 vendor 的 VitePress 变量吸附到本世界的 token */
     --vp-c-brand: rgb(var(--primary-color));

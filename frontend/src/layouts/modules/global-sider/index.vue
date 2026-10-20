@@ -28,10 +28,15 @@ const navMaterialStyle = {
 
 <template>
   <!--
-    Nav material: frosted glass + inset hairline on the right edge (--sider-box-shadow token).
-    Inline style so the material deterministically wins over DarkModeContainer's baked-in bg-container.
+    Nav material: frosted glass clipped to the island's 24px radius. The elevation-island shadow
+    lives on the AdminLayout aside (base-layout sider-class), not here — an inner shadow would
+    double it. overflow-hidden clips the material to the radius.
   -->
-  <DarkModeContainer class="size-full flex-col-stretch shadow-sider" :inverted="darkMenu" :style="navMaterialStyle">
+  <DarkModeContainer
+    class="size-full flex-col-stretch overflow-hidden rounded-24px"
+    :inverted="darkMenu"
+    :style="navMaterialStyle"
+  >
     <GlobalLogo
       v-if="showLogo"
       :show-title="!appStore.siderCollapse"

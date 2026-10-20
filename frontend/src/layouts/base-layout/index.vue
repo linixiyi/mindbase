@@ -100,9 +100,43 @@ function getSiderCollapsedWidth() {
 
   return w;
 }
+
+// Floating-island sider class (DESIGN.md › Layout › 壳层与浮岛).
+//
+// The sider detaches from the window edges: 12px inset left/bottom, 12px below the full-bleed
+// header (island starts at y=64px), 24px corner radius, elevation-island shadow riding the aside
+// itself (the built-in overflow-hidden only clips content, never the island's own shadow).
+// Width classes are a static set so UnoCSS extracts them at build time.
+const islandWidthClass: Record<number, string> = {
+  220: 'w-220px!',
+  64: 'w-64px!',
+  90: 'w-90px!',
+  264: 'w-264px!',
+  290: 'w-290px!'
+};
+
+const siderClass = computed(() => {
+  const width = appStore.siderCollapse ? siderCollapsedWidth.value : siderWidth.value;
+
+  const widthClass = islandWidthClass[width];
+
+  // Zero-width sider (reversed horizontal-mix without children): stay flat and invisible
+  if (!widthClass) {
+    return 'top-0! left-0! h-full! w-0! rounded-none! shadow-none!';
+  }
+
+  // pt/pb zeroed: the island floats below the header (top-64px), so it never needs the
+  // header/footer-compensating padding AdminLayout adds for the flush geometry.
+  return `${widthClass} top-64px! left-12px! bottom-12px! h-auto! pt-0! pb-0! rounded-24px! shadow-sider!`;
+});
 </script>
 
 <template>
+  <!--
+    Sider width carries +24: the reserved column must cover the island's 12px left inset plus the
+    12px ground seam on its right (--soy-sider-width becomes 244/88), so header/main content starts
+    at the island's right edge + 12px while sider-class pins the aside itself to 220/64.
+  -->
   <AdminLayout
     v-model:sider-collapse="appStore.siderCollapse"
     :mode="layoutMode"
@@ -116,14 +150,14 @@ function getSiderCollapsedWidth() {
     :tab-height="themeStore.tab.height"
     :content-class="appStore.contentXScrollable ? 'overflow-x-hidden' : ''"
     :sider-visible="siderVisible"
-    :sider-width="siderWidth"
-    :sider-collapsed-width="siderCollapsedWidth"
+    :sider-width="siderWidth + 24"
+    :sider-collapsed-width="siderCollapsedWidth + 24"
     :footer-visible="themeStore.footer.visible"
     :footer-height="themeStore.footer.height"
     :fixed-footer="themeStore.footer.fixed"
     :right-footer="themeStore.footer.right"
-    header-class="top-0! right-0!"
-    sider-class="top-0! left-0! h-full! rounded-none! shadow-none!"
+    header-class="top-0! right-0! pl-0!"
+    :sider-class="siderClass"
     mobile-sider-class="bg-transparent! rounded-none!"
   >
     <template #header>

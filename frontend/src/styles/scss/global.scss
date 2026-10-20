@@ -41,6 +41,8 @@
   --app-shadow-e1: 0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.08);
   --app-shadow-e2: 0 4px 12px rgba(0, 0, 0, 0.08), 0 16px 48px rgba(0, 0, 0, 0.18);
   --app-shadow-e3: 0 8px 24px rgba(0, 0, 0, 0.1), 0 24px 80px rgba(0, 0, 0, 0.24);
+  /* floating island (shell sider silhouette): wider and softer than e1 — mirrors tokens.*.boxShadow.sider */
+  --app-shadow-island: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.1);
 
   /* --- motion: three durations, three curves --- */
   --app-dur-fast: 150ms;
@@ -62,6 +64,7 @@ html.dark {
   --app-material-nav: rgba(29, 29, 31, 0.68);
   --app-material-overlay: rgba(44, 44, 46, 0.72);
   --app-scrim: rgba(0, 0, 0, 0.5);
+  --app-shadow-island: 0 1px 2px rgba(0, 0, 0, 0.45), 0 12px 32px rgba(0, 0, 0, 0.55);
 }
 
 /* --- frosted material helpers (shell & floating layers only) --- */
@@ -111,9 +114,19 @@ html.dark {
   background-color: var(--app-scrim);
 }
 
+/* Page title (Display 32, round 3 airy scale). A flex child of .workspace-page: the page's
+   32px section gap spaces it from the first block below; margin-top tops the page padding
+   up to 48px (4xl) of air above the title — space above ≥ 1.5 × space below. */
+.page-title {
+  margin: 24px 0 0;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
 .workspace-page {
   min-width: 0;
-  gap: 24px;
+  gap: 32px;
 }
 
 /* Static card: opaque surface, hairline border, zero shadow */
@@ -124,22 +137,22 @@ html.dark {
   background: var(--app-surface);
 
   > .n-card-header {
-    padding: 20px 24px 16px;
+    padding: 28px 32px 20px;
     gap: 16px;
     flex-wrap: wrap;
 
     .n-card-header__main {
-      font-size: 17px;
+      font-size: 20px;
       font-weight: 600;
-      line-height: 1.4;
+      line-height: 1.35;
     }
   }
 
   > .n-card__content {
-    padding: 0 24px 24px;
+    padding: 0 32px 32px;
   }
   > .n-card__footer {
-    padding: 20px 24px 24px;
+    padding: 28px 32px 32px;
   }
 }
 
@@ -156,7 +169,7 @@ html.dark {
     background: transparent;
   }
   .n-data-table-td {
-    padding: 14px 16px;
+    padding: 16px;
   }
 }
 
@@ -197,13 +210,13 @@ html.dark {
   }
   .page-section.n-card {
     > .n-card-header {
-      padding: 20px 20px 16px;
+      padding: 16px 16px 12px;
     }
     > .n-card__content {
-      padding: 0 20px 20px;
+      padding: 0 16px 16px;
     }
     > .n-card__footer {
-      padding: 20px;
+      padding: 16px;
     }
   }
   .workspace-page .page-filters.n-form {

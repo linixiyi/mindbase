@@ -248,32 +248,32 @@ watch(
 }
 
 .register-form-tip {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.7;
   color: rgb(var(--base-text-color) / 0.66);
 }
 
-/* Flat tinted zone inside the card: fill-subtle surface, md radius, no border, no shadow */
+/* Flat tinted zone inside the airy page: fill-subtle surface, md radius, no border, no shadow */
 .invite-side-panel {
   display: flex;
   min-width: 0;
   flex-direction: column;
   border-radius: var(--app-radius-md);
-  padding: 20px;
+  padding: 24px;
   background: var(--app-fill-subtle);
 }
 
 .invite-side-title {
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
   color: rgb(var(--base-text-color));
 }
 
 .invite-side-desc {
-  margin-top: 10px;
-  font-size: 13px;
-  line-height: 1.8;
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 1.7;
   color: var(--app-text-secondary);
 }
 
@@ -316,7 +316,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
   color: var(--app-text-secondary);
 }

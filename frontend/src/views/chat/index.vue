@@ -23,40 +23,34 @@ watch(
   <div v-if="showReferencePreview" class="h-full">
     <ReferencePreviewPage />
   </div>
-  <div v-else class="h-full bg-layout p-4">
-    <div class="chat-surface relative h-full flex overflow-hidden bg-container">
+  <div v-else class="chat-canvas relative h-full flex bg-container! p-0!">
+    <button
+      v-if="appStore.isMobile && !sidebarCollapsed"
+      class="sidebar-backdrop"
+      aria-label="收起对话列表"
+      @click="sidebarCollapsed = true"
+    />
+    <ConversationSidebar v-model:collapsed="sidebarCollapsed" :class="{ 'mobile-conversations': appStore.isMobile }" />
+    <div class="relative min-w-0 flex flex-col flex-1">
       <button
-        v-if="appStore.isMobile && !sidebarCollapsed"
-        class="sidebar-backdrop"
-        aria-label="收起对话列表"
-        @click="sidebarCollapsed = true"
-      />
-      <ConversationSidebar
-        v-model:collapsed="sidebarCollapsed"
-        :class="{ 'mobile-conversations': appStore.isMobile }"
-      />
-      <div class="relative min-w-0 flex flex-col flex-1">
-        <button
-          v-show="sidebarCollapsed"
-          class="conversation-toggle absolute left-3 top-3 z-20 h-9 w-9 inline-flex items-center justify-center rounded-10px"
-          aria-label="展开对话列表"
-          @click="sidebarCollapsed = false"
-        >
-          <icon-material-symbols:left-panel-open-outline-rounded class="text-18px" />
-        </button>
-        <ChatList />
-        <InputBox />
-      </div>
+        v-show="sidebarCollapsed"
+        class="conversation-toggle absolute left-3 top-3 z-20 h-9 w-9 inline-flex items-center justify-center rounded-10px"
+        aria-label="展开对话列表"
+        @click="sidebarCollapsed = false"
+      >
+        <icon-material-symbols:left-panel-open-outline-rounded class="text-18px" />
+      </button>
+      <ChatList />
+      <InputBox />
     </div>
   </div>
 </template>
 
 <style scoped>
-/* 聊台画布：24px 圆角、发丝线描边、零阴影（DESIGN.md › Shapes / Elevation） */
-.chat-surface {
-  border: 1px solid var(--app-border);
-  border-radius: 24px;
-}
+/* 聊台画布：全幅白直铺 main、无圆角无描边无盒子——「画布即房间」（DESIGN.md › Layout › 聊台画布）。
+   浮岛投影不裁切：画布容器不再 overflow-hidden，岛影可越出自身边界呼吸。
+   本路由视图编译后是单一条件根（v-if/v-else），GlobalContent 的 p-4 sm:p-6 xl:px-40px bg-layout
+   会 fallthrough 到画布根——用 !p-0!/bg-container! 显式压掉，保证全幅白直铺（DESIGN.md › Token 落地映射 §9）。 */
 .conversation-toggle {
   background: var(--app-material-nav, var(--app-surface));
   backdrop-filter: var(--app-material-filter, saturate(180%) blur(20px));

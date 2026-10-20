@@ -81,31 +81,39 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 <template>
   <Suspense>
     <div class="h-0 flex flex-col flex-1">
-      <!-- 次级工具行：日期筛选收敛到阅读列右端，不与对话内容抢注意力 -->
-
-      <div v-if="!showEmpty" class="chat-date-filter">
-        <NForm :model="params" label-placement="left" :show-feedback="false" inline>
-          <NFormItem label="时间" size="small">
-            <NDatePicker v-model:value="range" type="daterange" clearable size="small" />
-          </NFormItem>
-        </NForm>
-      </div>
+      <!-- 日期筛选：默认隐藏，收进右上角图标触发的浮层（overlay 材质由 global.scss 的 .n-popover 承担）；range → params 数据流零改动 -->
+      <NPopover v-if="!showEmpty" trigger="click" placement="bottom-end" :show-arrow="false">
+        <template #trigger>
+          <button
+            class="chat-filter-toggle absolute right-3 top-3 z-20 h-9 w-9 inline-flex items-center justify-center rounded-10px"
+            :class="{ 'chat-filter-toggle--active': Array.isArray(range) }"
+            aria-label="按日期筛选消息"
+            title="按日期筛选消息"
+          >
+            <icon-material-symbols:calendar-month-outline-rounded class="text-18px" />
+          </button>
+        </template>
+        <div class="chat-filter-panel">
+          <div class="chat-filter-panel__label">按日期筛选历史消息</div>
+          <NDatePicker v-model:value="range" type="daterange" clearable size="small" />
+        </div>
+      </NPopover>
 
       <!-- Empty state -->
       <div v-if="showEmpty" class="flex flex-col flex-1 items-center justify-center gap-4">
         <div class="h-20 w-20 flex items-center justify-center rounded-24px bg-[var(--app-subtle)]">
           <icon-material-symbols:chat-outline-rounded class="text-36px text-[rgb(var(--base-text-color)/0.4)]" />
         </div>
-        <div class="text-body text-15px font-600">
+        <div class="text-body text-20px font-600">
           {{ conversationId ? '开始新对话' : '选择或创建一个对话' }}
         </div>
-        <div class="text-muted text-13px">在左侧选择一个对话，或点击「新对话」开始</div>
+        <div class="text-muted text-14px">在左侧选择一个对话，或点击「新对话」开始</div>
       </div>
 
       <!-- Message list -->
       <NScrollbar v-else ref="scrollbarRef" class="flex-1">
         <NSpin :show="loading">
-          <div class="mx-auto max-w-[800px] w-full px-4 pb-4">
+          <div class="mx-auto max-w-[800px] w-full px-4 pb-6 pt-12">
             <VueMarkdownItProvider>
               <ChatMessage
                 v-for="(item, index) in list"
@@ -123,52 +131,45 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 </template>
 
 <style scoped lang="scss">
-/* 日期筛选：与消息列同轨（800px 右对齐）、压缩到工具行高度；
-   选择器静置透明无框，悬停才现发丝线——次级视觉，随 Naive 焦点环保持一线靛。 */
-.chat-date-filter {
-  display: flex;
-  justify-content: flex-end;
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 6px 16px 4px;
-
-  :deep(.n-form-item-label) {
-    color: var(--app-text-tertiary);
-    font-size: 12px;
-  }
-
-  :deep(.n-input) {
-    background-color: transparent;
-    border-color: transparent;
-    transition:
-      border-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
-      background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
-  }
-
-  :deep(.n-input:hover) {
-    border-color: var(--app-border);
-  }
-
-  :deep(.n-input.n-input--focus) {
-    border-color: rgb(var(--primary-color) / 0.5);
-  }
+/* 筛选入口：与左侧 conversation-toggle 同款的悬浮小钮（nav-material + e1），
+   有筛选值时一线靛标示激活。absolute 相对 chat/index.vue 的画布列定位。 */
+.chat-filter-toggle {
+  background: var(--app-material-nav, var(--app-surface));
+  -webkit-backdrop-filter: var(--app-material-filter, saturate(180%) blur(20px));
+  backdrop-filter: var(--app-material-filter, saturate(180%) blur(20px));
+  color: var(--app-muted);
+  border: 1px solid var(--app-border);
+  box-shadow: var(--app-shadow-e1);
+  cursor: pointer;
+  transition:
+    color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
+    background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
+}
+.chat-filter-toggle:hover {
+  color: rgb(var(--primary-color));
+  background: var(--app-fill-hover, var(--app-subtle));
+}
+.chat-filter-toggle--active,
+.chat-filter-toggle--active:hover {
+  color: rgb(var(--primary-color));
+}
+.dark .chat-filter-toggle--active,
+.dark .chat-filter-toggle--active:hover {
+  color: rgb(var(--primary-400-color));
+}
+.chat-filter-toggle:focus-visible {
+  outline: 2px solid rgb(var(--primary-color) / 0.6);
+  outline-offset: 2px;
 }
 
-@media (max-width: 640px) {
-  .chat-date-filter {
-    padding-left: 56px;
-  }
-  .chat-date-filter :deep(.n-form-item-label) {
-    display: none;
-  }
-  .chat-date-filter :deep(.n-form-item) {
-    margin-right: 0;
-    min-width: 0;
-  }
-  .chat-date-filter :deep(.n-date-picker) {
-    min-width: 0;
-    width: 100%;
-  }
+/* 弹层内文：Footnote 说明 + 控件层日期选择器 */
+.chat-filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-filter-panel__label {
+  font-size: 12px;
+  color: var(--app-text-tertiary);
 }
 </style>

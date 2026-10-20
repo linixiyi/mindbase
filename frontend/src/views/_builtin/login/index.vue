@@ -39,54 +39,60 @@ const isRegisterModule = computed(() => (props.module || 'pwd-login') === 'regis
 </script>
 
 <template>
-  <!-- Quiet ground: the page sits on the layout token, the card is an opaque panel with a hairline -->
-  <div class="relative size-full flex-center bg-layout">
-    <NCard
-      :bordered="false"
-      class="relative z-4 w-auto card-wrapper"
-      :style="{ background: 'rgb(var(--container-bg-color))' }"
-    >
-      <div :class="isRegisterModule ? 'login-panel login-panel--register' : 'login-panel'">
-        <header class="flex-y-center justify-between">
-          <SystemLogo class="text-64px text-primary lt-sm:text-48px" />
-          <h3 class="flex-y-center gap-2 text-28px text-base-text font-600 lh-1.25 lt-sm:text-22px">
-            <span>{{ $t('system.title') }}</span>
-            <span v-if="isRegisterModule" class="text-18px text-secondary font-500 lt-sm:text-16px">
-              {{ $t(activeModule.label) }}
-            </span>
-          </h3>
-          <div class="i-flex-col">
-            <ThemeSchemaSwitch
-              :theme-schema="themeStore.themeScheme"
-              :show-tooltip="false"
-              class="text-20px lt-sm:text-18px"
-              @switch="themeStore.toggleThemeScheme"
-            />
-            <LangSwitch
-              v-if="themeStore.header.multilingual.visible"
-              :lang="appStore.locale"
-              :lang-options="appStore.localeOptions"
-              :show-tooltip="false"
-              @change-lang="appStore.changeLocale"
-            />
-          </div>
-        </header>
-        <main class="pt-24px">
-          <h3 v-if="!isRegisterModule" class="text-17px text-base-text font-600 lh-1.4">
-            {{ $t(activeModule.label) }}
-          </h3>
-          <div class="pt-24px">
-            <Transition :name="themeStore.page.animateMode" mode="out-in" appear>
-              <component :is="activeModule.component" />
-            </Transition>
-          </div>
-        </main>
+  <!--
+ Airy 登录：去盒——表单直接坐在页面上；亮色白底大留白，暗色落回 layout 地面；
+       靛紫只出现在品牌标与主行动上（DESIGN.md › 一线靛律） 
+-->
+  <div class="login-page relative size-full">
+    <div class="login-tools absolute right-24px top-24px z-4 flex-y-center gap-16px">
+      <ThemeSchemaSwitch
+        :theme-schema="themeStore.themeScheme"
+        :show-tooltip="false"
+        class="text-20px lt-sm:text-18px"
+        @switch="themeStore.toggleThemeScheme"
+      />
+      <LangSwitch
+        v-if="themeStore.header.multilingual.visible"
+        :lang="appStore.locale"
+        :lang-options="appStore.localeOptions"
+        :show-tooltip="false"
+        @change-lang="appStore.changeLocale"
+      />
+    </div>
+    <div class="h-full overflow-auto">
+      <div class="login-flow min-h-full flex flex-col pb-48px pt-64px lt-sm:pb-32px lt-sm:pt-56px">
+        <div :class="isRegisterModule ? 'login-panel login-panel--register' : 'login-panel'" class="m-auto">
+          <header class="login-head">
+            <SystemLogo class="login-head__logo" />
+            <h1 class="login-head__title">
+              <span>{{ $t('system.title') }}</span>
+              <span v-if="isRegisterModule" class="login-head__module">{{ $t(activeModule.label) }}</span>
+            </h1>
+          </header>
+          <main class="pt-40px">
+            <h2 v-if="!isRegisterModule" class="login-module-title">{{ $t(activeModule.label) }}</h2>
+            <div class="pt-24px">
+              <Transition :name="themeStore.page.animateMode" mode="out-in" appear>
+                <component :is="activeModule.component" />
+              </Transition>
+            </div>
+          </main>
+        </div>
       </div>
-    </NCard>
+    </div>
   </div>
 </template>
 
 <style scoped>
+/* 地面：亮色白底（container 即纯白），暗色落回 layout 近黑地面——全部经主题 token，无硬编码 */
+.login-page {
+  background: rgb(var(--container-bg-color));
+}
+
+html.dark .login-page {
+  background: rgb(var(--layout-bg-color));
+}
+
 .login-panel {
   width: 400px;
 }
@@ -95,10 +101,59 @@ const isRegisterModule = computed(() => (props.module || 'pwd-login') === 'regis
   width: min(860px, calc(100vw - 72px));
 }
 
+/* m-auto 居中：内容高于视口时随滚动展开，不裁顶 */
+.login-flow {
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+/* 居中竖排 hero：品牌标（靛紫）+ Display 32 页题 */
+.login-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.login-head__logo {
+  font-size: 56px;
+  color: rgb(var(--primary-color));
+}
+
+.login-head__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgb(var(--base-text-color));
+}
+
+.login-head__module {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--app-text-secondary);
+}
+
+/* 区块题：Headline 20/600 */
+.login-module-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  color: rgb(var(--base-text-color));
+}
+
 @media (max-width: 640px) {
   .login-panel,
   .login-panel--register {
-    width: 300px;
+    width: calc(100vw - 48px);
   }
 }
 </style>

@@ -434,13 +434,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative shrink-0 px-4 pb-3 pt-2">
+  <div class="relative shrink-0 px-4 pb-4 pt-2">
     <div class="chat-input-shell mx-auto max-w-[800px] w-full flex items-end gap-2">
       <textarea
         ref="inputRef"
         v-model.trim="input.message"
         placeholder="给 MindBase 发送消息，Enter 发送，Shift+Enter 换行"
-        class="text-body max-h-32 min-h-6 w-full flex-1 resize-none border-none bg-transparent py-1 text-15px caret-[rgb(var(--primary-color))] outline-none"
+        class="text-body max-h-32 min-h-6 w-full flex-1 resize-none border-none bg-transparent py-1 text-16px caret-[rgb(var(--primary-color))] outline-none"
         @keydown="handShortcut"
       />
       <NButton
@@ -482,14 +482,16 @@ textarea::placeholder {
   color: var(--app-muted);
 }
 
-/* 聊天输入壳：18px 圆角、实底 + 发丝线，静置 elevation-1 极轻投影，聚焦加深为浮层级并加靛蓝光晕
-   （DESIGN.md › Inputs / Fields） */
+/* 聊天输入壳：18px 圆角、实底 + 发丝线，轻量化静置——白画布上只靠发丝线与一层低语级投影浮起
+   （第三轮 airy：静置投影比 elevation-1 更轻；DESIGN.md › Inputs / Fields 聊天输入壳放大版） */
 .chat-input-shell {
   padding: 12px 14px;
   border: 1px solid var(--app-border);
-  border-radius: 18px;
+  border-radius: var(--app-radius-lg, 18px);
   background: var(--app-elevated, var(--app-surface));
-  box-shadow: var(--app-shadow-e1);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 2px 8px rgba(0, 0, 0, 0.04);
   transition:
     border-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
     box-shadow var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
@@ -498,13 +500,14 @@ textarea::placeholder {
 .chat-input-shell:focus-within {
   border-color: rgb(var(--primary-color) / 0.4);
   box-shadow:
-    var(--app-shadow-e2),
-    0 0 0 3px rgb(var(--primary-color) / 0.2);
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    0 0 0 3px rgb(var(--primary-color) / 0.15);
 }
 
 .chat-input-shell textarea {
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: 16px;
+  line-height: 1.75;
 }
 
 /* 限流冷却：语义橙深阶文字（浅 -700 / 暗 -400） */

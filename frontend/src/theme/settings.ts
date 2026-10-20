@@ -1,6 +1,7 @@
 /** Default theme settings */
 export const themeSettings: App.Theme.ThemeSetting = {
-  themeScheme: 'auto',
+  // Round 3 (light airy): light is the default theme; dark (Quiet Glass) stays fully available via the switcher
+  themeScheme: 'light',
   grayscale: false,
   colourWeakness: false,
   recommendColor: false,
@@ -33,7 +34,9 @@ export const themeSettings: App.Theme.ThemeSetting = {
       },
       boxShadow: {
         header: '0 0.5px 0 rgba(29, 29, 31, 0.12)',
-        sider: 'inset -0.5px 0 0 rgba(29, 29, 31, 0.12)',
+        // Round 3: the sider detached from the window edges — it now carries the elevation-island
+        // shadow instead of the old inset hairline (DESIGN.md › Elevation › elevation-island)
+        sider: '0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.10)',
         tab: 'none'
       }
     },
@@ -46,7 +49,8 @@ export const themeSettings: App.Theme.ThemeSetting = {
       },
       boxShadow: {
         header: '0 0.5px 0 rgba(235, 235, 245, 0.14)',
-        sider: 'inset -0.5px 0 0 rgba(235, 235, 245, 0.14)',
+        // Island shadow in dark theme too — same silhouette, heavier ink (DESIGN.md › elevation-island)
+        sider: '0 1px 2px rgba(0, 0, 0, 0.45), 0 12px 32px rgba(0, 0, 0, 0.55)',
         tab: 'none'
       }
     }
@@ -59,7 +63,10 @@ export const themeSettings: App.Theme.ThemeSetting = {
  * If publish new version, use `overrideThemeSettings` to override certain theme settings
  */
 export const overrideThemeSettings: Partial<App.Theme.ThemeSetting> = {
-  // Quiet Glass redesign: push the new color/shell tokens to sessions with cached settings
+  // Quiet Glass redesign: push the new color/shell tokens to sessions with cached settings.
+  // themeScheme must ride this channel too: dev reads themeSettings directly, but prod sessions
+  // keep a cached copy where defu would preserve their old 'auto' — the override forces 'light'.
+  themeScheme: 'light',
   themeColor: themeSettings.themeColor,
   otherColor: themeSettings.otherColor,
   recommendColor: themeSettings.recommendColor,

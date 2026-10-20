@@ -591,6 +591,7 @@ async function onBeforeUpload(
 
 <template>
   <div class="workspace-page min-h-500px flex-col-stretch overflow-hidden lt-sm:overflow-auto">
+    <h1 class="page-title">知识库</h1>
     <NCard title="文件列表" :bordered="false" size="small" class="page-section sm:flex-1-hidden">
       <template #header-extra>
         <TableHeaderOperation v-model:columns="columnChecks" :loading="loading" @add="handleUpload" @refresh="getList">
@@ -636,6 +637,18 @@ async function onBeforeUpload(
 </template>
 
 <style scoped lang="scss">
+/* 页题：Display 32/600/1.2（DESIGN.md › Typography）。上方 24px 与 GlobalContent 的 24px 顶距
+   叠成 4xl 48；下方间距交给 .workspace-page 的区块 gap——标题上方留白 ≥ 下方 ×1.5。
+   表格卡片保留为地面上的数据区块（表格可坐卡片内，仅此一层） */
+.page-title {
+  flex-shrink: 0;
+  margin: 24px 0 0;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgb(var(--base-text-color));
+}
+
 :deep() {
   .n-progress-icon.n-progress-icon--as-text {
     white-space: nowrap;
