@@ -29,12 +29,12 @@
 ## 3. 功能范围
 
 ### 3.1 核心功能（MVP）
-- [ ] DESIGN.md 更新：亮色 airy 结构规范（悬浮侧栏几何、去套盒规则、字号刻度拉大、留白节奏、默认主题=light）
-- [ ] 壳层结构大改：侧栏改悬浮浮岛（与窗口边缘脱开、圆角+投影）、顶栏融入浮岛或透明化、默认主题 light
-- [ ] chat 页结构大改：去对话画布套盒、内容列居中加大留白、字号层级拉大、日期筛选条默认隐藏
-- [ ] 其余页面 airy 化：chat-history / knowledge-base / 管理页组跟随新结构
-- [ ] 门禁：typecheck + eslint 0 error + 检测器无 error 级
-- [ ] 浏览器终验：亮色为主截全量对比图，暗色抽查无回归
+- [x] DESIGN.md 更新：亮色 airy 结构规范（悬浮侧栏几何、去套盒规则、字号刻度拉大、留白节奏、默认主题=light）
+- [x] 壳层结构大改：侧栏改悬浮浮岛（与窗口边缘脱开、圆角+投影）、顶栏融入浮岛或透明化、默认主题 light
+- [x] chat 页结构大改：去对话画布套盒、内容列居中加大留白、字号层级拉大、日期筛选条默认隐藏
+- [x] 其余页面 airy 化：chat-history / knowledge-base / 管理页组跟随新结构
+- [x] 门禁：typecheck + eslint 0 error + 检测器无 error 级
+- [x] 浏览器终验：亮色为主截全量对比图，暗色抽查无回归
 
 ### 3.2 扩展功能
 - 无
@@ -69,11 +69,11 @@
 - 主会话保留：浏览器终验（本轮必须产出亮暗对比截图）、收敛判断
 
 ## 6. 成功标准与验证方式
-- [ ] DESIGN.md 更新含亮色 airy 结构规范与默认主题决策 -> verify: task-world
-- [ ] 壳层悬浮浮岛 + 去套盒 + chat 结构大改 + 默认 light 落地，typecheck/eslint 0 error -> verify: task-implement
-- [ ] 检测器无 error 级发现 -> verify: task-gate
-- [ ] PM 复审：与旧观感并排对比"第一眼可辨"、无 P0/P1 -> verify: task-pm
-- [ ] 主线程浏览器亮暗对比截图验收 -> verify: task-browser
+- [x] DESIGN.md 更新含亮色 airy 结构规范与默认主题决策 -> verify: task-world
+- [x] 壳层悬浮浮岛 + 去套盒 + chat 结构大改 + 默认 light 落地，typecheck/eslint 0 error -> verify: task-implement
+- [x] 检测器无 error 级发现 -> verify: task-gate
+- [x] PM 复审：与旧观感并排对比"第一眼可辨"、无 P0/P1 -> verify: task-pm
+- [x] 主线程浏览器亮暗对比截图验收 -> verify: task-browser
 
 ## 7. 风险与约束
 - 风险点：结构大改引入回归 -> 缓解：分片互斥 + 三重门禁 + 浏览器逐页对比
