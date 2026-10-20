@@ -11,4 +11,4 @@
 - [x] layout+typeset：管理页页头区层级——页题与主行动同行成区（page-header 区块），表格空态排版，区块节奏按 DESIGN.md 复核修正
 - [x] animate+delight：聊天空态 welcome——新对话空态的方向性欢迎区（产品语言、建议问法、单一入场动效），从产品机制派生、可百次使用
 - [x] bolder+overdrive：签名面信念度——recharge 余额区与 personal-center 档案头的层级强化（系统语汇内放大），外加一个 Operate 手感点（global-search 命令面板化入场：@starting-style 即时反馈，无依赖、优雅降级）
-- [ ] 收口验证：全量 impeccable detect 零 error + 真机亮暗走查零 P0/P1 + DESIGN.md 与实现一致性复核，产出收口复审并宣布链完成
+- [x] 收口验证：全量 impeccable detect 零 error + 真机亮暗走查零 P0/P1 + DESIGN.md 与实现一致性复核，产出收口复审并宣布链完成

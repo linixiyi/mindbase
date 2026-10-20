@@ -528,3 +528,17 @@ MindBase 的品牌标志是「**心智基座**」：一支圆头描边的 **M**�
 | 回答就绪回落 | `views/chat/modules/input-box.vue` 输入壳投影随流式状态切换（聚焦档 → 静置档 150ms 过渡）——已有投影机制上补状态联动，不新增阴影档 |
 | 靛蓝残留清零 | 全仓 grep `5856D6\|5B5BE8\|878af5\|靛蓝` 于 `frontend/src` 零命中；引用 chip、选中态、聚焦环全部随 CSS 变量自动换血，无需逐处硬编码排查 |
 | 验收 | ①grep 残留零命中；②实页主按钮/选中态/引用 chip/聚焦环全为淡蓝；③主题切换有圆形揭示且 reduced-motion 降级；④暗色抽查主色变蓝、其余 token 不动；⑤`pnpm typecheck && pnpm exec eslint .` 0 error |
+
+### 11. autorun 美化链新词汇（R1 表面/页头 · R2 欢迎区/面板，2026-10-20）
+
+R1/R2（autorun 链，计划 `.spec/plans/ui-beautification.md`）在 Azure 世界内新增的设计词汇，规范值与落点：
+
+| 词汇 | 规范 | 落点 |
+| --- | --- | --- |
+| 浏览器表面（craft floor） | `::selection`：主色 22% 底 + 冷墨文字（暗色 `--primary-400-color` 30% 底）；`input/textarea/[contenteditable]` 插入符 `caret-color` 主色。浏览器自有表面必须穿品牌，不得留 UA 默认 | `global.scss`（surface 段） |
+| `.page-header` 页头区 | 页题（Display 32）与该页唯一主行动同行 `baseline` 对齐、`space-between`、可换行。适用于主行动为独立按钮的页面（先行：recharge-manage、org-tag）；嵌在 TableHeaderOperation 的行动不强行上提 | `global.scss` + 两视图 |
+| 表格空态排版 | 默认 Naive 空态（无自定义 `.table-state` 时）上 28px/下 36px 留白，描述文字 `--app-text-tertiary`；自定义空态块不受影响 | `global.scss`（`:has` 作用域） |
+| 聊天欢迎区（delight） | 空会话画布 = azure 8% 圆角徽标（icon 主色）+「开始新对话」+ **产品事实文案**（基于知识库检索、句末引用标注）+「试试这样问」建议问法胶囊（点击经 `chatStore.input` 填充输入框，不自动发送）。入场为一次性 stagger（250ms emphasized，徽标→题→述→chips 各 +60ms），reduced-motion 全局压扁兜底 | `chat-list.vue` |
+| 命令面板入场（overdrive） | 全局搜索桌面面板（`top-50px` 变体）首帧 `scale(0.985) translateY(6px)`，150ms emphasized 收拢（`@starting-style`，CSS-only）；只动 transform，不与 NModal 渐显叠加；不支持的浏览器保持 NModal 原渐显 | `global.scss` |
+| 档案头身份 tile | personal-center 头像 tile：主色 8% 底 + 主色 icon（原灰底灰 icon 退役）。身份区吃品牌一线 | `personal-center/index.vue` |
+| 验收 | detect 全量零 error；欢迎区建议填充真机实测；选区/插入符样式表断言 + 放大截图 | R1/R2 runs.jsonl |
