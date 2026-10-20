@@ -5,8 +5,29 @@
   "roundCap": "unbounded (user pre-authorized unlimited rounds)",
   "pushPolicy": "local merge to main only; remote push withheld per AGENTS.md hard rule pending explicit user authorization",
   "rounds": [
-    { "round": 1, "features": ["colorize+quieter", "layout+typeset"], "slug": "pending" },
-    { "round": 2, "features": ["animate+delight", "bolder+overdrive"], "slug": "pending" },
-    { "round": 3, "features": ["收口验证"], "slug": "pending" }
+    {
+      "round": 1,
+      "features": [
+        "colorize+quieter",
+        "layout+typeset"
+      ],
+      "slug": "2026-10-20_beautify-ui-surface",
+      "status": "done (archived)"
+    },
+    {
+      "round": 2,
+      "features": [
+        "animate+delight",
+        "bolder+overdrive"
+      ],
+      "slug": "pending"
+    },
+    {
+      "round": 3,
+      "features": [
+        "收口验证"
+      ],
+      "slug": "pending"
+    }
   ]
 }

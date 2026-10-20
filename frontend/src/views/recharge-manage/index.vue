@@ -389,11 +389,11 @@ onMounted(() => {
 
 <template>
   <div class="workspace-page min-h-500px flex-col-stretch gap-16px overflow-auto">
-    <h1 class="page-title">充值管理</h1>
+    <div class="page-header">
+      <h1 class="page-title">充值管理</h1>
+      <NButton type="primary" @click="handleCreate">新增套餐</NButton>
+    </div>
     <NCard title="充值套餐管理" :bordered="false" size="small" class="page-section">
-      <template #header-extra>
-        <NButton type="primary" @click="handleCreate">新增套餐</NButton>
-      </template>
 
       <div v-if="loadError" class="page-state">
         <icon-lucide:circle-alert class="page-state__icon page-state__icon--error" />
