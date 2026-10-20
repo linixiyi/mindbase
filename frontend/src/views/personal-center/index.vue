@@ -357,8 +357,9 @@ const tokenRecordColumns = computed(() => [
   width: 48px;
   height: 48px;
   border-radius: 9999px;
-  background: var(--app-fill-subtle);
-  color: var(--app-text-secondary);
+  /* R2 bolder：档案头身份 tile 穿品牌一线（azure 8% 底 + 主色 icon），替代无姓名灰底 */
+  background: rgb(var(--primary-color) / 0.08);
+  color: rgb(var(--primary-color));
 }
 .quota-grid {
   display: grid;
