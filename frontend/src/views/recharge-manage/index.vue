@@ -389,18 +389,19 @@ onMounted(() => {
 
 <template>
   <div class="workspace-page min-h-500px flex-col-stretch gap-16px overflow-auto">
+    <h1 class="page-title">充值管理</h1>
     <NCard title="充值套餐管理" :bordered="false" size="small" class="page-section">
       <template #header-extra>
         <NButton type="primary" @click="handleCreate">新增套餐</NButton>
       </template>
 
       <div v-if="loadError" class="page-state">
-        <icon-material-symbols:error-outline-rounded class="page-state__icon page-state__icon--error" />
+        <icon-lucide:circle-alert class="page-state__icon page-state__icon--error" />
         <p class="page-state__title">套餐列表加载失败</p>
         <p class="page-state__desc">网络异常导致套餐没有加载，请检查连接后重试</p>
         <NButton size="small" :disabled="loading" @click="getData">
           <template #icon>
-            <icon-mdi:refresh />
+            <icon-lucide:rotate-cw />
           </template>
           重试
         </NButton>
@@ -417,7 +418,7 @@ onMounted(() => {
       >
         <template #empty>
           <div class="page-state page-state--table">
-            <icon-mdi:package-variant-closed class="page-state__icon" />
+            <icon-lucide:package class="page-state__icon" />
             <p class="page-state__title">暂无充值套餐</p>
             <p class="page-state__desc">点击右上角「新增套餐」创建第一个套餐</p>
           </div>
@@ -561,5 +562,16 @@ html.dark .page-state__icon--error {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* 页题：Display 32/600/1.2（DESIGN.md › Typography）。上方 24px 与 GlobalContent 的 24px 顶距
+   叠成 4xl 48；下方间距交给 .workspace-page 的区块 gap——标题上方留白 ≥ 下方 ×1.5 */
+.page-title {
+  flex-shrink: 0;
+  margin: 24px 0 0;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgb(var(--base-text-color));
 }
 </style>

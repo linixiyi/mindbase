@@ -46,7 +46,7 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'chat',
       i18nKey: 'route.chat',
-      icon: 'solar:chat-round-call-line-duotone',
+      icon: 'lucide:bot',
       order: 1
     }
   },
@@ -58,7 +58,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       title: 'chat-history',
       i18nKey: 'route.chat-history',
       roles: ['ADMIN'],
-      icon: 'solar:hashtag-chat-broken',
+      icon: 'lucide:history',
       order: 2
     }
   },
@@ -82,7 +82,7 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'invite-code',
       i18nKey: 'route.invite-code',
-      icon: 'solar:key-minimalistic-square-line-duotone',
+      icon: 'lucide:key-round',
       roles: ['ADMIN'],
       order: 6
     }
@@ -94,7 +94,7 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'knowledge-base',
       i18nKey: 'route.knowledge-base',
-      icon: 'solar:folder-line-duotone',
+      icon: 'lucide:folder-open',
       order: 3
     }
   },
@@ -117,7 +117,7 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'model-provider',
       i18nKey: 'route.model-provider',
-      icon: 'solar:tuning-square-line-duotone',
+      icon: 'lucide:sliders-horizontal',
       roles: ['ADMIN'],
       order: 5
     }
@@ -129,7 +129,7 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'org-tag',
       i18nKey: 'route.org-tag',
-      icon: 'solar:tag-line-duotone',
+      icon: 'lucide:tags',
       roles: ['ADMIN'],
       order: 4
     }
@@ -141,7 +141,7 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'personal-center',
       i18nKey: 'route.personal-center',
-      icon: 'solar:people-nearby-line-duotone',
+      icon: 'lucide:circle-user-round',
       order: 7
     }
   },
@@ -152,7 +152,7 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'recharge',
       i18nKey: 'route.recharge',
-      icon: 'solar:airbuds-case-charge-broken',
+      icon: 'lucide:gauge',
       order: 8
     }
   },
@@ -163,7 +163,7 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'recharge-manage',
       i18nKey: 'route.recharge-manage',
-      icon: 'solar:shop-minimalistic-broken',
+      icon: 'lucide:credit-card',
       roles: ['ADMIN'],
       order: 9
     }
@@ -175,7 +175,7 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'usage-monitor',
       i18nKey: 'route.usage-monitor',
-      icon: 'solar:chart-2-line-duotone',
+      icon: 'lucide:receipt-text',
       roles: ['ADMIN'],
       order: 6
     }
@@ -187,7 +187,7 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'user',
       i18nKey: 'route.user',
-      icon: 'solar:users-group-two-rounded-line-duotone',
+      icon: 'lucide:users',
       roles: ['ADMIN']
     }
   }

@@ -22,10 +22,11 @@
 | 7 | vendor Inter 字体网络加载 | 已中和 | 第一轮 chat 旗舰分片 skipped | `vue-markdown-shiki` dist CSS 携带 Google Fonts @import，视图层已 font-family:inherit 覆盖，网络加载本身需动 vendor 才能摘除 |
 | 8 | 存量 no-console / console.log | 低优 | airy 包 round-2 记录 | `chat-message.vue` 3 处、`recharge-manage/index.vue` 5 处（313/330/335/345/353），业务调试代码，触碰时顺手清 |
 | 9 | 无映射会话的引用 chip 点击静默 | P3 观察 | 2026-10-20 主会话目检 | 经 WS 冒烟脚本创建、未持久化 referenceMappings 的历史消息中，引用 chip 点击无任何响应（正常会话 chip 可打开预览）。确认是否需要提示（如"该消息无引用详情"）或隐藏 chip |
+| 10 | dev 模式 SPA 半更新空白态 | 观察项 | azure 包 `spa-half-update-blank` | 改 `settings.ts`/`theme store` 触发 Vite `page reload` 广播后，旧标签页可能进入"路由 title 更新但组件不挂载"的半更新态（main 只剩注释节点、零报错），硬刷新恢复。复现依赖编辑时序，生产构建无此通道。dev 下遇到先整页刷新再排查 |
 
 ## UI 打磨候选（PM 各轮 P2/P3 汇总）
 
-- 顶栏图标体系仍有少量异源图标残留（第一轮已统一大部分，user-avatar 深层菜单待查）
+- ~~顶栏图标体系仍有少量异源图标残留~~（**azure 包已闭环**：全站 10 套图标统一 lucide，23 文件 81 处，grep 零残留）
 - usage-monitor「大数字+标签」summary 组未做英雄卡化（craft-floor 默认形态，属可选项）
 - 亮色补拍：KB/管理页的像素级截图受 #6 限制，以 DOM 指标验证替代
 - 暗色主题在 airy 结构下的深度打磨（本轮亮色优先，暗色仅保证一致无回归）

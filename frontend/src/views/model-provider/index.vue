@@ -140,6 +140,7 @@ onMounted(() => {
 
 <template>
   <div class="workspace-page min-h-500px flex-col-stretch overflow-auto">
+    <h1 class="page-title">模型配置</h1>
     <NCard title="模型配置" :bordered="false" size="small" class="page-section sm:flex-1-hidden">
       <div class="settings-content">
         <NTabs v-model:value="selectedScope" type="line" size="large" class="scope-tabs">
@@ -149,12 +150,12 @@ onMounted(() => {
 
         <NSpin :show="modelProvidersLoading">
           <div v-if="modelProvidersError && !currentScope" class="provider-state provider-state--error">
-            <icon-material-symbols:error-outline-rounded class="provider-state__icon" />
+            <icon-lucide:circle-alert class="provider-state__icon" />
             <p class="provider-state__title">模型配置加载失败</p>
             <p class="provider-state__desc">{{ modelProvidersError }}</p>
             <NButton size="small" :disabled="modelProvidersLoading" @click="getModelProviders">
               <template #icon>
-                <icon-mdi:refresh />
+                <icon-lucide:rotate-cw />
               </template>
               重试
             </NButton>
@@ -250,12 +251,12 @@ onMounted(() => {
             </section>
           </div>
           <div v-else-if="!modelProvidersLoading" class="provider-state">
-            <icon-mdi:cloud-cog-outline class="provider-state__icon" />
+            <icon-lucide:cloud-cog class="provider-state__icon" />
             <p class="provider-state__title">暂未加载到模型配置</p>
             <p class="provider-state__desc">服务返回为空，重试或检查管理员权限后再试</p>
             <NButton size="small" @click="getModelProviders">
               <template #icon>
-                <icon-mdi:refresh />
+                <icon-lucide:rotate-cw />
               </template>
               重新加载
             </NButton>
@@ -504,5 +505,16 @@ html.dark .provider-state--error .provider-state__icon {
   .model-fields.has-dimension {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* 页题：Display 32/600/1.2（DESIGN.md › Typography）。上方 24px 与 GlobalContent 的 24px 顶距
+   叠成 4xl 48；下方间距交给 .workspace-page 的区块 gap——标题上方留白 ≥ 下方 ×1.5 */
+.page-title {
+  flex-shrink: 0;
+  margin: 24px 0 0;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgb(var(--base-text-color));
 }
 </style>

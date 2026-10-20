@@ -247,6 +247,7 @@ onMounted(() => {
 
 <template>
   <div class="workspace-page min-h-500px flex-col-stretch gap-16px overflow-auto">
+    <h1 class="page-title">余额充值</h1>
     <NCard title="余额充值" :bordered="false" size="small" class="page-section">
       <!-- 余额充值区域 -->
       <template #header-extra>
@@ -255,12 +256,12 @@ onMounted(() => {
 
       <NSpin :show="loading">
         <div v-if="packagesError" class="page-state">
-          <icon-material-symbols:error-outline-rounded class="page-state__icon page-state__icon--error" />
+          <icon-lucide:circle-alert class="page-state__icon page-state__icon--error" />
           <p class="page-state__title">充值套餐加载失败</p>
           <p class="page-state__desc">网络异常导致套餐没有加载，请检查连接后重试</p>
           <NButton size="small" :disabled="loading" @click="getPackages">
             <template #icon>
-              <icon-mdi:refresh />
+              <icon-lucide:rotate-cw />
             </template>
             重试
           </NButton>
@@ -287,14 +288,14 @@ onMounted(() => {
 
               <div class="token-lines flex flex-col gap-2">
                 <div class="flex items-center gap-2">
-                  <icon-solar:like-bold-duotone class="text-tertiary" />
+                  <icon-lucide:coins class="text-tertiary" />
                   <span>
                     LLM Token:
                     <strong>{{ formatTokenWan(pkg.llmToken) }}</strong>
                   </span>
                 </div>
                 <div class="flex items-center gap-2">
-                  <icon-solar:like-bold-duotone class="text-tertiary" />
+                  <icon-lucide:coins class="text-tertiary" />
                   <span>
                     Embedding Token:
                     <strong>{{ formatTokenWan(pkg.embeddingToken) }}</strong>
@@ -391,7 +392,7 @@ onMounted(() => {
         </div>
 
         <div v-else class="page-state">
-          <icon-mdi:package-variant-closed class="page-state__icon" />
+          <icon-lucide:package class="page-state__icon" />
           <p class="page-state__title">暂无充值套餐</p>
           <p class="page-state__desc">当前没有可用的充值套餐，请稍后再来看看</p>
         </div>
@@ -410,12 +411,12 @@ onMounted(() => {
 
       <NSpin :show="orderListLoading">
         <div v-if="ordersError" class="page-state">
-          <icon-material-symbols:error-outline-rounded class="page-state__icon page-state__icon--error" />
+          <icon-lucide:circle-alert class="page-state__icon page-state__icon--error" />
           <p class="page-state__title">充值记录加载失败</p>
           <p class="page-state__desc">网络异常导致记录没有加载，请检查连接后重试</p>
           <NButton size="small" :disabled="orderListLoading" @click="getOrders">
             <template #icon>
-              <icon-mdi:refresh />
+              <icon-lucide:rotate-cw />
             </template>
             重试
           </NButton>
@@ -430,7 +431,7 @@ onMounted(() => {
           class="mt-4"
         />
         <div v-else class="page-state">
-          <icon-mdi:credit-card-outline class="page-state__icon" />
+          <icon-lucide:credit-card class="page-state__icon" />
           <template v-if="isFiltered">
             <p class="page-state__title">没有该状态下的订单</p>
             <p class="page-state__desc">当前筛选下没有订单，可以查看全部订单</p>
@@ -600,5 +601,16 @@ html.dark .page-state__icon--error {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* 页题：Display 32/600/1.2（DESIGN.md › Typography）。上方 24px 与 GlobalContent 的 24px 顶距
+   叠成 4xl 48；下方间距交给 .workspace-page 的区块 gap——标题上方留白 ≥ 下方 ×1.5 */
+.page-title {
+  flex-shrink: 0;
+  margin: 24px 0 0;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgb(var(--base-text-color));
 }
 </style>

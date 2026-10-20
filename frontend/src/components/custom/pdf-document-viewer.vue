@@ -1581,8 +1581,10 @@ async function cleanupPdfState() {
 .pdf-highlight-rect {
   @apply absolute;
   border-radius: 6px;
-  background: linear-gradient(180deg, rgba(64, 169, 255, 0.12) 0%, rgba(24, 144, 255, 0.28) 100%);
-  box-shadow: 0 0 0 1px rgba(24, 144, 255, 0.12);
+  /* Round 4 Azure: highlight rides the accent token (was hardcoded AntD daybreak blue) —
+     citation evidence on the source PDF wears the brand line (DESIGN.md › 一线蓝律) */
+  background: linear-gradient(180deg, rgb(var(--primary-color) / 0.12) 0%, rgb(var(--primary-color) / 0.28) 100%);
+  box-shadow: 0 0 0 1px rgb(var(--primary-color) / 0.12);
   opacity: 0.92;
 }
 

@@ -278,6 +278,7 @@ onMounted(() => {
 
 <template>
   <div class="workspace-page min-h-500px flex-col-stretch overflow-auto">
+    <h1 class="page-title">用量监控</h1>
     <NTabs v-model:value="activePanel" type="line" size="large">
       <NTab name="overview">用量总览</NTab>
       <NTab name="limits">限流设置</NTab>
@@ -451,12 +452,12 @@ onMounted(() => {
 
       <NSpin :show="overviewLoading">
         <div v-if="overviewError && !overview" class="usage-state usage-state--error">
-          <icon-material-symbols:error-outline-rounded class="usage-state__icon" />
+          <icon-lucide:circle-alert class="usage-state__icon" />
           <p class="usage-state__title">用量数据加载失败</p>
           <p class="usage-state__desc">{{ overviewError }}</p>
           <NButton size="small" :disabled="overviewLoading" @click="getOverview">
             <template #icon>
-              <icon-mdi:refresh />
+              <icon-lucide:rotate-cw />
             </template>
             重试
           </NButton>
@@ -742,5 +743,16 @@ html.dark .usage-state--error .usage-state__icon {
   .limit-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* 页题：Display 32/600/1.2（DESIGN.md › Typography）。上方 24px 与 GlobalContent 的 24px 顶距
+   叠成 4xl 48；下方间距交给 .workspace-page 的区块 gap——标题上方留白 ≥ 下方 ×1.5 */
+.page-title {
+  flex-shrink: 0;
+  margin: 24px 0 0;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgb(var(--base-text-color));
 }
 </style>

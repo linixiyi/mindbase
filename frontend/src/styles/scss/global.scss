@@ -15,14 +15,14 @@
   /* --- hairline: every static separation --- */
   --app-border: rgb(var(--base-text-color) / 0.09);
 
-  /* --- text roles --- */
-  --app-text-secondary: #6e6e73;
-  --app-text-tertiary: #86868b;
-  --app-scrollbar: rgba(29, 29, 31, 0.28);
+  /* --- text roles (Round 4 Azure: cool blue-cast ink family) --- */
+  --app-text-secondary: #5e6b7e;
+  --app-text-tertiary: #8493a6;
+  --app-scrollbar: rgba(28, 42, 58, 0.28);
 
-  /* --- fills and elevated surface --- */
-  --app-fill-subtle: rgba(120, 120, 128, 0.08);
-  --app-fill-hover: rgba(120, 120, 128, 0.12);
+  /* --- fills and elevated surface (Round 4 Azure: blue-washed fills) --- */
+  --app-fill-subtle: rgba(70, 110, 168, 0.09);
+  --app-fill-hover: rgba(70, 110, 168, 0.14);
   --app-elevated: #ffffff;
 
   /* --- materials: nav & overlay frosted glass, body reading surfaces stay opaque --- */
@@ -186,6 +186,32 @@ html.dark {
 
 .n-dialog {
   max-width: calc(100vw - 32px);
+}
+
+/* --- Round 4 Azure: theme-switch morph (DESIGN.md › Motion & Delight) ---
+   The only authorized View Transition: the new theme is revealed by a circle expanding from
+   the toggle button (--theme-morph-x/y/r set by the header handler). Browsers without the API
+   never see these rules; prefers-reduced-motion flattens the reveal below. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2;
+  clip-path: circle(0 at var(--theme-morph-x, 100%) var(--theme-morph-y, 0));
+  animation: azure-theme-reveal var(--app-dur-slow, 350ms) var(--app-ease-emphasized, ease) forwards;
+}
+
+@keyframes azure-theme-reveal {
+  to {
+    clip-path: circle(var(--theme-morph-r, 150vmax) at var(--theme-morph-x, 100%) var(--theme-morph-y, 0));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

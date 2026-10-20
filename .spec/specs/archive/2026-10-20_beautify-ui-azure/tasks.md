@@ -1,0 +1,91 @@
+# UI 美化第四轮：淡蓝主题 + impeccable 八指令 - 任务拆解
+
+## 使用规则
+- 每个任务都要写清楚 `boundary` 和 `verify`；机器任务的 verify 以首个反引号 span 为执行的命令
+- 如果一个任务没有验证方式，就不能开始；确无命令可执行的任务写 `verify: manual: <理由>`
+- 发现的可执行问题必须回写本包，并在本轮做完
+- verify 命令不得自引用本包 check 门禁
+
+## 阶段一：实现
+- [x] 更新 DESIGN.md 为 Azure 淡蓝世界规范（强调色 #0071E3、冷蓝亮色中性面、动效论纲、delight 时刻、quieter/bolder 审计规则）
+  - id: task-world
+  - boundary: 只改仓库根 `DESIGN.md`；不改源码；暗色 token 组数值原样保留
+  - verify: `cd /Users/linyixi/PaiSmart && grep -q "0071E3" DESIGN.md && grep -q "淡蓝\|Azure" DESIGN.md`
+    - 运行目录：命令已自 cd
+    - 成功判定：exit 0
+    - 失败处理：按本包 §2.4 取舍补齐后重验
+- [x] colorize 换血：强调色淡蓝 + 亮色中性面冷蓝（settings.ts / theme store / global.scss）
+  - id: task-colorize
+  - depends-on: task-world
+  - boundary: 只改 `frontend/src/theme/settings.ts`（themeColor/otherColor/tokens.light）、`frontend/src/store/modules/theme/index.ts` 的 themeColors 暗色分支主色、`frontend/src/styles/scss/global.scss`；禁改业务语义、packages/@sa/**；暗色 token 数值除主色外零改动
+  - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm typecheck && pnpm exec eslint src/theme src/store/modules/theme src/styles`
+    - 运行目录：命令已自 cd
+    - 前置条件：task-world 完成
+    - 成功判定：exit 0
+    - 失败处理：按报错修复后重验
+- [x] typeset+layout 收口：`.page-title` 补齐 8 个缺失管理视图 + 走查修复间距/层级问题
+  - id: task-typeset-layout
+  - depends-on: task-colorize
+  - boundary: 只改 `frontend/src/views/**`（页题元素与样式层）、`frontend/src/styles/scss/global.scss`；禁改业务逻辑与数据流
+  - verify: `cd /Users/linyixi/PaiSmart/frontend && for v in knowledge-base usage-monitor user org-tag model-provider invite-code recharge recharge-manage chat-history personal-center; do grep -q page-title src/views/$v/index.vue || exit 1; done && pnpm typecheck`
+    - 运行目录：命令已自 cd
+    - 成功判定：exit 0（10 视图全部含 page-title）
+    - 失败处理：补齐缺失视图页题后重验
+- [x] animate+delight+overdrive 落地：主题切换 View Transitions morph、流式呼吸状态点、reduced-motion 兜底
+  - id: task-motion
+  - depends-on: task-colorize
+  - boundary: 只改 `frontend/src/layouts/**`、`frontend/src/views/chat/**`、`frontend/src/styles/**`、`frontend/src/components/common/theme-schema-switch.vue`（emit 透传 MouseEvent）；零新增依赖；不支持 View Transitions 的浏览器走旧路径；引用标注 DOM/正则/数据流零改动
+  - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm typecheck && pnpm exec eslint src/layouts src/views/chat src/components/common && grep -rq "prefers-reduced-motion" src/styles`
+    - 运行目录：命令已自 cd
+    - 前置条件：task-colorize 完成
+    - 成功判定：exit 0 且 reduced-motion 兜底存在
+    - 失败处理：按报错修复；API 不可用则回退 CSS 过渡并回写本包
+- [x] quieter+bolder 审计与微调：残留措辞/装饰性阴影清理、PDF 引用高亮 token 化
+  - id: task-quieter-bolder
+  - depends-on: task-motion
+  - boundary: 只改 `frontend/src/views/**`、`frontend/src/components/**`、`frontend/src/styles/**` 的样式层与注释措辞；只删不改结构
+  - verify: `cd /Users/linyixi/PaiSmart/frontend && ! grep -rn "靛蓝\|靛紫\|一线靛" src --include="*.vue" --include="*.ts" --include="*.scss" && pnpm typecheck && pnpm exec eslint src/views src/components src/styles`
+    - 运行目录：命令已自 cd
+    - 前置条件：task-motion 完成
+    - 成功判定：exit 0（靛蓝措辞零残留 + 检查通过）
+    - 失败处理：按走查发现回分片修复
+- [x] 门禁：检测器对本轮改动 UI 目标无 error 级发现 + design.json sidecar 同步
+  - id: task-gate
+  - depends-on: task-quieter-bolder
+  - boundary: 只读检测 + 同步 `.impeccable/design.json`；error 级发现回分片修复后重跑
+  - verify: `/Users/linyixi/.agents/skills/impeccable/scripts/impeccable detect --json /Users/linyixi/PaiSmart/frontend/src/views/chat /Users/linyixi/PaiSmart/frontend/src/views/chat-history /Users/linyixi/PaiSmart/frontend/src/views/knowledge-base /Users/linyixi/PaiSmart/frontend/src/layouts && python3 -c "import json; json.load(open('/Users/linyixi/PaiSmart/.impeccable/design.json'))"`
+    - 运行目录：任意（绝对路径）
+    - 成功判定：JSON 输出无 error 级 finding 且 design.json 合法
+    - 失败处理：按 finding 修复后重跑
+- [x] 主线程浏览器亮暗终验：真机登录全量走查 + 截图证据
+  - id: task-browser
+  - depends-on: task-gate
+  - boundary: 真实浏览器目检截图，不改代码；发现回写本包进修复分片或下一轮
+  - verify: manual: 主线程执行，`http://localhost:9527` 登入后走查 chat + 10 管理视图（亮色为主、暗色抽查主题切换 morph），核对引用 chip 渲染与预览不回归，截图落 orchestration/screenshots/
+- [x] 【中途追加】品牌标志换新：「心智基座」M + 心智火花 SVG（logo.svg 单色版 + favicon.svg Azure 瓷砖版）+ DESIGN.md 品牌节
+  - id: task-logo
+  - boundary: 只改 `frontend/src/assets/svg-icon/logo.svg`、`frontend/public/favicon.svg`、仓库根 `DESIGN.md` 品牌节；不改组件代码
+  - verify: `cd /Users/linyixi/PaiSmart && grep -q "0071E3" frontend/public/favicon.svg && grep -q "stroke-linecap" frontend/src/assets/svg-icon/logo.svg && grep -q "Brand Mark" DESIGN.md && ! grep -q "646cff" frontend/public/favicon.svg`
+    - 运行目录：命令已自 cd
+    - 成功判定：exit 0（新标志落盘、旧 Vite 紫清零、规范成文）
+    - 失败处理：按 DESIGN.md › Brand Mark 重写后重验
+- [x] 【中途追加】UI 图标统一换 lucide：路由菜单/壳层/聊天/登录全量映射（23 文件 81 处，10 套→1 套），零新增依赖
+  - id: task-icons
+  - depends-on: task-logo
+  - boundary: 只改 `frontend/src/**` 内图标名字符串（iconify 引用）；不新增依赖、不改图标渲染机制；主题切换按钮双发缺陷一并修复（global-header 闩锁）
+  - verify: `cd /Users/linyixi/PaiSmart/frontend && ! grep -rEo "(^|[^a-z-])(icon-)?(solar|mdi|material-symbols|ant-design|eos-icons|majesticons|line-md|mynaui):[a-z0-9-]+" src --include="*.vue" --include="*.ts" --include="*.tsx" && pnpm typecheck && pnpm exec eslint src/router src/layouts src/components src/views`
+    - 运行目录：命令已自 cd
+    - 成功判定：exit 0（非 lucide 集合引用零残留 + 检查通过）
+    - 失败处理：按残留清单补换后重验
+- [x] PM 复审走查：八指令逐项过 + P0/P1 计数 + 下一轮建议（工作流反馈文件）
+  - id: task-pm
+  - depends-on: task-browser
+  - boundary: 只读审查，产出唯一文件 `.spec/specs/2026-10-20_beautify-ui-azure/orchestration/pm-review.md`
+  - verify: `test -s /Users/linyixi/PaiSmart/.spec/specs/2026-10-20_beautify-ui-azure/orchestration/pm-review.md && grep -q "P0" /Users/linyixi/PaiSmart/.spec/specs/2026-10-20_beautify-ui-azure/orchestration/pm-review.md`
+    - 运行目录：任意（绝对路径）
+    - 成功判定：exit 0
+    - 失败处理：补走查后重验
+
+---
+
+**当前进度**：由脚本计算，无需手动维护

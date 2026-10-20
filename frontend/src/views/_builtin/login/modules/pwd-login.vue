@@ -66,7 +66,7 @@ async function handleSubmit() {
     <NFormItem path="userName">
       <NInput v-model:value="model.userName" :placeholder="$t('page.login.common.userNamePlaceholder')">
         <template #prefix>
-          <icon-ant-design:user-outlined />
+          <icon-lucide:user />
         </template>
       </NInput>
     </NFormItem>
@@ -78,7 +78,7 @@ async function handleSubmit() {
         :placeholder="$t('page.login.common.passwordPlaceholder')"
       >
         <template #prefix>
-          <icon-ant-design:key-outlined />
+          <icon-lucide:key-round />
         </template>
       </NInput>
     </NFormItem>
