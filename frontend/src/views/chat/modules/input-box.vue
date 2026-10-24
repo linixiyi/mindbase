@@ -422,6 +422,9 @@ const insertNewline = () => {
 
 const handShortcut = (e: KeyboardEvent) => {
   if (e.key === 'Enter') {
+    // IME 组合输入防护（pm-005）：中文输入法按 Enter 确认候选词时，Chrome 系会下发
+    // key='Enter' 且 isComposing=true / keyCode 229 的 keydown——此时放行默认行为，不触发发送
+    if (e.isComposing || e.keyCode === 229) return;
     e.preventDefault();
 
     if (!e.shiftKey && !e.ctrlKey) {

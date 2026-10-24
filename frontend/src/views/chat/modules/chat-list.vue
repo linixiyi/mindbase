@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router';
 import { NScrollbar } from 'naive-ui';
 import { VueMarkdownItProvider } from '@/vendor/vue-markdown-shiki';
 import ChatMessage from './chat-message.vue';
@@ -8,6 +9,7 @@ defineOptions({
 });
 
 const chatStore = useChatStore();
+const router = useRouter();
 const { list, sessionId, conversationId } = storeToRefs(chatStore);
 
 const loading = ref(false);
@@ -26,6 +28,27 @@ function scrollToBottom() {
 
 const range = ref<[number, number] | null>(null);
 
+// 冷启动感知（pm-004）：用现有知识库列表接口探测可访问文档数（分页只取 1 条、看 totalElements，
+// 不新增接口）。空知识库时欢迎区不展示必然空检索的建议问法，改为「去上传文档」引导；
+// 探测失败保持现状（展示建议问法），不让这一次请求改变默认体验
+const knowledgeBaseEmpty = ref(false);
+const knowledgeBaseChecked = ref(false);
+
+async function checkKnowledgeBaseEmpty() {
+  const { error, data } = await request<Api.KnowledgeBase.List>({
+    url: '/documents/accessible',
+    params: { page: 1, size: 1 }
+  });
+  if (!error && data) {
+    knowledgeBaseEmpty.value = Number(data.totalElements || 0) === 0;
+  }
+  knowledgeBaseChecked.value = true;
+}
+
+function goKnowledgeBase() {
+  router.push('/knowledge-base');
+}
+
 // R2 welcome：建议问法来自本会话真实回答过的产品能力（知识库问答/引用溯源/混合检索/总结）
 const suggestions = ['MindBase 的引用标注如何做到可溯源？', '什么是混合检索？', '帮我总结知识库里的内容'];
 
@@ -33,27 +56,41 @@ function applySuggestion(q: string) {
   chatStore.input = { message: q, conversationId: chatStore.conversationId || undefined };
 }
 
+// pm-006：日期筛选改义为「过滤当前已加载消息」。此前日期与会话 ID 同发，后端 conversationId
+// 分支恒丢弃日期参数，控件恒无效；现在会话消息整段载入（该分支本就无分页）后在前端按日期过滤，
+// 无会话选中时 list 为全量历史，同样适用。请求参数不再携带日期
+const params = computed(() => {
+  const p: Record<string, string> = {};
+  if (conversationId.value) {
+    p.conversationId = conversationId.value;
+  }
+  return p;
+});
+
+const filterActive = computed(() => Array.isArray(range.value));
+
+const visibleMessages = computed(() => {
+  if (!filterActive.value || !range.value) return list.value;
+  const [start, end] = range.value;
+  const startMs = dayjs(start).startOf('day').valueOf();
+  const endMs = dayjs(end).endOf('day').valueOf();
+  return list.value.filter(message => {
+    // 刚发出的实时消息可能尚无 timestamp——不隐藏，避免筛选期间发送的消息凭空消失
+    if (!message.timestamp) return true;
+    const timestamp = dayjs(message.timestamp).valueOf();
+    return timestamp >= startMs && timestamp <= endMs;
+  });
+});
+
 function getRetrievalQueryFallback(index: number) {
   for (let i = index - 1; i >= 0; i -= 1) {
-    const candidate = list.value[i];
+    const candidate = visibleMessages.value[i];
     if (candidate?.role === 'user') {
       return candidate.content || '';
     }
   }
   return '';
 }
-
-const params = computed(() => {
-  const p: Record<string, string> = {};
-  if (range.value) {
-    p.start_date = dayjs(range.value[0]).format('YYYY-MM-DD');
-    p.end_date = dayjs(range.value[1]).format('YYYY-MM-DD');
-  }
-  if (conversationId.value) {
-    p.conversationId = conversationId.value;
-  }
-  return p;
-});
 
 let historyRequestId = 0;
 watch(params, getList, { immediate: true });
@@ -80,6 +117,14 @@ async function getList() {
 
 onMounted(() => {
   chatStore.scrollToBottom = scrollToBottom;
+  checkKnowledgeBaseEmpty();
+});
+
+onActivated(() => {
+  // keep-alive 回到本页时重查一次：上传完文档回来，冷启动引导应收起、恢复建议问法
+  if (knowledgeBaseChecked.value) {
+    checkKnowledgeBaseEmpty();
+  }
 });
 
 const showEmpty = computed(() => !loading.value && list.value.length === 0);
@@ -88,12 +133,15 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 <template>
   <Suspense>
     <div class="h-0 flex flex-col flex-1">
-      <!-- 日期筛选：默认隐藏，收进右上角图标触发的浮层（overlay 材质由 global.scss 的 .n-popover 承担）；range → params 数据流零改动 -->
+      <!--
+        日期筛选：默认隐藏，收进右上角图标触发的浮层（overlay 材质由 global.scss 的 .n-popover 承担）；
+        pm-006 改义：range 只驱动前端过滤（visibleMessages），不再进请求参数
+      -->
       <NPopover v-if="!showEmpty" trigger="click" placement="bottom-end" :show-arrow="false">
         <template #trigger>
           <button
             class="app-glass-chip chat-filter-toggle absolute right-3 top-3 z-20 h-9 w-9 rounded-full"
-            :class="{ 'chat-filter-toggle--active': Array.isArray(range) }"
+            :class="{ 'chat-filter-toggle--active': filterActive }"
             aria-label="按日期筛选消息"
             title="按日期筛选消息"
           >
@@ -101,45 +149,61 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
           </button>
         </template>
         <div class="chat-filter-panel">
-          <div class="chat-filter-panel__label">按日期筛选历史消息</div>
+          <div class="chat-filter-panel__label">按日期筛选当前会话消息</div>
           <NDatePicker v-model:value="range" type="daterange" clearable size="small" />
         </div>
       </NPopover>
 
       <!--
  Empty state → welcome（R2 animate+delight）：产品语言直接引导提问，建议问法一键填入输入框；
-           入场为一次性 stagger（250ms emphasized），reduced-motion 下被全局压扁 
+           入场为一次性 stagger（250ms emphasized），reduced-motion 下被全局压扁
+           冷启动分支（pm-004）：空知识库下建议问法必然命中空检索，换成「去上传文档」引导卡
 -->
       <div v-if="showEmpty" class="chat-welcome">
         <div class="app-glass-rim chat-welcome__badge">
           <icon-lucide:message-circle class="text-icon-xl text-[rgb(var(--primary-color))]" />
         </div>
-        <div class="chat-welcome__title">
-          {{ conversationId ? '开始新对话' : '选择或创建一个对话' }}
-        </div>
-        <div class="chat-welcome__desc">直接在下方提问——回答基于知识库检索生成，句末附引用标注</div>
-        <div class="chat-welcome__suggest">
-          <span class="chat-welcome__label">试试这样问</span>
-          <button
-            v-for="(q, i) in suggestions"
-            :key="q"
-            type="button"
-            class="chat-welcome__chip"
-            :style="{ animationDelay: `${140 + i * 60}ms` }"
-            @click="applySuggestion(q)"
-          >
-            {{ q }}
-          </button>
-        </div>
+        <template v-if="knowledgeBaseChecked && knowledgeBaseEmpty">
+          <div class="chat-welcome__title">先给知识库添加一份文档</div>
+          <div class="chat-welcome__desc">上传文档并完成向量化后，在这里提问就能得到带引用标注的回答</div>
+          <NButton type="primary" class="chat-welcome__cta" @click="goKnowledgeBase">
+            <template #icon>
+              <icon-lucide:upload class="text-icon" />
+            </template>
+            去上传文档
+          </NButton>
+        </template>
+        <template v-else>
+          <div class="chat-welcome__title">
+            {{ conversationId ? '开始新对话' : '选择或创建一个对话' }}
+          </div>
+          <div class="chat-welcome__desc">直接在下方提问——回答基于知识库检索生成，句末附引用标注</div>
+          <div v-if="knowledgeBaseChecked" class="chat-welcome__suggest">
+            <span class="chat-welcome__label">试试这样问</span>
+            <button
+              v-for="(q, i) in suggestions"
+              :key="q"
+              type="button"
+              class="chat-welcome__chip"
+              :style="{ animationDelay: `${140 + i * 60}ms` }"
+              @click="applySuggestion(q)"
+            >
+              {{ q }}
+            </button>
+          </div>
+        </template>
       </div>
 
       <!-- Message list -->
       <NScrollbar v-else ref="scrollbarRef" class="flex-1">
         <NSpin :show="loading">
-          <div class="mx-auto max-w-[800px] w-full px-4 pb-6 pt-12">
+          <div v-if="filterActive && visibleMessages.length === 0" class="chat-filter-empty">
+            所选日期范围内没有消息，可调整范围或清除筛选
+          </div>
+          <div v-else class="mx-auto max-w-[800px] w-full px-4 pb-6 pt-12">
             <VueMarkdownItProvider>
               <ChatMessage
-                v-for="(item, index) in list"
+                v-for="(item, index) in visibleMessages"
                 :key="index"
                 :msg="item"
                 :session-id="sessionId"
@@ -175,6 +239,15 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 .chat-filter-panel__label {
   font-size: 12px;
   color: var(--app-text-tertiary);
+}
+
+/* 筛选空结果：居中 Body/secondary 说明——次级状态，不立徽标不抢主层级 */
+.chat-filter-empty {
+  padding: 96px 24px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--app-text-secondary);
+  text-align: center;
 }
 
 /* R2 welcome：一次性 stagger 入场（250ms emphasized）；建议问法为胶囊，hover 提到主色 */
@@ -242,6 +315,11 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
   width: 100%;
   font-size: 12px;
   color: var(--app-text-tertiary);
+}
+
+/* 冷启动 CTA（pm-004）：主按钮居中，与建议胶囊区同一节奏（margin-top 对齐 __suggest） */
+.chat-welcome__cta {
+  margin-top: 8px;
 }
 
 .chat-welcome__chip {

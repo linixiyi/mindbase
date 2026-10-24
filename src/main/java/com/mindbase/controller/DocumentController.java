@@ -65,9 +65,13 @@ public class DocumentController {
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("DELETE_DOCUMENT");
         try {
             LogUtils.logBusiness("DELETE_DOCUMENT", userId, "接收到删除文档请求: fileMd5=%s, role=%s", fileMd5, role);
-            
-            // 获取文件信息
-            Optional<FileUpload> fileOpt = fileUploadRepository.findFirstByFileMd5AndUserIdOrderByCreatedAtDesc(fileMd5, userId);
+
+            boolean isAdmin = "ADMIN".equals(role);
+
+            // 获取文件信息：ADMIN 与 reindex/retry 一致走全局 MD5 查询（可定位他人文档），普通用户保持 (fileMd5,userId)
+            Optional<FileUpload> fileOpt = isAdmin
+                    ? fileUploadRepository.findFirstByFileMd5OrderByCreatedAtDesc(fileMd5)
+                    : fileUploadRepository.findFirstByFileMd5AndUserIdOrderByCreatedAtDesc(fileMd5, userId);
             if (fileOpt.isEmpty()) {
                 LogUtils.logUserOperation(userId, "DELETE_DOCUMENT", fileMd5, "FAILED_NOT_FOUND");
                 monitor.end("删除失败：文档不存在");
@@ -80,7 +84,7 @@ public class DocumentController {
             FileUpload file = fileOpt.get();
             
             // 权限检查：只有文件所有者或管理员可以删除
-            if (!file.getUserId().equals(userId) && !"ADMIN".equals(role)) {
+            if (!file.getUserId().equals(userId) && !isAdmin) {
                 LogUtils.logUserOperation(userId, "DELETE_DOCUMENT", fileMd5, "FAILED_PERMISSION_DENIED");
                 LogUtils.logBusiness("DELETE_DOCUMENT", userId, "用户无权删除文档: fileMd5=%s, fileOwner=%s", fileMd5, file.getUserId());
                 monitor.end("删除失败：权限不足");
@@ -89,9 +93,9 @@ public class DocumentController {
                 response.put("message", "没有权限删除此文档");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
             }
-            
-            // 执行删除操作
-            documentService.deleteDocument(fileMd5, userId);
+
+            // 执行删除操作（管理员删除他人文档时，服务层以记录归属者为准做持有者隔离删除）
+            documentService.deleteDocument(fileMd5, userId, isAdmin);
             
             LogUtils.logFileOperation(userId, "DELETE", file.getFileName(), fileMd5, "SUCCESS");
             monitor.end("文档删除成功");

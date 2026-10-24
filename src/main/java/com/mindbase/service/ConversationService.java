@@ -12,6 +12,9 @@ import com.mindbase.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -272,8 +275,14 @@ public class ConversationService {
         }
     }
 
-    public List<Conversation> getAllConversations(String adminUsername, String targetUsername,
-                                                 LocalDateTime startDate, LocalDateTime endDate) {
+    /**
+     * 管理员分页查询所有用户的对话记录（pm-008）。
+     * page/size 以「问答回合」（一条 Conversation = 一问一答）为单位，
+     * 与旧全量接口的 ASC 时间序保持一致，按 (timestamp, id) 双键稳定排序。
+     */
+    public Page<Conversation> getAllConversations(String adminUsername, String targetUsername,
+                                                  LocalDateTime startDate, LocalDateTime endDate,
+                                                  int page, int size) {
         User admin = userRepository.findByUsername(adminUsername)
                 .orElseThrow(() -> new CustomException("Admin not found", HttpStatus.NOT_FOUND));
 
@@ -281,23 +290,23 @@ public class ConversationService {
             throw new CustomException("Unauthorized access", HttpStatus.FORBIDDEN);
         }
 
+        Pageable pageable = PageRequest.of(Math.max(page - 1, 0), size);
+
         if (targetUsername != null && !targetUsername.isEmpty()) {
             User targetUser = userRepository.findByUsername(targetUsername)
                     .orElseThrow(() -> new CustomException("Target user not found", HttpStatus.NOT_FOUND));
 
             if (startDate != null && endDate != null) {
-                return conversationRepository.findByUserIdAndTimestampBetweenOrderByTimestampAsc(
-                        targetUser.getId(), startDate, endDate);
-            } else {
-                return conversationRepository.findByUserIdOrderByTimestampAsc(targetUser.getId());
+                return conversationRepository.findByUserIdAndTimestampBetweenOrderByTimestampAscIdAsc(
+                        targetUser.getId(), startDate, endDate, pageable);
             }
-        } else {
-            if (startDate != null && endDate != null) {
-                return conversationRepository.findByTimestampBetweenOrderByTimestampAsc(startDate, endDate);
-            } else {
-                return conversationRepository.findAllByOrderByTimestampAsc();
-            }
+            return conversationRepository.findByUserIdOrderByTimestampAscIdAsc(targetUser.getId(), pageable);
         }
+
+        if (startDate != null && endDate != null) {
+            return conversationRepository.findByTimestampBetweenOrderByTimestampAscIdAsc(startDate, endDate, pageable);
+        }
+        return conversationRepository.findAllByOrderByTimestampAscIdAsc(pageable);
     }
 
     public List<Map<String, Object>> toMessageHistory(List<Conversation> conversations, boolean includeUsername) {
