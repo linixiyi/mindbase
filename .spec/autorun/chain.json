@@ -22,6 +22,14 @@
         "F4"
       ],
       "slug": "2026-10-24_fix-p0-experience",
+      "status": "done (P0x3 全落地，真机 E2E 验收)"
+    },
+    {
+      "round": 3,
+      "features": [
+        "F5"
+      ],
+      "slug": "2026-10-24_fix-p1-experience",
       "status": "active"
     }
   ]

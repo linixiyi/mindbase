@@ -39,7 +39,7 @@ public class ChatGenerationStateService {
 
     public GenerationSnapshot createGeneration(String generationId, String userId, String conversationId, String question) {
         String now = LocalDateTime.now().toString();
-        GenerationMeta meta = new GenerationMeta(generationId, userId, conversationId, question, GenerationStatus.STREAMING, now, now, null);
+        GenerationMeta meta = new GenerationMeta(generationId, userId, conversationId, question, GenerationStatus.STREAMING, now, now, null, null);
 
         // 写入顺序：先把可读子项准备好，最后再发布 active key，避免读取者拿到 active key 后却查不到 meta/content。
         redisTemplate.delete(referenceKey(generationId));
@@ -110,15 +110,19 @@ public class ChatGenerationStateService {
     }
 
     public void markCompleted(String generationId, Map<String, Map<String, Object>> referenceMappings) {
-        updateTerminalState(generationId, GenerationStatus.COMPLETED, null, referenceMappings);
+        updateTerminalState(generationId, GenerationStatus.COMPLETED, null, null, referenceMappings);
     }
 
-    public void markFailed(String generationId, String errorMessage) {
-        updateTerminalState(generationId, GenerationStatus.FAILED, errorMessage, null);
+    /**
+     * 失败快照只存错误类别码 + 统一用户话术（errorCategory + errorMessage），
+     * 原始异常文本留在服务端日志，不进快照（pm-001/pm-015 同源收口）
+     */
+    public void markFailed(String generationId, String errorCategory, String errorMessage) {
+        updateTerminalState(generationId, GenerationStatus.FAILED, errorCategory, errorMessage, null);
     }
 
     public void markCancelled(String generationId) {
-        updateTerminalState(generationId, GenerationStatus.CANCELLED, null, null);
+        updateTerminalState(generationId, GenerationStatus.CANCELLED, null, null, null);
     }
 
     public Optional<GenerationSnapshot> getGeneration(String generationId) {
@@ -146,6 +150,7 @@ public class ChatGenerationStateService {
 
     private void updateTerminalState(String generationId,
                                      GenerationStatus status,
+                                     String errorCategory,
                                      String errorMessage,
                                      Map<String, Map<String, Object>> referenceMappings) {
         GenerationMeta meta = readMeta(generationId);
@@ -168,6 +173,7 @@ public class ChatGenerationStateService {
                 status,
                 meta.createdAt(),
                 now,
+                errorCategory,
                 errorMessage
         );
         writeMeta(updated);
@@ -189,6 +195,7 @@ public class ChatGenerationStateService {
                 meta.status(),
                 meta.createdAt(),
                 LocalDateTime.now().toString(),
+                meta.errorCategory(),
                 meta.errorMessage()
         );
         writeMeta(updated);
@@ -252,6 +259,7 @@ public class ChatGenerationStateService {
                 content,
                 meta.createdAt(),
                 meta.updatedAt(),
+                meta.errorCategory(),
                 meta.errorMessage(),
                 referenceMappings == null ? Collections.emptyMap() : referenceMappings
         );
@@ -294,6 +302,7 @@ public class ChatGenerationStateService {
             GenerationStatus status,
             String createdAt,
             String updatedAt,
+            String errorCategory,
             String errorMessage
     ) {
     }
@@ -307,6 +316,7 @@ public class ChatGenerationStateService {
             String content,
             String createdAt,
             String updatedAt,
+            String errorCategory,
             String errorMessage,
             Map<String, Map<String, Object>> referenceMappings
     ) {

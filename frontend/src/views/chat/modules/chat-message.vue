@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { nextTick } from 'vue';
+import { getChatFailureCopy } from '@/constants/chat-failure';
 import { router } from '@/router';
 import { request } from '@/service/request';
 import { formatDate } from '@/utils/common';
@@ -22,6 +23,13 @@ function handleCopy(content: string) {
 
 const chatStore = useChatStore();
 const feedbackSubmitting = ref<Record<string, boolean>>({});
+
+// 失败卡片按类别分层文案（pm-001）；重试经 chat store 用原提问重发该回合
+const failureCopy = computed(() => getChatFailureCopy(props.msg.errorCategory));
+
+function handleRetry() {
+  chatStore.retryFailedGeneration(props.msg);
+}
 
 function getMessageFeedbackKey(message: Api.Chat.Message) {
   return message.generationId || `${message.conversationId || 'unknown'}:${message.timestamp || ''}`;
@@ -432,8 +440,19 @@ async function handleSourceFileClick(fileInfo: {
       <div v-if="msg.status === 'pending' || (msg.status === 'loading' && !msg.content)" class="chat-stream-indicator">
         <icon-lucide:ellipsis class="text-icon-large" />
       </div>
-      <div v-else-if="msg.status === 'error'" class="chat-error-text">
-        {{ msg.content || '服务器繁忙，请稍后再试' }}
+      <div v-else-if="msg.status === 'error'" class="chat-error-card">
+        <div class="chat-error-card__head">
+          <icon-lucide:circle-alert class="chat-error-card__icon" />
+          <span class="chat-error-card__title">{{ failureCopy.title }}</span>
+        </div>
+        <p class="chat-error-card__desc">{{ msg.content || failureCopy.message }}</p>
+        <p class="chat-error-card__hint">{{ failureCopy.hint }}</p>
+        <NButton size="small" secondary class="chat-error-card__retry" @click="handleRetry">
+          <template #icon>
+            <icon-lucide:rotate-cw class="text-icon-xs" />
+          </template>
+          重试本问
+        </NButton>
       </div>
       <div v-else class="chat-answer" @click="handleContentClick">
         <VueMarkdownIt :content="content" />
@@ -623,13 +642,54 @@ async function handleSourceFileClick(fileInfo: {
   }
 }
 
-.chat-error-text {
-  font-size: 14px;
-  line-height: 1.6;
+/* 错误卡片（pm-001）：按类别分层文案 + 「重试本问」。语义红浅染 + 发丝线描述失败态，
+   文字色随两主题用 -700 / -400 阶，与 chat-tool-event--failed 同配对 */
+.chat-error-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: min(85%, 640px);
+  padding: 10px 14px;
+  border: 1px solid rgb(var(--error-color) / 0.25);
+  border-radius: var(--app-radius-lg, 12px);
+  background: rgb(var(--error-color) / 0.06);
+}
+
+.chat-error-card__head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-error-card__icon,
+.chat-error-card__title {
   color: rgb(var(--error-700-color));
 }
-.dark .chat-error-text {
+.dark .chat-error-card__icon,
+.dark .chat-error-card__title {
   color: rgb(var(--error-400-color));
+}
+
+.chat-error-card__title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.chat-error-card__desc {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--app-text);
+}
+
+.chat-error-card__hint {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--app-text-tertiary);
+}
+
+.chat-error-card__retry {
+  margin-top: 4px;
 }
 
 /* AI 回答：无气泡，直接坐在画布实底上的印刷排版（Body 16px/1.75——DESIGN.md › Chat「正文 16px/1.75」） */

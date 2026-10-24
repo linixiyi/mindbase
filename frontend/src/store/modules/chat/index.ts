@@ -92,6 +92,10 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
       assistant.generationId = snapshot.generationId;
       assistant.conversationId = snapshot.conversationId;
       assistant.timestamp ||= snapshot.updatedAt;
+      // FAILED 快照：带上错误类别码，错误卡片按类别分层文案并可重试，不再是死消息（pm-001）
+      if (snapshot.errorCategory) {
+        assistant.errorCategory = snapshot.errorCategory;
+      }
       if (snapshot.referenceMappings && Object.keys(snapshot.referenceMappings).length > 0) {
         assistant.referenceMappings = snapshot.referenceMappings;
       }
@@ -112,6 +116,7 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
       conversationId: snapshot.conversationId,
       generationId: snapshot.generationId,
       timestamp: snapshot.updatedAt,
+      errorCategory: snapshot.errorCategory || undefined,
       referenceMappings: snapshot.referenceMappings
     });
   }
@@ -418,6 +423,51 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
     return wsStatus.value;
   });
 
+  /** 重试本问（pm-001）：用失败回合的原提问重发该回合——保留用户消息， 就地把失败态助手消息换成新的 pending 消息。只支持最后一回合，避免把历史中间的问题追加到会话尾部。 */
+  function retryFailedGeneration(message: Api.Chat.Message) {
+    const index = list.value.findIndex(item => item === message);
+    if (index < 0) return;
+    if (index !== list.value.length - 1) {
+      window.$message?.warning('只能重试最后一轮问答');
+      return;
+    }
+    if (isRateLimited.value) {
+      window.$message?.warning(`当前发送受限，${rateLimitRemainingSeconds.value} 秒后可重新发送`);
+      return;
+    }
+    if (['CLOSED', 'CONNECTING'].includes(connectionStatus.value)) {
+      window.$message?.warning('聊天连接未就绪，请稍后重试');
+      return;
+    }
+    if (list.value.some(item => item?.role === 'assistant' && ['pending', 'loading'].includes(item.status || ''))) {
+      return;
+    }
+
+    // 原提问：失败回答前面最近的一条用户消息（刷新后的历史回合同样满足）
+    let question = '';
+    for (let i = index - 1; i >= 0; i -= 1) {
+      const item = list.value[i];
+      if (item?.role === 'user') {
+        question = item.content || '';
+        break;
+      }
+    }
+    if (!question.trim()) return;
+
+    const targetConversationId = message.conversationId || conversationId.value;
+    if (!targetConversationId) return;
+
+    conversationId.value = targetConversationId;
+    list.value[index] = {
+      content: '',
+      role: 'assistant',
+      status: 'pending',
+      conversationId: targetConversationId,
+      toolEvents: []
+    };
+    rawWsSend(JSON.stringify({ type: 'chat', message: question, conversationId: targetConversationId }));
+  }
+
   return {
     input,
     conversationId,
@@ -444,6 +494,7 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
     resumeGeneration,
     upsertGenerationSnapshot,
     syncGenerationAfterReconnect,
+    retryFailedGeneration,
     loadSessions,
     createNewSession,
     switchSession,

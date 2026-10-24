@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { getChatFailureFallbackMessage } from '@/constants/chat-failure';
+
 const chatStore = useChatStore();
 const { connectionStatus, input, isRateLimited, list, rateLimitRemainingSeconds, wsData } = storeToRefs(chatStore);
 
@@ -22,7 +24,7 @@ function buildWsErrorMessage(data: Record<string, any>) {
     return data.message.trim();
   }
 
-  return '服务器繁忙，请稍后再试';
+  return getChatFailureFallbackMessage();
 }
 
 const latestMessage = computed(() => {
@@ -137,17 +139,26 @@ function handleStopPayload(assistant: Api.Chat.Message) {
 }
 
 function handleErrorPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
-  if (Number(payload.code) === 429) {
+  const rateLimited = Number(payload.code) === 429;
+  if (rateLimited) {
     chatStore.startRateLimitCountdown(Number(payload.retryAfterSeconds || 0));
   }
 
   const message = buildWsErrorMessage(payload);
   assistant.status = 'error';
   assistant.content = message;
+  // 失败类别码（pm-001）：429 走限流类别，其余透传后端 errorCategory；错误卡片按类别分层文案
+  if (rateLimited) {
+    assistant.errorCategory = 'RATE_LIMIT';
+  } else if (typeof payload.errorCategory === 'string' && payload.errorCategory) {
+    assistant.errorCategory = payload.errorCategory;
+  } else {
+    assistant.errorCategory = undefined;
+  }
   markExecutingToolsAsFailed(assistant);
   stopGenerationStatusMonitor();
 
-  if (Number(payload.code) === 429) {
+  if (rateLimited) {
     window.$message?.warning(message);
   } else {
     window.$message?.error(message);

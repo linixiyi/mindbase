@@ -25,9 +25,15 @@ type FormRuleModel = Pick<FormModel, 'userName' | 'password'>;
 
 const rememberedLogin = localStg.get('rememberedLogin');
 
+// One-time migration: legacy rememberedLogin may contain a plaintext password;
+// strip it and rewrite in place so old users don't keep plaintext in localStorage.
+if (rememberedLogin && 'password' in rememberedLogin) {
+  localStg.set('rememberedLogin', { userName: rememberedLogin.userName });
+}
+
 const model: FormModel = reactive({
   userName: rememberedLogin?.userName || '',
-  password: rememberedLogin?.password || '',
+  password: '',
   rememberMe: Boolean(rememberedLogin)
 });
 
@@ -51,9 +57,9 @@ async function handleSubmit() {
   }
 
   if (model.rememberMe) {
+    // Only persist the user name; the password must never be written to client storage.
     localStg.set('rememberedLogin', {
-      userName: model.userName,
-      password: model.password
+      userName: model.userName
     });
   } else {
     localStg.remove('rememberedLogin');

@@ -9,12 +9,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mindbase.entity.SearchResult;
 import com.mindbase.exception.RateLimitExceededException;
 import com.mindbase.utils.RequestDeadline;
+import io.github.resilience4j.bulkhead.BulkheadFullException;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.time.Duration;
@@ -165,9 +168,10 @@ public class ChatHandler {
                                 deadlineNanos));
             } catch (RejectedExecutionException ex) {
                 logger.warn("聊天处理线程池已满，generationId: {}", finalGenerationId);
-                RuntimeException busyException = new RuntimeException("系统繁忙，请稍后重试");
-                chatGenerationStateService.markFailed(finalGenerationId, busyException.getMessage());
-                handleError(userId, finalGenerationId, busyException);
+                chatGenerationStateService.markFailed(finalGenerationId,
+                        ChatFailureCategory.BUSY.name(), failureUserMessage(ChatFailureCategory.BUSY));
+                persistFailedConversation(userId, userMessage, finalConversationId, ChatFailureCategory.BUSY);
+                handleError(userId, finalGenerationId, ChatFailureCategory.BUSY, ex);
                 sendCompletionNotification(userId, finalGenerationId, finalConversationId, true, false);
                 cleanupGenerationState(finalGenerationId, ex);
             }
@@ -176,15 +180,19 @@ public class ChatHandler {
             releaseUnstartedRequest(userId, conversationId, userMessage, claimedGenerationId, generationId);
             chatSessionRegistry.sendJsonToSession(session, Map.of(
                     "type", "error", "code", 429, "message", e.getMessage(),
+                    "errorCategory", "RATE_LIMIT",
                     "retryAfterSeconds", e.getRetryAfterSeconds()));
         } catch (Exception e) {
             logger.error("处理消息错误: {}", e.getMessage(), e);
             releaseUnstartedRequest(userId, conversationId, userMessage, claimedGenerationId, generationId);
+            ChatFailureCategory category = resolveFailureCategory(e);
             if (generationId != null) {
-                chatGenerationStateService.markFailed(generationId, e.getMessage());
+                chatGenerationStateService.markFailed(generationId, category.name(), failureUserMessage(category));
             }
-            chatSessionRegistry.sendJsonToSession(session, Map.of(
-                    "type", "error", "error", "AI服务暂时不可用，请稍后重试"));
+            if (conversationId != null && !conversationId.isBlank()) {
+                persistFailedConversation(userId, userMessage, conversationId, category);
+            }
+            chatSessionRegistry.sendJsonToSession(session, buildErrorFrame(generationId, category));
             if (generationId != null) {
                 cleanupGenerationState(generationId, e);
             }
@@ -236,8 +244,10 @@ public class ChatHandler {
             runReActLoop(userId, userMessage, conversationId, generationId, history, responseFuture);
         } catch (Exception e) {
             logger.error("ReAct 循环执行失败: generationId={}", generationId, e);
-            chatGenerationStateService.markFailed(generationId, e.getMessage());
-            handleError(userId, generationId, e);
+            ChatFailureCategory category = resolveFailureCategory(e);
+            chatGenerationStateService.markFailed(generationId, category.name(), failureUserMessage(category));
+            persistFailedConversation(userId, userMessage, conversationId, category);
+            handleError(userId, generationId, category, e);
             sendCompletionNotification(userId, generationId, conversationId, true, false);
             cleanupGenerationState(generationId, e);
         }
@@ -483,7 +493,8 @@ public class ChatHandler {
                 long remainingNanos = deadline - System.nanoTime();
                 if (remainingNanos <= 0) {
                     streamHandle.cancel();
-                    throw new RuntimeException("模型响应超时，请稍后重试");
+                    // cause 带 TimeoutException，失败归因据此落入 TIMEOUT 类别
+                    throw new RuntimeException(failureUserMessage(ChatFailureCategory.TIMEOUT), new TimeoutException("模型回合等待超时"));
                 }
                 try {
                     long waitMillis = Math.min(TimeUnit.NANOSECONDS.toMillis(remainingNanos), 200L);
@@ -534,11 +545,12 @@ public class ChatHandler {
                     if (finishCancelledGeneration(generationId, responseFuture, responseBuilders.get(generationId))) {
                         return;
                     }
-                    RuntimeException exception = new RuntimeException("模型响应超时，请稍后重试");
+                    RuntimeException exception = new RuntimeException(failureUserMessage(ChatFailureCategory.TIMEOUT));
                     if (responseFuture.completeExceptionally(exception)) {
-                        handleError(userId, generationId, exception);
+                        handleError(userId, generationId, ChatFailureCategory.TIMEOUT, exception);
                         sendCompletionNotification(userId, generationId, conversationId, true, false);
-                        chatGenerationStateService.markFailed(generationId, exception.getMessage());
+                        chatGenerationStateService.markFailed(generationId,
+                                ChatFailureCategory.TIMEOUT.name(), failureUserMessage(ChatFailureCategory.TIMEOUT));
                         cleanupGenerationState(generationId, exception);
                     }
                 } catch (InterruptedException e) {
@@ -548,16 +560,17 @@ public class ChatHandler {
                 } catch (Exception e) {
                     logger.error("检查响应完成时出错: {}", e.getMessage(), e);
                     if (responseFuture.completeExceptionally(e)) {
-                        chatGenerationStateService.markFailed(generationId, e.getMessage());
+                        ChatFailureCategory category = resolveFailureCategory(e);
+                        chatGenerationStateService.markFailed(generationId, category.name(), failureUserMessage(category));
                         cleanupGenerationState(generationId, e);
                     }
                 }
             });
         } catch (RejectedExecutionException ex) {
             logger.warn("聊天监控线程池已满，generationId: {}", generationId);
-            RuntimeException busyException = new RuntimeException("系统繁忙，请稍后重试");
-            handleError(userId, generationId, busyException);
-            chatGenerationStateService.markFailed(generationId, busyException.getMessage());
+            handleError(userId, generationId, ChatFailureCategory.BUSY, ex);
+            chatGenerationStateService.markFailed(generationId,
+                    ChatFailureCategory.BUSY.name(), failureUserMessage(ChatFailureCategory.BUSY));
             cleanupGenerationState(generationId, ex);
         }
     }
@@ -575,20 +588,25 @@ public class ChatHandler {
             }
             RuntimeException exception = new RuntimeException("响应构建器为空");
             if (responseFuture.completeExceptionally(exception)) {
-                handleError(userId, generationId, exception);
+                handleError(userId, generationId, ChatFailureCategory.OTHER, exception);
                 sendCompletionNotification(userId, generationId, conversationId, true, false);
-                chatGenerationStateService.markFailed(generationId, exception.getMessage());
+                chatGenerationStateService.markFailed(generationId,
+                        ChatFailureCategory.OTHER.name(), failureUserMessage(ChatFailureCategory.OTHER));
+                persistFailedConversation(userId, userMessage, conversationId, ChatFailureCategory.OTHER);
                 cleanupGenerationState(generationId, exception);
             }
             return;
         }
         String completeResponse = responseBuilder.toString();
         if (completeResponse.isBlank()) {
-            RuntimeException exception = new RuntimeException("模型未返回有效内容，请稍后重试");
+            RuntimeException exception = new RuntimeException("模型未返回有效内容");
             if (responseFuture.completeExceptionally(exception)) {
-                handleError(userId, generationId, exception);
+                handleError(userId, generationId, ChatFailureCategory.PROVIDER_UNAVAILABLE, exception);
                 sendCompletionNotification(userId, generationId, conversationId, true, false);
-                chatGenerationStateService.markFailed(generationId, exception.getMessage());
+                chatGenerationStateService.markFailed(generationId,
+                        ChatFailureCategory.PROVIDER_UNAVAILABLE.name(),
+                        failureUserMessage(ChatFailureCategory.PROVIDER_UNAVAILABLE));
+                persistFailedConversation(userId, userMessage, conversationId, ChatFailureCategory.PROVIDER_UNAVAILABLE);
                 cleanupGenerationState(generationId, exception);
             }
             return;
@@ -962,13 +980,92 @@ public class ChatHandler {
         chatSessionRegistry.sendJsonToUser(userId, notification);
     }
 
-    private void handleError(String userId, String generationId, Throwable error) {
-        logger.error("AI服务错误: {}", error.getMessage(), error);
-        Map<String, Object> errorResponse = new HashMap<>();
-        errorResponse.put("type", "error");
-        errorResponse.put("generationId", generationId);
-        errorResponse.put("error", "AI服务暂时不可用，请稍后重试");
-        chatSessionRegistry.sendJsonToUser(userId, errorResponse);
+    /**
+     * 聊天失败的用户可见类别（pm-001）：错误帧（errorCategory）与生成快照共用同一套类别码，
+     * 用户话术统一取自 {@link #failureUserMessage}；原始异常文本只留在服务端日志。
+     */
+    private enum ChatFailureCategory {
+        /** 模型供应商不可用：HTTP 失败（如密钥错误）、熔断打开、模型空响应 */
+        PROVIDER_UNAVAILABLE,
+        /** 超时降级：模型回合等待超时 */
+        TIMEOUT,
+        /** 系统繁忙：线程池满、供应商舱壁满 */
+        BUSY,
+        /** 发送受限：聊天限流（已有 code 429 + retryAfterSeconds 倒计时） */
+        RATE_LIMIT,
+        /** 其他未归类失败 */
+        OTHER
+    }
+
+    /** 「繁忙/不可用」类用户话术的唯一来源：error 帧、失败快照、失败回合落库都取这里 */
+    private static String failureUserMessage(ChatFailureCategory category) {
+        return switch (category) {
+            case PROVIDER_UNAVAILABLE -> "模型服务暂时不可用，请稍后重试";
+            case TIMEOUT -> "回答生成超时，请稍后重试";
+            case BUSY -> "系统繁忙，请稍后重试";
+            case RATE_LIMIT -> "请求过于频繁，请稍后重试";
+            case OTHER -> "AI服务暂时不可用，请稍后重试";
+        };
+    }
+
+    /**
+     * 通用异常的类别归因：超时 → TIMEOUT；模型 HTTP 失败/熔断 → PROVIDER_UNAVAILABLE；
+     * 供应商舱壁满 → BUSY；其余归 OTHER
+     */
+    private static ChatFailureCategory resolveFailureCategory(Throwable error) {
+        Throwable current = error;
+        int depth = 0;
+        while (current != null && depth < 8) {
+            if (current instanceof TimeoutException) {
+                return ChatFailureCategory.TIMEOUT;
+            }
+            if (current instanceof WebClientResponseException || current instanceof CallNotPermittedException) {
+                return ChatFailureCategory.PROVIDER_UNAVAILABLE;
+            }
+            if (current instanceof BulkheadFullException) {
+                return ChatFailureCategory.BUSY;
+            }
+            current = current.getCause();
+            depth++;
+        }
+        return ChatFailureCategory.OTHER;
+    }
+
+    /** error 帧在既有字段（type/error/generationId）之上只新增 errorCategory，向后兼容 */
+    private Map<String, Object> buildErrorFrame(String generationId, ChatFailureCategory category) {
+        Map<String, Object> frame = new HashMap<>();
+        frame.put("type", "error");
+        frame.put("error", failureUserMessage(category));
+        frame.put("errorCategory", category.name());
+        if (generationId != null) {
+            frame.put("generationId", generationId);
+        }
+        return frame;
+    }
+
+    private void handleError(String userId, String generationId, ChatFailureCategory category, Throwable error) {
+        logger.error("AI服务错误[{}]: {}", category, error.getMessage(), error);
+        chatSessionRegistry.sendJsonToUser(userId, buildErrorFrame(generationId, category));
+    }
+
+    /**
+     * 失败回合落库（pm-001）：把用户提问原文与失败态回复写入 MySQL，
+     * 刷新后该回合仍可见。失败态用现有字段承载：answer 存「[回答失败|类别]统一话术」，
+     * 读取端（ConversationService.toMessageHistory）据此还原 status/errorCategory，不改表结构。
+     */
+    private void persistFailedConversation(String userId, String userMessage, String conversationId,
+                                           ChatFailureCategory category) {
+        if (userMessage == null || userMessage.isBlank() || conversationId == null || conversationId.isBlank()) {
+            return;
+        }
+        try {
+            conversationService.recordFailedConversation(
+                    Long.parseLong(userId), userMessage, conversationId,
+                    category.name(), failureUserMessage(category));
+            logger.info("失败回合已落库: userId={}, conversationId={}, category={}", userId, conversationId, category);
+        } catch (Exception e) {
+            logger.error("持久化失败回合出错: userId={}, conversationId={}, category={}", userId, conversationId, category, e);
+        }
     }
 
     private void sendRateLimitMessage(String userId, String generationId, RateLimitExceededException exception) {
