@@ -99,13 +99,13 @@ watch(visible, () => {
           <NSpace class="w-full" justify="end">
             <NButton @click="reset">
               <template #icon>
-                <icon-ic-round-refresh class="text-icon" />
+                <icon-lucide:rotate-cw class="text-icon" />
               </template>
               重置
             </NButton>
             <NButton type="primary" @click="search">
               <template #icon>
-                <icon-ic-round-search class="text-icon" />
+                <icon-lucide:search class="text-icon" />
               </template>
               搜索
             </NButton>
@@ -114,7 +114,16 @@ watch(visible, () => {
       </NGrid>
     </NForm>
     <NSpin :show="loading">
-      <NEmpty v-if="list.length === 0" :description="emptyDescription" class="py-100px" />
+      <!--
+ R11 delight 复审：旗舰检索入口的空态从默认 NEmpty 灰盒升为 azure 徽标 tile
+           （.app-state-badge 家族，实底对话框身体上的静态 tile）；教学文案 emptyDescription 原样保留 
+-->
+      <div v-if="list.length === 0" class="search-empty">
+        <div class="app-state-badge">
+          <icon-lucide:file-search class="text-icon-large" />
+        </div>
+        <p class="search-empty__desc">{{ emptyDescription }}</p>
+      </div>
       <NScrollbar v-else class="max-h-500px">
         <NCard
           v-for="(item, index) in list"
@@ -137,7 +146,7 @@ watch(visible, () => {
           </div>
           <template #footer>
             <div class="flex items-center justify-between gap-12px">
-              <span class="text-muted text-13px">来源：{{ item.fileName }}</span>
+              <span class="text-muted text-14px">来源：{{ item.fileName }}</span>
               <NTag :bordered="false" size="small" class="text-12px tabular-nums">Score: {{ item.score }}</NTag>
             </div>
           </template>
@@ -147,4 +156,36 @@ watch(visible, () => {
   </NModal>
 </template>
 
-<style scoped></style>
+<style scoped lang="scss">
+/* R11 delight 复审：与 .table-state 家族同律（徽标 tile 经 global.scss 单源供给；
+   描述 14/1.55 次级墨、一次性 250ms standard 入场——全部家族属性） */
+.search-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 24px;
+  text-align: center;
+  animation: search-empty-in var(--app-dur-base) var(--app-ease-standard);
+}
+
+.search-empty__desc {
+  margin: 8px 0 0;
+  max-width: 360px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--app-muted);
+}
+
+@keyframes search-empty-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+</style>

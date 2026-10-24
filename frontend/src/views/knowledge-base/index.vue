@@ -288,11 +288,22 @@ function handleSearch() {
 // #endregion
 
 // 渲染上传状态
+// R11 delight（DESIGN.md §10/§17）：「已完成」的 check 以 300ms emphasized 一次性勾绘——
+// 「文件被可靠接住了」的确认感，对应 Kafka 可靠投递的产品承诺。仅在元素挂载时播放一次
+// （表格行有 row-key，重渲染不打断；状态从 NProgress 翻成 Completed 时元素新挂、恰好是
+// 确认时刻）。失败/处理中态不加动画。
 function renderStatus(status: UploadStatus, percentage: number) {
   if (status === UploadStatus.Completed)
     return (
       <NTag bordered={false} type="success">
-        已完成
+        {{
+          icon: () => (
+            <svg class="kb-status-check text-icon-xs" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
+            </svg>
+          ),
+          default: () => '已完成'
+        }}
       </NTag>
     );
   else if (status === UploadStatus.Break)
@@ -598,7 +609,7 @@ async function onBeforeUpload(
           <template #prefix>
             <NButton size="small" ghost type="primary" @click="handleSearch">
               <template #icon>
-                <icon-ic-round-search class="text-icon" />
+                <icon-lucide:search class="text-icon" />
               </template>
               检索知识库
             </NButton>
@@ -617,7 +628,18 @@ async function onBeforeUpload(
         :row-key="row => row.id"
         :pagination="mobilePagination"
         class="sm:h-full"
-      />
+      >
+        <!-- R11 delight：空态与兄弟表格视图同律（azure 徽标 tile + 教学文案，上传入口在表头不重复） -->
+        <template #empty>
+          <div class="table-state">
+            <div class="app-state-badge">
+              <icon-lucide:file-text class="text-icon-large" />
+            </div>
+            <p class="table-state__title">暂无文件</p>
+            <p class="table-state__desc">上传文档后，解析与向量化状态会汇总到这里</p>
+          </div>
+        </template>
+      </NDataTable>
     </NCard>
     <UploadDialog v-model:visible="uploadVisible" />
     <SearchDialog v-model:visible="searchVisible" />
@@ -652,6 +674,72 @@ async function onBeforeUpload(
 :deep() {
   .n-progress-icon.n-progress-icon--as-text {
     white-space: nowrap;
+  }
+}
+
+/* R11 delight：上传成功勾绘（DESIGN.md §10 承诺、§17 落地）。check 吃 currentColor——
+   随 NTag success 语义文字色在两主题自动成立；路径实长 ≈13.5，dasharray/offset 取 14
+   （=起笔前整段藏进 dash 空隙，逐帧从起点描绘到笔尾）。300ms 是 §10 明文的 delight 档
+   （动效三档之外的授权时刻），曲线走 emphasized token；reduced-motion 被全局压扁条款
+   瞬时绘完——确认语义在，动作让位。一次性 forwards，无循环。 */
+.kb-status-check {
+  width: 1em;
+  height: 1em;
+}
+
+.kb-status-check path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 14;
+  stroke-dashoffset: 14;
+  animation: kb-check-draw 300ms var(--app-ease-emphasized) forwards;
+}
+
+@keyframes kb-check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 空态：与 user/org-tag/invite-code 的 .table-state 同律（徽标 tile 经 global.scss 单源供给） */
+.table-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 24px;
+  text-align: center;
+  animation: table-state-in var(--app-dur-base) var(--app-ease-standard);
+}
+
+.table-state__title {
+  margin: 8px 0 0;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--app-text);
+}
+
+.table-state__desc {
+  margin: 0;
+  max-width: 360px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--app-muted);
+}
+
+@keyframes table-state-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

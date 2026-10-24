@@ -40,7 +40,7 @@ function handleTo() {
           <span class="ml-5px flex-1">
             {{ (item.i18nKey && $t(item.i18nKey)) || item.label }}
           </span>
-          <icon-ant-design-enter-outlined class="icon mr-3px p-2px text-20px" />
+          <icon-lucide:corner-down-left class="mr-3px p-2px text-icon" />
         </div>
       </template>
     </div>

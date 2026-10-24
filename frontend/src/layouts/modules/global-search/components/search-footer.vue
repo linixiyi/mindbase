@@ -7,16 +7,17 @@ defineOptions({ name: 'SearchFooter' });
 <template>
   <div class="h-44px flex-y-center gap-14px px-24px">
     <span class="flex-y-center">
-      <icon-mdi-keyboard-return class="operate-shadow operate-item" />
+      <icon-lucide:corner-down-left class="operate-shadow operate-item" />
       <span>{{ $t('common.confirm') }}</span>
     </span>
     <span class="flex-y-center">
-      <icon-mdi-arrow-up-thin class="operate-shadow operate-item" />
-      <icon-mdi-arrow-down-thin class="operate-shadow operate-item" />
+      <icon-lucide:arrow-up class="operate-shadow operate-item" />
+      <icon-lucide:arrow-down class="operate-shadow operate-item" />
       <span>{{ $t('common.switch') }}</span>
     </span>
     <span class="flex-y-center">
-      <icon-mdi-keyboard-esc class="operate-shadow operate-item" />
+      <!-- lucide 无 esc 字形；ESC 用文字键帽（命令面板通行式样），与图标键帽同材质 -->
+      <span class="operate-shadow operate-key">ESC</span>
       <span>{{ $t('common.close') }}</span>
     </span>
   </div>
@@ -31,6 +32,11 @@ defineOptions({ name: 'SearchFooter' });
 }
 
 .operate-item {
-  --uno: mr-6px p-2px text-20px;
+  --uno: mr-6px p-2px text-icon;
+}
+
+/* ESC 文字键帽：与图标键帽同高（12px Caption + 2px 上下内边距） */
+.operate-key {
+  --uno: mr-6px px-6px py-2px text-12px font-500;
 }
 </style>

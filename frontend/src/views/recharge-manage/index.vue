@@ -394,9 +394,10 @@ onMounted(() => {
       <NButton type="primary" @click="handleCreate">新增套餐</NButton>
     </div>
     <NCard title="充值套餐管理" :bordered="false" size="small" class="page-section">
-
       <div v-if="loadError" class="page-state">
-        <icon-lucide:circle-alert class="page-state__icon page-state__icon--error" />
+        <div class="app-state-badge app-state-badge--error">
+          <icon-lucide:circle-alert class="text-icon-large" />
+        </div>
         <p class="page-state__title">套餐列表加载失败</p>
         <p class="page-state__desc">网络异常导致套餐没有加载，请检查连接后重试</p>
         <NButton size="small" :disabled="loading" @click="getData">
@@ -418,7 +419,9 @@ onMounted(() => {
       >
         <template #empty>
           <div class="page-state page-state--table">
-            <icon-lucide:package class="page-state__icon" />
+            <div class="app-state-badge">
+              <icon-lucide:package class="text-icon-large" />
+            </div>
             <p class="page-state__title">暂无充值套餐</p>
             <p class="page-state__desc">点击右上角「新增套餐」创建第一个套餐</p>
           </div>
@@ -528,29 +531,21 @@ onMounted(() => {
 .page-state--table {
   padding: 32px 24px;
 }
-.page-state__icon {
-  font-size: 40px;
-  color: rgb(var(--base-text-color) / 0.24);
-}
-.page-state__icon--error {
-  color: rgb(var(--error-700-color));
-}
+/* R11 delight：空态图标改吃 global.scss 的 azure 徽标 tile（.app-state-badge，error 变体
+   走语义红 wash）——裸灰 ghost 图标就此从空态退役，__icon/--error 规则随之删除 */
 .page-state__title {
   margin: 8px 0 0;
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.35;
   color: var(--app-text);
 }
 .page-state__desc {
   margin: 0;
   max-width: 360px;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--app-muted);
-}
-html.dark .page-state__icon--error {
-  color: rgb(var(--error-400-color));
 }
 @keyframes page-state-in {
   from {

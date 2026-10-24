@@ -144,11 +144,12 @@ function resolveFileAccessUrl(url: string) {
   return `${serviceBaseUrl.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
 }
 
-// 获取文件图标
+// 获取文件图标：本地 sprite 只注册了 pdf/doc/docx/txt/dflt 五枚 tile（R7 colorize），
+// 其余扩展名（md/jpg 等）一律落 dflt 兜底——引用不存在的 symbol 会渲染成空白 <use>
 function getFileIcon(fileName: string) {
   const ext = getFileExt(fileName);
   if (ext) {
-    const supportedIcons = ['pdf', 'doc', 'docx', 'txt', 'md', 'jpg', 'jpeg', 'png', 'gif'];
+    const supportedIcons = ['pdf', 'doc', 'docx', 'txt'];
     return supportedIcons.includes(ext.toLowerCase()) ? ext : 'dflt';
   }
   return 'dflt';
@@ -350,7 +351,7 @@ function closePreview() {
       <template v-else-if="error">
         <div class="state-panel state-panel--error">
           <div class="state-orb state-orb--error">
-            <icon-mdi-alert-circle class="text-34" />
+            <icon-lucide:circle-alert class="text-icon-xl" />
           </div>
           <div class="state-copy">
             <strong>这份文档暂时没能打开</strong>
@@ -365,7 +366,7 @@ function closePreview() {
               <div class="source-card-top">
                 <div class="file-badge-shell">
                   <div class="file-badge-icon">
-                    <SvgIcon :local-icon="getFileIcon(fileName)" class="text-18" />
+                    <SvgIcon :local-icon="getFileIcon(fileName)" class="text-icon" />
                   </div>
                   <div class="file-badge-copy">
                     <h2 class="preview-title">{{ fileName }}</h2>
@@ -382,19 +383,19 @@ function closePreview() {
                   @click="openPreviewInNewTab"
                 >
                   <template #icon>
-                    <icon-mdi-open-in-new />
+                    <icon-lucide:external-link />
                   </template>
                   新窗口
                 </NButton>
                 <NButton size="small" secondary :loading="downloading" @click="downloadFile">
                   <template #icon>
-                    <icon-mdi-download />
+                    <icon-lucide:download />
                   </template>
                   下载
                 </NButton>
                 <NButton size="small" quaternary @click="closePreview">
                   <template #icon>
-                    <icon-mdi-close />
+                    <icon-lucide:x />
                   </template>
                   关闭
                 </NButton>
@@ -452,7 +453,7 @@ function closePreview() {
               <template v-else>
                 <div class="download-placeholder">
                   <div class="placeholder-icon">
-                    <SvgIcon :local-icon="getFileIcon(fileName)" class="text-28" />
+                    <SvgIcon :local-icon="getFileIcon(fileName)" class="text-icon-xl" />
                   </div>
                   <div class="state-copy">
                     <strong>当前格式暂不支持在线预览</strong>
@@ -461,13 +462,13 @@ function closePreview() {
                   <div class="placeholder-actions">
                     <NButton secondary :disabled="!canOpenInNewTab" @click="openPreviewInNewTab">
                       <template #icon>
-                        <icon-mdi-open-in-new />
+                        <icon-lucide:external-link />
                       </template>
                       新窗口打开
                     </NButton>
                     <NButton type="primary" @click="downloadFile">
                       <template #icon>
-                        <icon-mdi-download />
+                        <icon-lucide:download />
                       </template>
                       下载后查看
                     </NButton>
@@ -512,16 +513,16 @@ function closePreview() {
 
   .preview-title {
     @apply m-0 truncate;
-    font-size: 17px;
+    font-size: 20px;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 1.35;
     color: var(--app-text);
   }
 
   .preview-subtitle {
     @apply mt-1;
-    font-size: 13px;
-    line-height: 1.5;
+    font-size: 14px;
+    line-height: 1.55;
     color: var(--app-text-secondary);
   }
 
@@ -561,14 +562,14 @@ function closePreview() {
     }
 
     .state-copy strong {
-      font-size: 17px;
+      font-size: 20px;
       font-weight: 600;
-      line-height: 1.4;
+      line-height: 1.35;
       color: var(--app-text);
     }
 
     .state-copy span {
-      font-size: 13px;
+      font-size: 14px;
       line-height: 1.6;
     }
 
@@ -612,16 +613,16 @@ function closePreview() {
 
     .info-title {
       @apply mt-3 block break-words;
-      font-size: 15px;
+      font-size: 20px;
       font-weight: 600;
-      line-height: 1.45;
+      line-height: 1.35;
       color: var(--app-text);
     }
 
     .info-copy,
     .support-copy {
       @apply mb-0 mt-3 break-words;
-      font-size: 13px;
+      font-size: 14px;
       line-height: 1.65;
       color: var(--app-text-secondary);
       overflow-wrap: anywhere;
@@ -654,7 +655,7 @@ function closePreview() {
 
     .preview-text {
       @apply m-0 h-full overflow-auto whitespace-pre-wrap break-words;
-      font-size: 13px;
+      font-size: 14px;
       line-height: 1.6;
       color: var(--app-text-secondary);
     }

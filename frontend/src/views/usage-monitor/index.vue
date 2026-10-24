@@ -413,7 +413,8 @@ onMounted(() => {
             </div>
           </div>
         </div>
-        <NEmpty v-else size="small" description="暂无限流配置" />
+        <!-- R11 delight 复审：紧凑数据槽空态去灰盒插画（show-icon=false），徽标 tile 在窄列里过重 -->
+        <NEmpty v-else size="small" :show-icon="false" description="暂无限流配置" />
       </NSpin>
     </NCard>
 
@@ -452,7 +453,9 @@ onMounted(() => {
 
       <NSpin :show="overviewLoading">
         <div v-if="overviewError && !overview" class="usage-state usage-state--error">
-          <icon-lucide:circle-alert class="usage-state__icon" />
+          <div class="app-state-badge app-state-badge--error">
+            <icon-lucide:circle-alert class="text-icon-large" />
+          </div>
           <p class="usage-state__title">用量数据加载失败</p>
           <p class="usage-state__desc">{{ overviewError }}</p>
           <NButton size="small" :disabled="overviewLoading" @click="getOverview">
@@ -519,7 +522,7 @@ onMounted(() => {
                     </div>
                   </div>
                 </div>
-                <NEmpty v-else size="small" description="暂无告警" />
+                <NEmpty v-else size="small" :show-icon="false" description="暂无告警" />
               </NCard>
 
               <NCard size="small" :bordered="false" class="overview-section">
@@ -543,7 +546,7 @@ onMounted(() => {
                         </div>
                       </div>
                     </div>
-                    <NEmpty v-else size="small" description="暂无数据" />
+                    <NEmpty v-else size="small" :show-icon="false" description="暂无数据" />
                   </div>
 
                   <div>
@@ -564,7 +567,7 @@ onMounted(() => {
                         </div>
                       </div>
                     </div>
-                    <NEmpty v-else size="small" description="暂无数据" />
+                    <NEmpty v-else size="small" :show-icon="false" description="暂无数据" />
                   </div>
                 </div>
               </NCard>
@@ -588,8 +591,9 @@ onMounted(() => {
 }
 .limit-title {
   margin-bottom: 20px;
-  font-size: 15px;
+  font-size: 20px;
   font-weight: 600;
+  line-height: 1.35;
   color: var(--app-text);
 }
 .limit-grid {
@@ -640,7 +644,7 @@ html.dark .summary-card.is-alert .summary-value {
   color: var(--app-muted);
 }
 .usage-scope-label {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--app-text-secondary);
 }
@@ -667,7 +671,7 @@ html.dark .summary-card.is-alert .summary-value {
 .ranking-index {
   width: 24px;
   text-align: center;
-  font-size: 13px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--app-muted);
 }
@@ -682,29 +686,21 @@ html.dark .summary-card.is-alert .summary-value {
   text-align: center;
   animation: usage-state-in var(--app-dur-base) var(--app-ease-standard);
 }
-.usage-state__icon {
-  font-size: 40px;
-  color: rgb(var(--base-text-color) / 0.24);
-}
+/* R11 delight：空态图标改吃 global.scss 的 azure 徽标 tile（.app-state-badge，error 变体
+   走语义红 wash）——裸灰 ghost 图标就此从空态退役，__icon 规则随之删除 */
 .usage-state__title {
   margin: 8px 0 0;
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
   color: var(--app-text);
 }
 .usage-state__desc {
   margin: 0;
   max-width: 360px;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--app-muted);
-}
-.usage-state--error .usage-state__icon {
-  color: rgb(var(--error-700-color));
-}
-html.dark .usage-state--error .usage-state__icon {
-  color: rgb(var(--error-400-color));
 }
 @keyframes usage-state-in {
   from {

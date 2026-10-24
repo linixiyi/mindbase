@@ -191,7 +191,11 @@ init();
             @contextmenu="handleContextMenu($event, tab.id)"
           >
             <template #prefix>
-              <SvgIcon :icon="tab.icon" :local-icon="tab.localIcon" class="inline-block align-text-bottom text-16px" />
+              <SvgIcon
+                :icon="tab.icon"
+                :local-icon="tab.localIcon"
+                class="inline-block align-text-bottom text-icon-small"
+              />
             </template>
             <div class="max-w-240px ellipsis-text">{{ tab.label }}</div>
           </PageTab>

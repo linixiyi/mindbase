@@ -460,7 +460,9 @@ onMounted(() => {
         >
           <template #empty>
             <div class="table-state">
-              <icon-lucide:ticket class="table-state__icon" />
+              <div class="app-state-badge">
+                <icon-lucide:ticket class="text-icon-large" />
+              </div>
               <template v-if="appliedStatus !== 'all'">
                 <p class="table-state__title">没有符合筛选条件的邀请码</p>
                 <p class="table-state__desc">调整启用状态筛选，或清除筛选查看全部</p>
@@ -532,24 +534,21 @@ onMounted(() => {
   animation: table-state-in var(--app-dur-base) var(--app-ease-standard);
 }
 
-.table-state__icon {
-  font-size: 40px;
-  color: rgb(var(--base-text-color) / 0.24);
-}
-
+/* R11 delight：空态图标改吃 global.scss 的 azure 徽标 tile（.app-state-badge）——
+   裸灰 ghost 图标就此从空态退役，__icon 规则随之删除 */
 .table-state__title {
   margin: 8px 0 0;
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
   color: var(--app-text);
 }
 
 .table-state__desc {
   margin: 0;
   max-width: 360px;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--app-muted);
 }
 

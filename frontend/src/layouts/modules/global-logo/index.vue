@@ -17,7 +17,7 @@ withDefaults(defineProps<Props>(), {
 
 <template>
   <RouterLink to="/" class="w-full flex-center nowrap-hidden">
-    <SystemLogo class="text-32px text-primary" />
+    <SystemLogo class="text-icon-xl text-primary" />
     <h2
       v-show="showTitle"
       class="pl-8px text-16px text-primary font-600 transition-all duration-250 ease-[var(--app-ease-standard)]"

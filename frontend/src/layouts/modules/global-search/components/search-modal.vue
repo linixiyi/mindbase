@@ -24,11 +24,15 @@ const handleSearch = useDebounceFn(search, 300);
 
 const visible = defineModel<boolean>('show', { required: true });
 
-/** Command palette: overlay material + elevation-3 (DESIGN.md › Material Vocabulary / Shadow Vocabulary) */
+/**
+ * Command palette: overlay material + elevation-3 (DESIGN.md › Material Vocabulary / Shadow Vocabulary). R12 overdrive:
+ * the palette is the top of the glass ladder — it keeps the full refraction tier (--app-glass-filter-overlay, R8's
+ * 通透档); the anisotropic rim arrives via the .top-50px ring in global.scss.
+ */
 const commandPaletteStyle = {
   '--n-color': 'var(--app-material-overlay)',
-  WebkitBackdropFilter: 'var(--app-material-filter)',
-  backdropFilter: 'var(--app-material-filter)'
+  WebkitBackdropFilter: 'var(--app-glass-filter-overlay)',
+  backdropFilter: 'var(--app-glass-filter-overlay)'
 };
 
 function search() {
@@ -112,14 +116,19 @@ registerShortcut();
     <NInputGroup>
       <NInput v-model:value="keyword" clearable :placeholder="$t('common.keywordSearch')" @input="handleSearch">
         <template #prefix>
-          <icon-uil-search class="text-15px text-tertiary" />
+          <icon-lucide:search class="text-icon-small text-tertiary" />
         </template>
       </NInput>
       <NButton v-if="isMobile" type="primary" ghost @click="handleClose">{{ $t('common.cancel') }}</NButton>
     </NInputGroup>
 
     <div class="mt-20px">
-      <NEmpty v-if="resultOptions.length === 0" :description="$t('common.noData')" />
+      <!--
+ R11 delight 复审：palette 打开时 resultOptions 初始为空，未输入即闪默认灰盒插画——
+           玻璃命令面板的空态只留一行安静文字（show-icon=false，Naive 官方纯文字空态配置），
+           灰盒插画从旗舰玻璃面退役；文案 common.noData 原样保留 
+-->
+      <NEmpty v-if="resultOptions.length === 0" :show-icon="false" :description="$t('common.noData')" />
       <SearchResult v-else v-model:path="activePath" :options="resultOptions" @enter="handleEnter" />
     </div>
     <template #footer>

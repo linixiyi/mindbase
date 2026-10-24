@@ -1371,29 +1371,29 @@ async function cleanupPdfState() {
         <template v-if="!singlePagePreviewActive">
           <NButton size="tiny" quaternary :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">
             <template #icon>
-              <icon-mdi-chevron-left />
+              <icon-lucide:chevron-left />
             </template>
           </NButton>
           <NButton size="tiny" quaternary :disabled="currentPage >= totalPages" @click="goToPage(currentPage + 1)">
             <template #icon>
-              <icon-mdi-chevron-right />
+              <icon-lucide:chevron-right />
             </template>
           </NButton>
         </template>
         <NButton size="tiny" quaternary :disabled="zoom <= minZoom" @click="zoomOut">
           <template #icon>
-            <icon-mdi-magnify-minus-outline />
+            <icon-lucide:zoom-out />
           </template>
         </NButton>
         <NButton size="tiny" quaternary :disabled="zoom >= maxZoom" @click="zoomIn">
           <template #icon>
-            <icon-mdi-magnify-plus-outline />
+            <icon-lucide:zoom-in />
           </template>
         </NButton>
         <NButton size="tiny" secondary @click="resetZoom">适应宽度</NButton>
         <NButton size="tiny" secondary @click="openInNewTab">
           <template #icon>
-            <icon-mdi-open-in-new />
+            <icon-lucide:external-link />
           </template>
           新窗口
         </NButton>
@@ -1424,7 +1424,7 @@ async function cleanupPdfState() {
           <span>正在加载 PDF 文档</span>
         </div>
         <div v-else-if="renderError" class="stage-feedback is-error">
-          <icon-mdi-alert-circle class="text-24" />
+          <icon-lucide:circle-alert class="text-icon-large" />
           <span>{{ renderError }}</span>
         </div>
         <div v-else class="page-scroll-shell">
@@ -1517,7 +1517,9 @@ async function cleanupPdfState() {
 }
 
 .page-nav-item.is-target {
-  box-shadow: inset 2px 0 0 rgba(24, 144, 255, 0.75);
+  /* R9 quieter: rides the accent token (was hardcoded AntD daybreak blue, same migration the
+     highlight rect below already made) — the citation target page wears the brand line */
+  box-shadow: inset 2px 0 0 rgb(var(--primary-color) / 0.75);
 }
 
 .page-nav-number {
@@ -1610,7 +1612,16 @@ async function cleanupPdfState() {
 }
 
 .page-loading-mask {
-  @apply absolute inset-2 z-20 flex items-center justify-center gap-2 bg-white/75 text-sm text-stone-500 backdrop-blur-sm;
+  /* R12 overdrive 复审：全仓 blur 纪律审计的唯二漏网之一——梯外 backdrop-blur-sm（且无 -webkit- 前缀，
+     工程边界②）与硬编码 bg-white/75 / text-stone-500（暖灰绕过 token、暗色不换血）就此收口。
+     渲染纱入 bar 档（内容从面下经过的最沉稳折射，与顶栏同款光学处境，DESIGN.md §18 › 玻璃 blur 分层）；
+     面走 container 半透明 0.75（原透明度不动）、字走主墨——暗色下 ≈7:1、亮色 ≈14:1，双主题 AA。
+     viewer 其余 stone 调色板残留归 colorize 域，见 DESIGN.md §18 复审行 */
+  @apply absolute inset-2 z-20 flex items-center justify-center gap-2 text-sm;
+  background: rgb(var(--container-bg-color) / 0.75);
+  color: rgb(var(--base-text-color));
+  -webkit-backdrop-filter: var(--app-glass-filter-bar);
+  backdrop-filter: var(--app-glass-filter-bar);
 }
 
 @media (max-width: 960px) {
