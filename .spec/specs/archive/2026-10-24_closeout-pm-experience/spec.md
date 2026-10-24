@@ -32,6 +32,6 @@
 ### 5.4 编排策略
 - route: local
 ## 6. 成功标准与验证方式
-- [ ] 文档同步与收口 -> verify: task-doc-sync
+- [x] 文档同步与收口 -> verify: `! grep -q "完整备选" /Users/linyixi/PaiSmart/PRODUCT.md && test -s /Users/linyixi/PaiSmart/.spec/plans/pm-experience-upgrade.md`
 ## 7. 风险与约束
 - 无
