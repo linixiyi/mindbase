@@ -30,7 +30,16 @@
         "F5"
       ],
       "slug": "2026-10-24_fix-p1-experience",
-      "status": "active"
+      "status": "done (P1 十项 + DLQ 追补)"
+    },
+    {
+      "round": 4,
+      "features": [
+        "F6"
+      ],
+      "slug": "2026-10-24_closeout-pm-experience",
+      "status": "done (文档同步+收敛声明)"
     }
-  ]
+  ],
+  "status": "completed 6/6"
 }
