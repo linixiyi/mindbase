@@ -1,0 +1,36 @@
+{
+  "chain": "ui-beautification",
+  "plan": ".spec/plans/ui-beautification.md",
+  "mode": "in-session (zcode has no spawn CLI; fresh-session continuation substituted by main session, disclosed per contract)",
+  "roundCap": "unbounded (user pre-authorized unlimited rounds)",
+  "pushPolicy": "local merge to main only; remote push withheld per AGENTS.md hard rule pending explicit user authorization",
+  "rounds": [
+    {
+      "round": 1,
+      "features": [
+        "colorize+quieter",
+        "layout+typeset"
+      ],
+      "slug": "2026-10-20_beautify-ui-surface",
+      "status": "done (archived)"
+    },
+    {
+      "round": 2,
+      "features": [
+        "animate+delight",
+        "bolder+overdrive"
+      ],
+      "slug": "2026-10-20_beautify-ui-experience",
+      "status": "done (archived)"
+    },
+    {
+      "round": 3,
+      "features": [
+        "收口验证"
+      ],
+      "slug": "2026-10-20_beautify-ui-closeout",
+      "status": "done (archived)"
+    }
+  ],
+  "status": "completed 5/5"
+}
