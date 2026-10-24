@@ -256,7 +256,9 @@ onMounted(() => {
 
       <NSpin :show="loading">
         <div v-if="packagesError" class="page-state">
-          <icon-lucide:circle-alert class="page-state__icon page-state__icon--error" />
+          <div class="app-state-badge app-state-badge--error">
+            <icon-lucide:circle-alert class="text-icon-large" />
+          </div>
           <p class="page-state__title">充值套餐加载失败</p>
           <p class="page-state__desc">网络异常导致套餐没有加载，请检查连接后重试</p>
           <NButton size="small" :disabled="loading" @click="getPackages">
@@ -392,7 +394,9 @@ onMounted(() => {
         </div>
 
         <div v-else class="page-state">
-          <icon-lucide:package class="page-state__icon" />
+          <div class="app-state-badge">
+            <icon-lucide:package class="text-icon-large" />
+          </div>
           <p class="page-state__title">暂无充值套餐</p>
           <p class="page-state__desc">当前没有可用的充值套餐，请稍后再来看看</p>
         </div>
@@ -411,7 +415,9 @@ onMounted(() => {
 
       <NSpin :show="orderListLoading">
         <div v-if="ordersError" class="page-state">
-          <icon-lucide:circle-alert class="page-state__icon page-state__icon--error" />
+          <div class="app-state-badge app-state-badge--error">
+            <icon-lucide:circle-alert class="text-icon-large" />
+          </div>
           <p class="page-state__title">充值记录加载失败</p>
           <p class="page-state__desc">网络异常导致记录没有加载，请检查连接后重试</p>
           <NButton size="small" :disabled="orderListLoading" @click="getOrders">
@@ -431,7 +437,9 @@ onMounted(() => {
           class="mt-4"
         />
         <div v-else class="page-state">
-          <icon-lucide:credit-card class="page-state__icon" />
+          <div class="app-state-badge">
+            <icon-lucide:credit-card class="text-icon-large" />
+          </div>
           <template v-if="isFiltered">
             <p class="page-state__title">没有该状态下的订单</p>
             <p class="page-state__desc">当前筛选下没有订单，可以查看全部订单</p>
@@ -462,9 +470,9 @@ onMounted(() => {
             />
           </div>
           <div class="text-center">
-            <p class="text-17px font-semibold">请使用微信扫码支付</p>
-            <p class="text-muted mt-2 text-13px leading-20px font-mono">订单号：{{ currentTradeNo }}</p>
-            <p class="text-muted mt-1 text-13px leading-20px tabular-nums">
+            <p class="text-16px font-semibold">请使用微信扫码支付</p>
+            <p class="text-muted mt-2 text-14px leading-20px font-mono">订单号：{{ currentTradeNo }}</p>
+            <p class="text-muted mt-1 text-14px leading-20px tabular-nums">
               支付金额：¥{{ (getOrderAmount / 100).toFixed(2) }}
             </p>
           </div>
@@ -507,9 +515,9 @@ onMounted(() => {
 }
 .package-name {
   margin: 0;
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
   color: var(--app-text);
 }
 .package-price {
@@ -520,8 +528,8 @@ onMounted(() => {
   font-variant-numeric: tabular-nums;
 }
 .token-lines {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--app-text-secondary);
 
   strong {
@@ -531,15 +539,15 @@ onMounted(() => {
   }
 }
 .package-desc {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--app-muted);
 }
 .package-perks {
   border-radius: var(--app-radius-sm);
   background: var(--app-surface);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--app-text-secondary);
 }
 .perk-dot {
@@ -567,29 +575,21 @@ onMounted(() => {
   text-align: center;
   animation: page-state-in var(--app-dur-base) var(--app-ease-standard);
 }
-.page-state__icon {
-  font-size: 40px;
-  color: rgb(var(--base-text-color) / 0.24);
-}
-.page-state__icon--error {
-  color: rgb(var(--error-700-color));
-}
+/* R11 delight：空态图标改吃 global.scss 的 azure 徽标 tile（.app-state-badge，error 变体
+   走语义红 wash）——裸灰 ghost 图标就此从空态退役，__icon/--error 规则随之删除 */
 .page-state__title {
   margin: 8px 0 0;
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.35;
   color: var(--app-text);
 }
 .page-state__desc {
   margin: 0;
   max-width: 360px;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--app-muted);
-}
-html.dark .page-state__icon--error {
-  color: rgb(var(--error-400-color));
 }
 @keyframes page-state-in {
   from {

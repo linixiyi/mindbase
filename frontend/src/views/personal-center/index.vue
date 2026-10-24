@@ -231,7 +231,9 @@ const tokenRecordColumns = computed(() => [
         </template>
 
         <div v-if="usageLoadError" class="page-state">
-          <icon-lucide:circle-alert class="page-state__icon page-state__icon--error" />
+          <div class="app-state-badge app-state-badge--error">
+            <icon-lucide:circle-alert class="text-icon-large" />
+          </div>
           <p class="page-state__title">今日额度加载失败</p>
           <p class="page-state__desc">网络异常导致用量数据没有加载，请检查连接后重试</p>
           <NButton size="small" :disabled="loading" @click="getPersonalData">
@@ -296,7 +298,9 @@ const tokenRecordColumns = computed(() => [
           <h2>Token 变动记录</h2>
           <NSpin :show="tokenRecordLoading">
             <div v-if="tokenRecordError" class="page-state">
-              <icon-lucide:circle-alert class="page-state__icon page-state__icon--error" />
+              <div class="app-state-badge app-state-badge--error">
+                <icon-lucide:circle-alert class="text-icon-large" />
+              </div>
               <p class="page-state__title">Token 记录加载失败</p>
               <p class="page-state__desc">网络异常导致记录没有加载，请检查连接后重试</p>
               <NButton size="small" :disabled="tokenRecordLoading" @click="getTokenRecords">
@@ -322,7 +326,9 @@ const tokenRecordColumns = computed(() => [
               size="small"
             />
             <div v-else class="page-state">
-              <icon-lucide:receipt-text class="page-state__icon" />
+              <div class="app-state-badge">
+                <icon-lucide:receipt-text class="text-icon-large" />
+              </div>
               <p class="page-state__title">暂无 Token 变动记录</p>
               <p class="page-state__desc">充值或消耗 Token 之后，每笔记录会汇总到这里</p>
             </div>
@@ -368,10 +374,10 @@ const tokenRecordColumns = computed(() => [
   padding-top: 8px;
 }
 h2 {
-  margin: 0 0 16px;
-  font-size: 17px;
+  margin: 0 0 20px;
+  font-size: 20px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 .quota-value {
   margin: 16px 0;
@@ -401,8 +407,8 @@ h2 {
 }
 .profile-note {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.55;
 }
 .org-tag-option {
   padding: 16px;
@@ -440,29 +446,21 @@ h2 {
   text-align: center;
   animation: page-state-in var(--app-dur-base) var(--app-ease-standard);
 }
-.page-state__icon {
-  font-size: 40px;
-  color: rgb(var(--base-text-color) / 0.24);
-}
-.page-state__icon--error {
-  color: rgb(var(--error-700-color));
-}
+/* R11 delight：空态图标改吃 global.scss 的 azure 徽标 tile（.app-state-badge，error 变体
+   走语义红 wash）——裸灰 ghost 图标就此从空态退役，__icon/--error 规则随之删除 */
 .page-state__title {
   margin: 8px 0 0;
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.35;
   color: var(--app-text);
 }
 .page-state__desc {
   margin: 0;
   max-width: 360px;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--app-muted);
-}
-html.dark .page-state__icon--error {
-  color: rgb(var(--error-400-color));
 }
 @keyframes page-state-in {
   from {

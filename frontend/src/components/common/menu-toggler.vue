@@ -25,8 +25,8 @@ const icon = computed(() => {
       1: 'lucide:panel-left-open'
     },
     1: {
-      0: 'ph-caret-double-left-bold',
-      1: 'ph-caret-double-right-bold'
+      0: 'lucide:chevrons-left',
+      1: 'lucide:chevrons-right'
     }
   };
 

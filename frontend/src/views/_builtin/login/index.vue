@@ -48,7 +48,7 @@ const isRegisterModule = computed(() => (props.module || 'pwd-login') === 'regis
       <ThemeSchemaSwitch
         :theme-schema="themeStore.themeScheme"
         :show-tooltip="false"
-        class="text-20px lt-sm:text-18px"
+        class="text-icon"
         @switch="themeStore.toggleThemeScheme"
       />
       <LangSwitch

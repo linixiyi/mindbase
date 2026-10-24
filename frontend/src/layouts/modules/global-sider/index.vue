@@ -18,11 +18,17 @@ const darkMenu = computed(() => !themeStore.darkMode && !isHorizontalMix.value &
 const showLogo = computed(() => !isVerticalMix.value && !isHorizontalMix.value);
 const menuWrapperClass = computed(() => (showLogo.value ? 'flex-1-hidden' : 'h-full'));
 
-/** Frosted navigation material (DESIGN.md › Material Vocabulary › nav-material) */
+/**
+ * Frosted navigation material (DESIGN.md › Material Vocabulary › nav-material). R12 overdrive: the island rides the
+ * ISLAND tier of the three-step refraction ladder (--app-glass-filter-island), and the edge light is the shared
+ * anisotropic rim ring (.app-glass-rim::before) on THIS element — the one that paints the glass. The island's soft
+ * shadow lives on the AdminLayout aside; an inset rim there would sit beneath this translucent child and read muddy. No
+ * drop shadow here — that would double the aside's elevation-island.
+ */
 const navMaterialStyle = {
   background: 'var(--app-material-nav)',
-  WebkitBackdropFilter: 'var(--app-material-filter)',
-  backdropFilter: 'var(--app-material-filter)'
+  WebkitBackdropFilter: 'var(--app-glass-filter-island)',
+  backdropFilter: 'var(--app-glass-filter-island)'
 };
 </script>
 
@@ -30,10 +36,11 @@ const navMaterialStyle = {
   <!--
     Nav material: frosted glass clipped to the island's 24px radius. The elevation-island shadow
     lives on the AdminLayout aside (base-layout sider-class), not here — an inner shadow would
-    double it. overflow-hidden clips the material to the radius.
+    double it; the anisotropic rim ring rides this element (.app-glass-rim). overflow-hidden
+    clips the material to the radius.
   -->
   <DarkModeContainer
-    class="size-full flex-col-stretch overflow-hidden rounded-24px"
+    class="app-glass-rim size-full flex-col-stretch overflow-hidden rounded-24px"
     :inverted="darkMenu"
     :style="navMaterialStyle"
   >

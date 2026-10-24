@@ -114,7 +114,9 @@ async function getList() {
     </NForm>
 
     <div v-if="errorMsg" class="history-state history-state--error min-h-0 flex-1">
-      <icon-lucide:circle-alert class="history-state__icon" />
+      <div class="app-state-badge app-state-badge--error app-state-badge--page">
+        <icon-lucide:circle-alert class="text-icon-xl" />
+      </div>
       <p class="history-state__title">聊天记录加载失败</p>
       <p class="history-state__desc">{{ errorMsg }}</p>
       <NButton size="small" :disabled="loading" @click="getList">
@@ -132,7 +134,9 @@ async function getList() {
           </VueMarkdownItProvider>
         </div>
         <div v-if="!list.length" class="history-state">
-          <icon-lucide:message-square class="history-state__icon" />
+          <div class="app-state-badge app-state-badge--page">
+            <icon-lucide:message-square class="text-icon-xl" />
+          </div>
           <template v-if="hasActiveFilters">
             <p class="history-state__title">没有符合筛选条件的记录</p>
             <p class="history-state__desc">调整用户或时间范围，或清除筛选后再查询</p>
@@ -185,11 +189,9 @@ async function getList() {
   animation: history-state-in var(--app-dur-base) var(--app-ease-standard);
 }
 
-.history-state__icon {
-  font-size: 48px;
-  color: rgb(var(--base-text-color) / 0.24);
-}
-
+/* R11 delight：页面级空态（两档律的 Display 档）改吃 global.scss 的 azure 徽标 tile——
+   .app-state-badge--page = 欢迎徽标同几何（80/24/icon-xl），error 变体走语义红 wash；
+   裸灰 ghost 图标就此从空态退役，__icon 规则随之删除 */
 .history-state__title {
   margin: 8px 0 0;
   font-size: 32px;
@@ -202,16 +204,8 @@ async function getList() {
   margin: 0;
   max-width: 400px;
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.55;
   color: var(--app-muted);
-}
-
-.history-state--error .history-state__icon {
-  color: rgb(var(--error-700-color));
-}
-
-html.dark .history-state--error .history-state__icon {
-  color: rgb(var(--error-400-color));
 }
 
 @keyframes history-state-in {

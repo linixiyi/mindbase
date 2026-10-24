@@ -1,6 +1,30 @@
 @forward 'scrollbar';
 
 /*
+ * R12 overdrive: the anisotropic rim colors are registered custom properties — registration
+ * is what lets a glass chip's specular answer the pointer with a smooth 150ms color fade
+ * (unregistered custom properties snap). Browsers without @property keep working: the ring
+ * still paints, only the hover fade becomes instant. (DESIGN.md §18 › 各向异性边缘高光)
+ */
+@property --app-rim-top {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.82);
+}
+
+@property --app-rim-side {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.22);
+}
+
+@property --app-rim-bottom {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.3);
+}
+
+/*
  * Quiet Glass global tokens (DESIGN.md).
  * Surfaces/colors that flow through the theme pipeline live in settings.ts + vars.ts;
  * everything here is the static vocabulary shared by both themes and re-declared per theme.
@@ -24,12 +48,51 @@
   --app-fill-subtle: rgba(70, 110, 168, 0.09);
   --app-fill-hover: rgba(70, 110, 168, 0.14);
   --app-elevated: #ffffff;
+  /* text on the inverted surface (R7 colorize re-review): the inverted surface is cold ink
+     (#1C2A3A) in light theme, so its text takes the Quiet Glass light value — the pairing is
+     the opposite theme's bg-inverted, both existing DESIGN.md values, ≈12:1 AA. Replaces the
+     template's hardcoded near-black arbitrary text color (dark-on-dark in light-inverted sider). */
+  --app-inverted-text: #f5f5f7;
 
-  /* --- materials: nav & overlay frosted glass, body reading surfaces stay opaque --- */
-  --app-material-nav: rgba(255, 255, 255, 0.72);
-  --app-material-overlay: rgba(255, 255, 255, 0.76);
-  --app-material-filter: saturate(180%) blur(20px);
+  /* --- materials: nav & overlay frosted glass, body reading surfaces stay opaque ---
+     R7 colorize: light materials step one notch more translucent (nav 0.72→0.66,
+     overlay 0.76→0.70) for the liquid-glass brief — refraction reads through the
+     islands and popovers over the app's own near-white surfaces while secondary
+     text stays ≥AA. Dark values below are the preserved Quiet Glass set: untouched. */
+  --app-material-nav: rgba(255, 255, 255, 0.66);
+  --app-material-overlay: rgba(255, 255, 255, 0.7);
+  /* R12 overdrive — glass refraction in three elevation tiers (DESIGN.md §18 › 玻璃 blur 分层):
+     the higher a glass body floats, the more transparent it reads. The bar is the steadiest
+     surface (a 52px strip content scrolls beneath all day) so it takes the calmest pool;
+     the islands sit mid; the command palette — the highest, briefest glass — keeps R8's full
+     通透档 (saturate 200 / blur 28 / brightness 1.04). Material alphas above stay R7's set. */
+  --app-glass-filter-bar: saturate(180%) blur(20px) brightness(1.02);
+  --app-glass-filter-island: saturate(190%) blur(24px) brightness(1.03);
+  --app-glass-filter-overlay: saturate(200%) blur(28px) brightness(1.04);
+  /* legacy alias = island tier: kept for the uno `glass-nav` shortcut (uno.config.ts is
+     outside this pass's write scope); every src consumer has moved to the tier tokens */
+  --app-material-filter: saturate(190%) blur(24px) brightness(1.03);
   --app-scrim: rgba(0, 0, 0, 0.3);
+  /* R12 overdrive — anisotropic rim (DESIGN.md §18 › 各向异性边缘高光): the edge light now
+     has a direction. One vertical gradient ring paints every glass body's 1px rim —
+     top edge brightest (the light source), sides dimmed as they fall away, bottom edge a
+     faint ambient bounce. Replaces R5/R8's symmetric inset pair (top/bottom only, no side
+     falloff) with the directional specular Apple's liquid glass carries. Light values keep
+     R8/R9's tuned top (0.82) and bottom (0.30); the side stop is the new anisotropy. */
+  --app-rim-top: rgba(255, 255, 255, 0.82);
+  --app-rim-side: rgba(255, 255, 255, 0.22);
+  --app-rim-bottom: rgba(255, 255, 255, 0.3);
+  /* R10 animate (values carried over, token renamed): the hover-lit specular — a glass chip's
+     top edge answers the pointer one brightness step up at the 150ms token (via the
+     registered property above). Hover-bound state, never a loop (DESIGN.md › 呼吸律). */
+  --app-rim-top-hover: rgba(255, 255, 255, 0.95);
+  /* R12 overdrive: the header hairline — a real light direction line, scroll-revealed by the
+     header component (opacity 0 while the page rests at its top, 1 once content scrolls).
+     Color values inherit R3's 0.5px shadow token (settings.ts tokens.*.boxShadow.header,
+     retired in favor of this token + the scroll-linked element). */
+  --app-header-hairline: rgba(28, 42, 58, 0.12);
+  /* empty-state ghost glyph: the one opacity an empty-state icon may carry (R9 quieter) */
+  --app-icon-ghost: rgb(var(--base-text-color) / 0.24);
 
   /* --- corner scale: 10 / 14 / 18 / 24 / capsule --- */
   --app-radius-sm: 10px;
@@ -41,8 +104,10 @@
   --app-shadow-e1: 0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.08);
   --app-shadow-e2: 0 4px 12px rgba(0, 0, 0, 0.08), 0 16px 48px rgba(0, 0, 0, 0.18);
   --app-shadow-e3: 0 8px 24px rgba(0, 0, 0, 0.1), 0 24px 80px rgba(0, 0, 0, 0.24);
-  /* floating island (shell sider silhouette): wider and softer than e1 — mirrors tokens.*.boxShadow.sider */
-  --app-shadow-island: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.1);
+  /* floating island (shell sider silhouette): wider and softer than e1 — mirrors tokens.*.boxShadow.sider.
+     R8 bolder: ambient layer widened and faded (12/32 → 16/48, daylight pool), contact layer kept
+     tight and deep — the island reads as mass in sunlight, not a hovering tooltip */
+  --app-shadow-island: 0 1px 2px rgba(0, 0, 0, 0.05), 0 16px 48px rgba(0, 0, 0, 0.08);
 
   /* --- motion: three durations, three curves --- */
   --app-dur-fast: 150ms;
@@ -61,23 +126,165 @@ html.dark {
   --app-fill-subtle: rgba(120, 120, 128, 0.24);
   --app-fill-hover: rgba(120, 120, 128, 0.32);
   --app-elevated: #2c2c2e;
+  /* dark theme inverts to a light surface (#F5F5F7) → cold-ink text (light theme's bg-inverted) */
+  --app-inverted-text: #1c2a3a;
   --app-material-nav: rgba(29, 29, 31, 0.68);
   --app-material-overlay: rgba(44, 44, 46, 0.72);
+  /* dark glass ladder (R12 §18): same three elevation tiers, monotonic — and NO brightness
+     lift at any tier: dark glass does not glow (Quiet Glass fidelity, R8's law kept). The
+     overlay tier keeps R8's dark 通透档 (180/24); bar and island step down beneath it. */
+  --app-glass-filter-bar: saturate(160%) blur(18px);
+  --app-glass-filter-island: saturate(170%) blur(21px);
+  --app-glass-filter-overlay: saturate(180%) blur(24px);
+  /* legacy alias = island tier (see :root note) */
+  --app-material-filter: saturate(170%) blur(21px);
   --app-scrim: rgba(0, 0, 0, 0.5);
-  --app-shadow-island: 0 1px 2px rgba(0, 0, 0, 0.45), 0 12px 32px rgba(0, 0, 0, 0.55);
+  /* dark elevation tiers (DESIGN.md › Shadow Vocabulary): heavier than light — the dark
+     world signals depth mainly through surface steps, so floating layers lean on shadow */
+  --app-shadow-e1: 0 1px 4px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.45);
+  --app-shadow-e2: 0 4px 12px rgba(0, 0, 0, 0.45), 0 16px 48px rgba(0, 0, 0, 0.55);
+  --app-shadow-e3: 0 8px 24px rgba(0, 0, 0, 0.5), 0 24px 80px rgba(0, 0, 0, 0.65);
+  /* dark anisotropic rim (R12 §18): brightness steps only, never surface changes. Top and
+     bottom keep R9's tuned levels (0.10/0.06 — the glare along full-viewport edges stays
+     collected); the side stop is new and one step under the bottom — sides sit in shadow,
+     the light comes from above. */
+  --app-rim-top: rgba(235, 245, 255, 0.1);
+  --app-rim-side: rgba(235, 245, 255, 0.04);
+  --app-rim-bottom: rgba(235, 245, 255, 0.06);
+  /* dark hover-lit rim (R10 values kept, token renamed): up from 0.10 to 0.16 — dark glass
+     stays dim, it just notices the pointer */
+  --app-rim-top-hover: rgba(235, 245, 255, 0.16);
+  --app-header-hairline: rgba(235, 235, 245, 0.14);
+  --app-shadow-island: 0 1px 2px rgba(0, 0, 0, 0.45), 0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
-/* --- frosted material helpers (shell & floating layers only) --- */
+/* --- frosted material helpers (shell & floating layers only) ---
+   R12: each helper rides its elevation tier of the refraction ladder — nav surfaces are
+   islands (mid tier), overlay surfaces are the top tier. */
 .app-material-nav {
   background: var(--app-material-nav);
-  -webkit-backdrop-filter: var(--app-material-filter);
-  backdrop-filter: var(--app-material-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter-island);
+  backdrop-filter: var(--app-glass-filter-island);
 }
 
 .app-material-overlay {
   background: var(--app-material-overlay);
-  -webkit-backdrop-filter: var(--app-material-filter);
-  backdrop-filter: var(--app-material-filter);
+  -webkit-backdrop-filter: var(--app-glass-filter-overlay);
+  backdrop-filter: var(--app-glass-filter-overlay);
+}
+
+/* --- R12 overdrive: anisotropic rim — the directional edge light every glass body wears ---
+   One 1px ring, painted once, shared by the whole glass family. The technique: a ::before
+   stretched over the host (radius inherited) carrying a vertical gradient — top stop
+   brightest, an 88px falloff into the dimmed side plateau, bottom stop the faint ambient
+   bounce — then mask-composite keeps only the outer 1px band of it (the standard gradient
+   ring; both the -webkit- xor and standard exclude composites declared for Safari/Chromium/
+   Firefox). This replaces R5/R8's symmetric inset pair with a rim that has a light
+   direction, closer to Apple's liquid glass than any symmetric inset can read.
+
+   The ring IS the host's single edge declaration (§15 › declare the edge once): glass bodies
+   carry no border and no inset rim shadows anymore; static surfaces keep hairline + zero
+   shadow as always. Hosts opt in via .app-glass-rim (which also supplies position: relative
+   for static hosts — hosts that position themselves with utilities keep their own position);
+   naive hosts (popover / palette card / drawer) join by selector below. The ::before paints
+   over content by 1px at the very edge — the same pixel an inset rim used to claim. */
+.app-glass-rim {
+  position: relative;
+}
+
+.app-glass-rim::before,
+.app-glass-chip::before,
+.n-popover-shared:not(.n-popover--raw):not(.n-tooltip)::before,
+.n-modal.n-card.top-50px::before,
+.n-drawer-container .n-drawer.theme-drawer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    to bottom,
+    var(--app-rim-top) 0,
+    var(--app-rim-side) 88px,
+    var(--app-rim-side) calc(100% - 88px),
+    var(--app-rim-bottom) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* --- R5 liquid glass: floating micro-control chip (DESIGN.md §12) ---
+   The single material for icon-sized controls that hover over a canvas (chat sidebar toggle,
+   chat date filter): frosted nav material + e1 soft shadow; the anisotropic rim arrives via
+   the shared ::before ring above (R12). Chips float beside the islands on the same canvas
+   plane, so they ride the island tier of the refraction ladder. Shape is the consuming
+   element's job — chips are capsules (rounded-full); primary action buttons stay 10px
+   rectangles and never wear this class. One backdrop-filter per sightline: chips only float
+   over opaque canvases, never over another glass body. Chips are always positioned by their
+   consumers (absolute floating controls), so the ring anchors without position here. */
+.app-glass-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--app-material-nav);
+  -webkit-backdrop-filter: var(--app-glass-filter-island);
+  backdrop-filter: var(--app-glass-filter-island);
+  color: var(--app-muted);
+  box-shadow: var(--app-shadow-e1);
+  cursor: pointer;
+  transition:
+    color var(--app-dur-fast) var(--app-ease-standard),
+    background-color var(--app-dur-fast) var(--app-ease-standard),
+    transform var(--app-dur-fast) var(--app-ease-standard),
+    --app-rim-top var(--app-dur-fast) var(--app-ease-standard);
+}
+
+/* R10 animate: glass answers the pointer — hover lifts the specular one brightness step
+   (--app-rim-top-hover) while the fill warms; press compresses to 0.97 like every button.
+   R12: the specular now lives in the registered --app-rim-top property, so the registered
+   custom property itself interpolates at 150ms (unregistered browsers snap — same states). */
+.app-glass-chip:hover {
+  color: rgb(var(--primary-color));
+  background: var(--app-fill-hover);
+  --app-rim-top: var(--app-rim-top-hover);
+}
+
+.app-glass-chip:active {
+  transform: scale(0.97);
+}
+
+.app-glass-chip:focus-visible {
+  outline: 2px solid rgb(var(--primary-color) / 0.6);
+  outline-offset: 2px;
+}
+
+/* --- R10 animate: press feedback for the whole button family (DESIGN.md › Motion › 微反馈) ---
+   Buttons answer the hand with a 150ms scale(0.97) — the promise the Motion section wrote
+   in round 4, landed here once for every NButton in the app. Naive mounts its cssr styles
+   at runtime (after build styles), so these rules ride compound specificity — the repo's
+   established pattern for overriding naive (popover/drawer rules above). Naive's own color
+   transitions are carried over verbatim and joined by transform at the 150ms token;
+   --n-bezier is inline-mounted per button (Button.mjs cssVars) and already resolves to
+   var(--app-ease-standard) via shared.ts. Disabled/loading buttons keep Naive's stock
+   transition untouched. Keyboard presses reach :active too — same acknowledgment. */
+.n-button:not(.n-button--disabled):not(.n-button--loading) {
+  transition:
+    color 0.3s var(--n-bezier, var(--app-ease-standard)),
+    background-color 0.3s var(--n-bezier, var(--app-ease-standard)),
+    opacity 0.3s var(--n-bezier, var(--app-ease-standard)),
+    border-color 0.3s var(--n-bezier, var(--app-ease-standard)),
+    transform var(--app-dur-fast) var(--app-ease-standard);
+}
+
+.n-button:not(.n-button--disabled):not(.n-button--loading):active {
+  transform: scale(0.97);
 }
 
 /* --- focus ring: the azure line marks focus and action --- */
@@ -118,6 +325,49 @@ textarea,
   gap: 12px;
 }
 
+/* --- R11 delight: empty-state brand badge (DESIGN.md §17) ---
+   Every empty state grows in the brand: the bare ghost glyph (0.24 ink) becomes an azure
+   rounded tile — the chat-welcome badge's law, flattened for the static world. These tiles
+   sit inside cards and tables ON THE GROUND, so unlike the canvas welcome badge they carry
+   no shadow and no rim: static surfaces keep hairline + zero shadow (§15). Azure wash
+   8% light / 16% dark (the dark azure tier the selected capsule and welcome badge share);
+   the glyph rides the primary family, dark takes --primary-400 (DESIGN.md › Primary: azure
+   as a glyph on dark panels needs the lifted step). Two sizes mirror the empty-state
+   two-tier law (§13): block-level default 64/18px + icon-large, page-level modifier --page
+   80/24px + icon-xl (the welcome badge geometry). Error variants keep the semantic red at
+   the same wash tiers — the tile carries shape, the hue carries meaning. */
+.app-state-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--app-radius-lg);
+  background: rgb(var(--primary-color) / 0.08);
+  color: rgb(var(--primary-color));
+}
+
+html.dark .app-state-badge {
+  background: rgb(var(--primary-color) / 0.16);
+  color: rgb(var(--primary-400-color));
+}
+
+.app-state-badge--page {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--app-radius-xl);
+}
+
+.app-state-badge--error {
+  background: rgb(var(--error-color) / 0.08);
+  color: rgb(var(--error-700-color));
+}
+
+html.dark .app-state-badge--error {
+  background: rgb(var(--error-color) / 0.16);
+  color: rgb(var(--error-400-color));
+}
+
 /* Table empty state: default Naive empties get quiet tertiary type and room to breathe;
    views with their own empty-state blocks (e.g. .table-state) keep theirs. */
 .n-data-table .n-data-table-empty:not(:has(.table-state)) {
@@ -131,9 +381,24 @@ textarea,
 /* --- Round R2 overdrive: command-palette entry lands at full speed — the first frame
    starts a touch scaled/offset (@starting-style, CSS-only) and settles in 150ms.
    Scoped to the desktop global-search palette (top-50px variant); unsupported
-   browsers keep NModal's own fade. */
+   browsers keep NModal's own fade.
+   R8 bolder: the palette is a glass body — e3 soft shadow at the top of the shadow ladder.
+   R9 quieter: NCard's default bordered ring is dropped — the edge is declared once.
+   R12 overdrive: that edge is now the anisotropic rim ring (shared ::before above); the
+   card is position:fixed by its utility classes, so the ring anchors without help. Mobile
+   full-sheet stays flat (no .top-50px, no ring).
+   R8 bolder 复审: the surface and corners are pinned here too — NCard inlines its own
+   --n-color (opaque card color) on the root, which merges against the component's inline
+   overlay var in a fragile order; !important guarantees the recorded overlay material.
+   The 24px corners (DESIGN.md › Shapes: xl 归命令面板) ride this rule's specificity —
+   the rounded-24px utility loses the single-class tie to naive's runtime-mounted
+   .n-card radius cssr (Card theme = 18px), so the author's intent needs the stronger arm. */
 .n-modal.n-card.top-50px {
   transition: transform var(--app-dur-fast, 150ms) var(--app-ease-emphasized, ease);
+  border: none;
+  border-radius: var(--app-radius-xl);
+  box-shadow: var(--app-shadow-e3);
+  --n-color: var(--app-material-overlay) !important;
 
   @starting-style {
     transform: scale(0.985) translateY(6px);
@@ -150,15 +415,35 @@ textarea,
   background: var(--app-subtle);
 }
 
-/* --- Naive floating layers ride the overlay material --- */
-.n-popover:not(.n-popover--raw) {
-  --n-color: var(--app-material-overlay);
-  --n-border-radius: var(--app-radius-md);
-  --n-box-shadow: var(--app-shadow-e1);
+/* --- Naive floating layers ride the overlay material — the top tier of the refraction
+   ladder (R12) — and the anisotropic rim ring (shared ::before above; .n-popover-shared is
+   position: relative in naive's own cssr, so the ring anchors correctly on every body).
+   R9 quieter: the hairline border is gone — under the rim it declared the same edge a
+   second time (ghost ring; craft floor › elevation declared once). Glass edge = rim, only.
+   R8 bolder 复审 — the family rule was structurally present but never actually rendering:
+   ① naive inlines --n-color / --n-border-radius / --n-box-shadow on every popover body
+   (PopoverBody cssVars ride the element's style attribute; the app never sets
+   inline-theme-disabled), so a plain stylesheet override loses the cascade to those inline
+   declarations — the overlay material, 14px radius and e1 shadow were dead on arrival and
+   the body stayed opaque naive-white (backdrop-filter over an opaque fill is a no-op);
+   the three vars now declare !important, which beats author-normal inline styles.
+   ② the selector missed half the family: dropdown menus (and popselect panels) render
+   through popover's internalRenderBody branch, whose body carries ONLY n-popover-shared —
+   no n-popover class — so the avatar menu and every NDropdown floated outside the family.
+   The family selector is now .n-popover-shared, which is the class naive actually styles
+   (cssr: position relative + background-color/border-radius read from these vars) and the
+   one class every popover-family body — NPopover, NPopconfirm, NDropdown, NPopselect —
+   carries. ③ tooltips are excluded: they also ride popover-shared bodies, but they are
+   the inverted ink surface (DESIGN.md › Neutral › bg-inverted), not glass — they keep
+   naive's own dark chip and stop wearing the glass rim ring (§18's family list never
+   named them; the old .n-popover selector caught them by accident). */
+.n-popover-shared:not(.n-popover--raw):not(.n-tooltip) {
+  --n-color: var(--app-material-overlay) !important;
+  --n-border-radius: var(--app-radius-md) !important;
+  --n-box-shadow: var(--app-shadow-e1) !important;
 
-  -webkit-backdrop-filter: var(--app-material-filter);
-  backdrop-filter: var(--app-material-filter);
-  border: 1px solid var(--app-border);
+  -webkit-backdrop-filter: var(--app-glass-filter-overlay);
+  backdrop-filter: var(--app-glass-filter-overlay);
 }
 
 /* NModal mask: naive hardcodes rgba(0,0,0,.4) in its cssr; the world behind a modal rides the scrim
@@ -166,6 +451,24 @@ textarea,
    regardless of naive's cssr mount order. */
 .n-modal-container .n-modal-mask {
   background-color: var(--app-scrim);
+}
+
+/* --- R5 liquid glass: theme drawer docks like an island (DESIGN.md §12) ---
+   The last bare overlay joins the floating family through posture, not blur: 12px inset from
+   the viewport's top/right/bottom (the island margin rhythm), 24px corners on all four sides,
+   elevation-2 soft shadow, overflow-hidden so content clips to the radius.
+   The panel surface stays on naive's opaque color — body reading surfaces never go translucent,
+   and the sheet never stacks backdrop-filter over the scrimmed page (glass-on-glass ban).
+   R12: the edge light is the shared anisotropic rim ring (the drawer is positioned by naive's
+   cssr, so the ::before anchors); max-width guards narrow viewports. */
+.n-drawer-container .n-drawer.theme-drawer {
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  max-width: calc(100vw - 24px);
+  border-radius: var(--app-radius-xl);
+  box-shadow: var(--app-shadow-e2);
+  overflow: hidden;
 }
 
 /* Page title (Display 32, round 3 airy scale). A flex child of .workspace-page: the page's
@@ -274,6 +577,13 @@ textarea,
   ::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+
+  /* R10 animate: the press scale is spatial movement — under reduced motion it steps aside
+     entirely (pressed color/bg states remain, so the feedback itself stays legible) */
+  .n-button:not(.n-button--disabled):not(.n-button--loading):active,
+  .app-glass-chip:active {
+    transform: none;
   }
 }
 

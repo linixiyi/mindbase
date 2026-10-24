@@ -55,7 +55,7 @@ function formatDate(dateStr?: string) {
 
 <template>
   <div
-    class="chat-sidebar relative flex flex-col shrink-0 overflow-hidden transition-[width,margin]"
+    class="app-glass-rim chat-sidebar relative flex flex-col shrink-0 overflow-hidden transition-[width,margin]"
     :class="collapsed ? 'chat-sidebar--collapsed w-0 min-w-0' : 'w-[260px] min-w-[260px]'"
   >
     <div class="w-[260px] flex flex-col flex-1 overflow-hidden" :class="{ 'pointer-events-none invisible': collapsed }">
@@ -104,7 +104,7 @@ function formatDate(dateStr?: string) {
               v-if="filteredSessions.length === 0 && !sessionsLoading"
               class="flex flex-col items-center justify-center gap-3 py-16"
             >
-              <icon-lucide:message-circle class="text-36px text-[rgb(var(--base-text-color)/0.3)]" />
+              <icon-lucide:message-circle class="chat-sidebar__empty-icon text-icon-xl" />
               <span class="text-muted text-14px">{{ activeTab === 'active' ? '暂无对话记录' : '暂无归档对话' }}</span>
             </div>
 
@@ -116,7 +116,7 @@ function formatDate(dateStr?: string) {
               @click="handleSelect(session.conversationId)"
             >
               <div
-                class="chat-session__icon h-8 w-8 flex shrink-0 items-center justify-center rounded-10px text-16px"
+                class="chat-session__icon h-8 w-8 flex shrink-0 items-center justify-center rounded-10px text-icon-small"
                 :class="{ 'chat-session__icon--active': session.conversationId === conversationId }"
               >
                 <icon-lucide:message-circle />
@@ -137,7 +137,7 @@ function formatDate(dateStr?: string) {
                     @click.stop
                   >
                     <template #icon>
-                      <icon-lucide:archive class="text-15px" />
+                      <icon-lucide:archive class="text-icon-small" />
                     </template>
                   </NButton>
                 </template>
@@ -151,7 +151,7 @@ function formatDate(dateStr?: string) {
                 @click.stop="handleUnarchive(session.conversationId)"
               >
                 <template #icon>
-                  <icon-lucide:archive-restore class="text-15px" />
+                  <icon-lucide:archive-restore class="text-icon-small" />
                 </template>
               </NButton>
             </div>
@@ -165,29 +165,41 @@ function formatDate(dateStr?: string) {
 <style scoped lang="scss">
 /* 会话侧栏 = 画布左缘的第二座浮岛：nav-material 磨砂 + 24px 圆角（xl）+ 浮岛档投影，
    与画布缘脱开 12px、岛内无边框——岛形由投影勾出，不发丝线（DESIGN.md › Layout › 聊台画布 /
-   Navigation › 会话侧栏）。
-   --app-shadow-island 由壳层分片落在 global.scss（亮/暗双值）；此处字面值仅作未落地时的兜底。 */
+   Navigation › 会话侧栏）。R12 overdrive：折射走三档梯的 ISLAND 档；边缘高光由共享的
+   各向异性 rim 环（.app-glass-rim::before，DESIGN.md §18）给出——顶缘最亮、左右收暗、
+   底缘微光，与主浮岛、顶栏、命令面板同族。材质与投影 token 均由 global.scss 单源供给
+   （亮/暗双值），此处不再留字面兜底。 */
 .chat-sidebar {
   margin: 12px 0 12px 12px;
   border-radius: var(--app-radius-xl, 24px);
   background: var(--app-material-nav, var(--app-surface));
-  -webkit-backdrop-filter: var(--app-material-filter, saturate(180%) blur(20px));
-  backdrop-filter: var(--app-material-filter, saturate(180%) blur(20px));
-  box-shadow: var(--app-shadow-island, 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.1));
+  -webkit-backdrop-filter: var(--app-glass-filter-island);
+  backdrop-filter: var(--app-glass-filter-island);
+  box-shadow: var(--app-shadow-island);
   transition-duration: var(--app-dur-base, 250ms);
   transition-timing-function: var(--app-ease-standard, ease);
 }
 .chat-sidebar--collapsed {
   margin: 0;
   box-shadow: none;
+
+  /* 收起是贴墙的零宽形态——rim 环随投影一起退场 */
+  &::before {
+    content: none;
+  }
 }
 
-/* ≤640px（appStore.isMobile = smaller('sm')）：浮岛收回为贴边抽屉 + scrim（岛形态只在桌面存在） */
+/* ≤640px（appStore.isMobile = smaller('sm')）：浮岛收回为贴边抽屉 + scrim（岛形态只在桌面存在）；
+   抽屉平贴（§12「Mobile full-sheet stays flat」），rim 环不出现 */
 @media (max-width: 639.98px) {
   .chat-sidebar {
     margin: 0;
     border-radius: 0;
     box-shadow: none;
+
+    &::before {
+      content: none;
+    }
   }
 }
 
@@ -212,15 +224,28 @@ function formatDate(dateStr?: string) {
   cursor: pointer;
   transition:
     background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
-    color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
+    color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
+    transform var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
 
   &:hover {
     color: var(--app-text);
   }
 
+  /* R10 animate：分段控件是原生 button，吃不到全局 .n-button 按压律——就地补上同一记
+     scale 0.97（DESIGN.md › Motion › 微反馈），与 NButton 家族同一手感 */
+  &:active {
+    transform: scale(0.97);
+  }
+
   &:focus-visible {
     outline: 2px solid rgb(var(--primary-color) / 0.6);
     outline-offset: 1px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-sidebar__tab:active {
+    transform: none;
   }
 }
 
@@ -272,7 +297,12 @@ function formatDate(dateStr?: string) {
 }
 
 .chat-session__time {
-  color: rgb(var(--base-text-color) / 0.45);
+  color: var(--app-text-tertiary);
+}
+
+/* 空态图标吃全站唯一的 ghost 档（--app-icon-ghost 0.24，R9 quieter 归一：原 0.3 档就此退役） */
+.chat-sidebar__empty-icon {
+  color: var(--app-icon-ghost);
 }
 
 .chat-session__action {

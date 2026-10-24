@@ -150,7 +150,9 @@ onMounted(() => {
 
         <NSpin :show="modelProvidersLoading">
           <div v-if="modelProvidersError && !currentScope" class="provider-state provider-state--error">
-            <icon-lucide:circle-alert class="provider-state__icon" />
+            <div class="app-state-badge app-state-badge--error">
+              <icon-lucide:circle-alert class="text-icon-large" />
+            </div>
             <p class="provider-state__title">模型配置加载失败</p>
             <p class="provider-state__desc">{{ modelProvidersError }}</p>
             <NButton size="small" :disabled="modelProvidersLoading" @click="getModelProviders">
@@ -251,7 +253,9 @@ onMounted(() => {
             </section>
           </div>
           <div v-else-if="!modelProvidersLoading" class="provider-state">
-            <icon-lucide:cloud-cog class="provider-state__icon" />
+            <div class="app-state-badge">
+              <icon-lucide:cloud-cog class="text-icon-large" />
+            </div>
             <p class="provider-state__title">暂未加载到模型配置</p>
             <p class="provider-state__desc">服务返回为空，重试或检查管理员权限后再试</p>
             <NButton size="small" @click="getModelProviders">
@@ -285,7 +289,7 @@ onMounted(() => {
 .navigation-label {
   display: block;
   margin-bottom: 12px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--app-text-secondary);
 }
 
@@ -350,9 +354,9 @@ onMounted(() => {
 
   h2 {
     margin: 0;
-    font-size: 17px;
+    font-size: 20px;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 1.35;
     color: var(--app-text);
   }
 }
@@ -376,7 +380,7 @@ onMounted(() => {
   label {
     display: block;
     margin-bottom: 10px;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--app-text-secondary);
   }
@@ -401,7 +405,7 @@ onMounted(() => {
 .saved-key {
   color: var(--app-text-secondary);
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
-  font-size: 13px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
 
   &.is-empty {
@@ -428,33 +432,22 @@ onMounted(() => {
   animation: provider-state-in var(--app-dur-base) var(--app-ease-standard);
 }
 
-.provider-state__icon {
-  font-size: 40px;
-  color: rgb(var(--base-text-color) / 0.24);
-}
-
+/* R11 delight：空态图标改吃 global.scss 的 azure 徽标 tile（.app-state-badge，error 变体
+   走语义红 wash）——裸灰 ghost 图标就此从空态退役，__icon 规则随之删除 */
 .provider-state__title {
   margin: 8px 0 0;
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
   color: var(--app-text);
 }
 
 .provider-state__desc {
   margin: 0;
   max-width: 360px;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--app-muted);
-}
-
-.provider-state--error .provider-state__icon {
-  color: rgb(var(--error-700-color));
-}
-
-html.dark .provider-state--error .provider-state__icon {
-  color: rgb(var(--error-400-color));
 }
 
 @keyframes provider-state-in {

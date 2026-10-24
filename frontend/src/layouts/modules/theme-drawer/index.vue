@@ -15,7 +15,11 @@ const appStore = useAppStore();
 </script>
 
 <template>
-  <NDrawer v-model:show="appStore.themeDrawerVisible" display-directive="show" :width="360">
+  <!--
+    theme-drawer 类把面板从通栏贴边改为浮岛姿态（global.scss › R5 liquid glass / DESIGN.md §12）：
+    距视口上/右/下各 12px、四角 24px、elevation-2 软影 + rim light；表面保持实底（正文永远实底）。
+  -->
+  <NDrawer v-model:show="appStore.themeDrawerVisible" display-directive="show" :width="360" class="theme-drawer">
     <NDrawerContent :title="$t('theme.themeDrawerTitle')" :native-scrollbar="false" closable>
       <DarkMode />
       <LayoutMode />
@@ -27,5 +31,3 @@ const appStore = useAppStore();
     </NDrawerContent>
   </NDrawer>
 </template>
-
-<style scoped></style>

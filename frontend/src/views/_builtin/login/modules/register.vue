@@ -250,7 +250,8 @@ watch(
 .register-form-tip {
   font-size: 14px;
   line-height: 1.7;
-  color: rgb(var(--base-text-color) / 0.66);
+  /* R9 quieter 复审：归入唯一的次级文字档 --app-text-secondary（原 0.66 字面墨透明度是第四档杂档） */
+  color: var(--app-text-secondary);
 }
 
 /* Flat tinted zone inside the airy page: fill-subtle surface, md radius, no border, no shadow */

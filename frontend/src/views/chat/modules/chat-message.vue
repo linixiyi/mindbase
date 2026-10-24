@@ -410,7 +410,7 @@ async function handleSourceFileClick(fileInfo: {
     <template v-else>
       <div class="chat-message__head">
         <span class="chat-message__avatar">
-          <SystemLogo class="text-14px" />
+          <SystemLogo class="text-icon-xs" />
         </span>
         <span class="chat-message__author">MindBase</span>
         <span class="chat-message__time">{{ formatDate(msg.timestamp) }}</span>
@@ -422,15 +422,15 @@ async function handleSourceFileClick(fileInfo: {
           class="chat-tool-event"
           :class="`chat-tool-event--${event.status}`"
         >
-          <icon-lucide:ellipsis v-if="event.status === 'executing'" class="text-14px" />
-          <icon-lucide:circle-check v-else-if="event.status === 'success'" class="text-14px" />
-          <icon-lucide:circle-x v-else class="text-14px" />
+          <icon-lucide:ellipsis v-if="event.status === 'executing'" class="text-icon-xs" />
+          <icon-lucide:circle-check v-else-if="event.status === 'success'" class="text-icon-xs" />
+          <icon-lucide:circle-x v-else class="text-icon-xs" />
           <span class="chat-tool-event__name">{{ getToolLabel(event.tool) }}</span>
           <span class="chat-tool-event__status">{{ getToolStatusLabel(event.status) }}</span>
         </div>
       </div>
       <div v-if="msg.status === 'pending' || (msg.status === 'loading' && !msg.content)" class="chat-stream-indicator">
-        <icon-lucide:ellipsis class="text-24px" />
+        <icon-lucide:ellipsis class="text-icon-large" />
       </div>
       <div v-else-if="msg.status === 'error'" class="chat-error-text">
         {{ msg.content || '服务器繁忙，请稍后再试' }}
@@ -442,7 +442,7 @@ async function handleSourceFileClick(fileInfo: {
     <div class="chat-message__actions" :class="{ 'chat-message__actions--end': msg.role === 'user' }">
       <NButton quaternary size="tiny" title="复制回答" aria-label="复制回答" @click="handleCopy(msg.content)">
         <template #icon>
-          <icon-lucide:copy class="text-14px" />
+          <icon-lucide:copy class="text-icon-xs" />
         </template>
       </NButton>
       <NButton
@@ -456,7 +456,7 @@ async function handleSourceFileClick(fileInfo: {
         @click="handleFeedback(msg, 'good')"
       >
         <template #icon>
-          <icon-lucide:thumbs-up class="text-14px" />
+          <icon-lucide:thumbs-up class="text-icon-xs" />
         </template>
       </NButton>
       <NButton
@@ -470,7 +470,7 @@ async function handleSourceFileClick(fileInfo: {
         @click="handleFeedback(msg, 'bad')"
       >
         <template #icon>
-          <icon-lucide:thumbs-down class="text-14px" />
+          <icon-lucide:thumbs-down class="text-icon-xs" />
         </template>
       </NButton>
     </div>
@@ -502,7 +502,7 @@ async function handleSourceFileClick(fileInfo: {
 }
 
 .chat-message__author {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   line-height: 1.4;
   color: var(--app-text);
@@ -511,7 +511,7 @@ async function handleSourceFileClick(fileInfo: {
 .chat-message__time {
   font-size: 12px;
   line-height: 1.4;
-  color: rgb(var(--base-text-color) / 0.45);
+  color: var(--app-text-tertiary);
 }
 
 .chat-message__meta {
@@ -674,7 +674,10 @@ async function handleSourceFileClick(fileInfo: {
 }
 
 /* 引用标注：只改样式层——DOM 结构、data-file-id 与解析数据流零改动（AGENTS.md 硬约束）。
-   亮色淡蓝 10% 底胶囊，暗色提亮底 + 派生 400 阶文字（DESIGN.md › citation-chip）。 */
+   亮色淡蓝 10% 底胶囊，暗色提亮底 + 派生 400 阶文字（DESIGN.md › citation-chip）。
+   R10 animate：悬停提亮 + 下划线偏移（DESIGN.md › Motion › 微反馈承诺项）——下划线几何常驻
+   （1px @ 3px 偏移，与 --suspicious 变体同刻度），静止时颜色透明，hover 时 text-decoration-color
+   淡入 currentColor（随两主题文字色自动成立），过渡零布局位移。 */
 .chat-answer :deep(.source-file-link) {
   display: inline-block;
   margin: 0 1px;
@@ -686,12 +689,17 @@ async function handleSourceFileClick(fileInfo: {
   font-weight: 500;
   line-height: 18px;
   cursor: pointer;
-  text-decoration: none;
-  transition: background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
+  text-decoration: underline transparent;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition:
+    background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
+    text-decoration-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
 }
 
 .chat-answer :deep(.source-file-link:hover) {
   background: rgb(var(--primary-color) / 0.16);
+  text-decoration-color: currentColor;
 }
 
 .chat-answer :deep(.source-file-link:active) {

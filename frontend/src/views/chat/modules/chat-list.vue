@@ -27,11 +27,7 @@ function scrollToBottom() {
 const range = ref<[number, number] | null>(null);
 
 // R2 welcome：建议问法来自本会话真实回答过的产品能力（知识库问答/引用溯源/混合检索/总结）
-const suggestions = [
-  'MindBase 的引用标注如何做到可溯源？',
-  '什么是混合检索？',
-  '帮我总结知识库里的内容'
-];
+const suggestions = ['MindBase 的引用标注如何做到可溯源？', '什么是混合检索？', '帮我总结知识库里的内容'];
 
 function applySuggestion(q: string) {
   chatStore.input = { message: q, conversationId: chatStore.conversationId || undefined };
@@ -96,12 +92,12 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
       <NPopover v-if="!showEmpty" trigger="click" placement="bottom-end" :show-arrow="false">
         <template #trigger>
           <button
-            class="chat-filter-toggle absolute right-3 top-3 z-20 h-9 w-9 inline-flex items-center justify-center rounded-10px"
+            class="app-glass-chip chat-filter-toggle absolute right-3 top-3 z-20 h-9 w-9 rounded-full"
             :class="{ 'chat-filter-toggle--active': Array.isArray(range) }"
             aria-label="按日期筛选消息"
             title="按日期筛选消息"
           >
-            <icon-lucide:calendar class="text-18px" />
+            <icon-lucide:calendar class="text-icon" />
           </button>
         </template>
         <div class="chat-filter-panel">
@@ -110,11 +106,13 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
         </div>
       </NPopover>
 
-      <!-- Empty state → welcome（R2 animate+delight）：产品语言直接引导提问，建议问法一键填入输入框；
-           入场为一次性 stagger（250ms emphasized），reduced-motion 下被全局压扁 -->
+      <!--
+ Empty state → welcome（R2 animate+delight）：产品语言直接引导提问，建议问法一键填入输入框；
+           入场为一次性 stagger（250ms emphasized），reduced-motion 下被全局压扁 
+-->
       <div v-if="showEmpty" class="chat-welcome">
-        <div class="chat-welcome__badge">
-          <icon-lucide:message-circle class="text-36px text-[rgb(var(--primary-color))]" />
+        <div class="app-glass-rim chat-welcome__badge">
+          <icon-lucide:message-circle class="text-icon-xl text-[rgb(var(--primary-color))]" />
         </div>
         <div class="chat-welcome__title">
           {{ conversationId ? '开始新对话' : '选择或创建一个对话' }}
@@ -156,24 +154,9 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 </template>
 
 <style scoped lang="scss">
-/* 筛选入口：与左侧 conversation-toggle 同款的悬浮小钮（nav-material + e1），
-   有筛选值时一线蓝标示激活。absolute 相对 chat/index.vue 的画布列定位。 */
-.chat-filter-toggle {
-  background: var(--app-material-nav, var(--app-surface));
-  -webkit-backdrop-filter: var(--app-material-filter, saturate(180%) blur(20px));
-  backdrop-filter: var(--app-material-filter, saturate(180%) blur(20px));
-  color: var(--app-muted);
-  border: 1px solid var(--app-border);
-  box-shadow: var(--app-shadow-e1);
-  cursor: pointer;
-  transition:
-    color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
-    background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
-}
-.chat-filter-toggle:hover {
-  color: rgb(var(--primary-color));
-  background: var(--app-fill-hover, var(--app-subtle));
-}
+/* 筛选入口：胶囊玻璃 chip，材质经 global.scss 的 .app-glass-chip 单源供给——与左侧会话列表开关
+   同尺寸（36px）、同材质、同 12px 缘距节奏（DESIGN.md §12）；此处只保留激活态（有筛选值时一线蓝）。
+   absolute 相对 chat/index.vue 的画布列定位。 */
 .chat-filter-toggle--active,
 .chat-filter-toggle--active:hover {
   color: rgb(var(--primary-color));
@@ -181,10 +164,6 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 .dark .chat-filter-toggle--active,
 .dark .chat-filter-toggle--active:hover {
   color: rgb(var(--primary-400-color));
-}
-.chat-filter-toggle:focus-visible {
-  outline: 2px solid rgb(var(--primary-color) / 0.6);
-  outline-offset: 2px;
 }
 
 /* 弹层内文：Footnote 说明 + 控件层日期选择器 */
@@ -209,6 +188,13 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
   text-align: center;
 }
 
+/* R2 徽标 tile 升为玻璃徽标（R8 bolder，DESIGN.md §12）：azure 玻璃体 = 半透明淡蓝染
+   + 边缘受光 + e1 软影。
+   R9 quieter：发丝线描边移除——描边与 rim 在同一顶缘声明了两次边缘（ghost ring，
+   craft floor「elevation 只声明一次」）；玻璃徽标的形由淡蓝染界 + 受光 + 软影给出。
+   R12 overdrive：受光升级为共享各向异性 rim 环（.app-glass-rim::before，DESIGN.md §18）。
+   不加 backdrop-filter——空态画布是纯白，无内容可折射，玻璃性由透明染+边缘+受光表达，
+   少一层合成。亮 10% / 暗 16% 淡蓝染，与选中态胶囊同一对透明档（DESIGN.md › Chips）。 */
 .chat-welcome__badge {
   display: flex;
   align-items: center;
@@ -216,8 +202,15 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
   width: 80px;
   height: 80px;
   border-radius: 24px;
-  background: rgb(var(--primary-color) / 0.08);
+  background: rgb(var(--primary-color) / 0.1);
+  box-shadow: var(--app-shadow-e1);
   animation: chat-welcome-rise var(--app-dur-base, 250ms) var(--app-ease-emphasized, ease) both;
+}
+
+/* 暗色只抬淡蓝染一档（0.10→0.16，对齐选中态胶囊的暗色档）；边缘高光
+   走共享各向异性 rim 环（.app-glass-rim::before，R12 §18）token 自动换暗值，不另立词汇 */
+.dark .chat-welcome__badge {
+  background: rgb(var(--primary-color) / 0.16);
 }
 
 .chat-welcome__title {
@@ -256,19 +249,38 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
   border: 1px solid var(--app-border);
   border-radius: 9999px;
   background: var(--app-elevated, var(--app-surface));
-  font-size: 13px;
+  font-size: 14px;
   color: var(--app-text-secondary);
   cursor: pointer;
   transition:
     background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
     color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
-    border-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
+    border-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease),
+    transform var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
 }
 
 .chat-welcome__chip:hover {
   border-color: rgb(var(--primary-color) / 0.4);
   background: rgb(var(--primary-color) / 0.08);
   color: rgb(var(--primary-color));
+}
+
+/* R10 animate 复审：建议问法胶囊是原生 button，吃不到全局 .n-button 按压律——补上同一记
+   scale 0.97（DESIGN.md › Motion › 微反馈），与 chip/NButton 家族同一手感；focus-visible
+   与 .app-glass-chip 同规格 */
+.chat-welcome__chip:active {
+  transform: scale(0.97);
+}
+
+.chat-welcome__chip:focus-visible {
+  outline: 2px solid rgb(var(--primary-color) / 0.6);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-welcome__chip:active {
+    transform: none;
+  }
 }
 
 @keyframes chat-welcome-rise {

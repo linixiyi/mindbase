@@ -37,10 +37,16 @@ export const themeSettings: App.Theme.ThemeSetting = {
         'base-text': 'rgb(28, 42, 58)'
       },
       boxShadow: {
-        header: '0 0.5px 0 rgba(28, 42, 58, 0.12)',
+        // R12 overdrive: the 0.5px header hairline left the shadow pipeline — it is now a real
+        // element in global-header whose opacity is scroll-revealed (DESIGN.md §18), colored by
+        // --app-header-hairline in global.scss. Token retired to none like tab (vars.ts keeps
+        // generating --header-box-shadow; the shadow-header consumer is gone with it).
+        header: 'none',
         // Round 3: the sider detached from the window edges — it now carries the elevation-island
-        // shadow instead of the old inset hairline (DESIGN.md › Elevation › elevation-island)
-        sider: '0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.10)',
+        // shadow instead of the old inset hairline (DESIGN.md › Elevation › elevation-island).
+        // R8 bolder: ambient layer widened and faded (12/32 → 16/48 daylight pool), contact kept
+        // tight — mirrors --app-shadow-island in global.scss (same values, two declared homes)
+        sider: '0 1px 2px rgba(0, 0, 0, 0.05), 0 16px 48px rgba(0, 0, 0, 0.08)',
         tab: 'none'
       }
     },
@@ -52,9 +58,12 @@ export const themeSettings: App.Theme.ThemeSetting = {
         'base-text': 'rgb(245, 245, 247)'
       },
       boxShadow: {
-        header: '0 0.5px 0 rgba(235, 235, 245, 0.14)',
-        // Island shadow in dark theme too — same silhouette, heavier ink (DESIGN.md › elevation-island)
-        sider: '0 1px 2px rgba(0, 0, 0, 0.45), 0 12px 32px rgba(0, 0, 0, 0.55)',
+        // R12 overdrive: dark hairline rides the same scroll-revealed element; token retired (see light note)
+        header: 'none',
+        // Island shadow in dark theme too — same silhouette, heavier ink (DESIGN.md › elevation-island);
+        // R8 bolder: ambient widened to 16/48 and eased one step (0.55 → 0.50) so the ink pool
+        // spreads instead of deepening — dark depth still leans on the surface steps
+        sider: '0 1px 2px rgba(0, 0, 0, 0.45), 0 16px 48px rgba(0, 0, 0, 0.50)',
         tab: 'none'
       }
     }
