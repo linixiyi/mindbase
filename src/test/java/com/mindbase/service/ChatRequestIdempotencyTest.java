@@ -64,6 +64,6 @@ class ChatRequestIdempotencyTest {
     private String meta(String generationId, String userId, String status) throws Exception {
         return objectMapper.writeValueAsString(new ChatGenerationStateService.GenerationMeta(
                 generationId, userId, "conv", "什么是 RAG", ChatGenerationStateService.GenerationStatus.valueOf(status),
-                "2026-10-06T10:00", "2026-10-06T10:00", null));
+                "2026-10-06T10:00", "2026-10-06T10:00", null, null));
     }
 }

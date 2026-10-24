@@ -436,6 +436,8 @@ declare namespace Api {
       role: 'user' | 'assistant';
       content: string;
       status?: 'pending' | 'loading' | 'finished' | 'error';
+      /** 失败类别码（pm-001）：PROVIDER_UNAVAILABLE / TIMEOUT / BUSY / RATE_LIMIT / OTHER */
+      errorCategory?: string;
       timestamp?: string;
       conversationId?: string;
       generationId?: string;
@@ -458,6 +460,8 @@ declare namespace Api {
       content: string;
       createdAt: string;
       updatedAt: string;
+      /** 失败类别码（pm-001），FAILED 状态时存在 */
+      errorCategory?: string | null;
       errorMessage?: string | null;
       referenceMappings?: Record<string, ReferenceEvidence>;
     }

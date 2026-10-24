@@ -119,7 +119,7 @@ class ChatHandlerDeadlineTest {
         ChatGenerationStateService state = mock(ChatGenerationStateService.class);
         when(state.createGeneration(anyString(), anyString(), anyString(), anyString())).thenAnswer(invocation ->
                 new ChatGenerationStateService.GenerationSnapshot(invocation.getArgument(0), "7", "conv-1", "q",
-                        ChatGenerationStateService.GenerationStatus.STREAMING, "", "", "", null, Map.of()));
+                        ChatGenerationStateService.GenerationStatus.STREAMING, "", "", "", null, null, Map.of()));
 
         when(tools.executeTool(eq("search_knowledge"), anyMap(), anyString(), any())).thenReturn(
                 new AgentToolRegistry.ToolExecutionResult("search_knowledge", true, "[1] 技术负责人是陆遥川", Map.of(), false));

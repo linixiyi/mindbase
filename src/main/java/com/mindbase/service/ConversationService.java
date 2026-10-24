@@ -27,12 +27,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class ConversationService {
 
     private static final Logger logger = LoggerFactory.getLogger(ConversationService.class);
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
+    /**
+     * 失败回合标记（pm-001）：不改表结构，复用 answer 字段承载失败态，
+     * 格式「[回答失败|错误类别]统一用户话术」；读取端据此还原 status=error + errorCategory。
+     * 类别码与 ChatHandler.ChatFailureCategory / 前端 chat-failure 字典一一对应。
+     */
+    static final String FAILURE_ANSWER_PREFIX = "[回答失败|";
+    private static final Pattern FAILURE_ANSWER_PATTERN = Pattern.compile("^\\[回答失败\\|([A-Z_]+)\\]");
 
     @Autowired
     private ConversationRepository conversationRepository;
@@ -77,6 +87,41 @@ public class ConversationService {
         conversation.setReferenceMappingsJson(writeReferenceMappings(referenceMappings));
 
         conversationRepository.save(conversation);
+    }
+
+    /**
+     * 失败回合落库（pm-001）：用户提问原文 + 失败态回复（answer 带失败标记前缀），
+     * 让失败问答刷新后仍在历史中可见；成功回答不走这里。
+     */
+    @Transactional
+    public void recordFailedConversation(Long userId, String question, String conversationId,
+                                         String errorCategory, String userFacingMessage) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException("User not found", HttpStatus.NOT_FOUND));
+
+        saveConversation(user, question, buildFailureAnswer(errorCategory, userFacingMessage), conversationId, null);
+        updateSessionTitleIfDefault(conversationId, question);
+        touchSessionUpdatedAt(conversationId);
+    }
+
+    static String buildFailureAnswer(String errorCategory, String userFacingMessage) {
+        String category = errorCategory == null || errorCategory.isBlank() ? "OTHER" : errorCategory;
+        return FAILURE_ANSWER_PREFIX + category + "]" + (userFacingMessage == null ? "" : userFacingMessage);
+    }
+
+    /** 解出失败回合标记：非失败回答返回 null */
+    private static DecodedFailure decodeFailureAnswer(String answer) {
+        if (answer == null) {
+            return null;
+        }
+        Matcher matcher = FAILURE_ANSWER_PATTERN.matcher(answer);
+        if (!matcher.find()) {
+            return null;
+        }
+        return new DecodedFailure(matcher.group(1), answer.substring(matcher.end()));
+    }
+
+    private record DecodedFailure(String errorCategory, String content) {
     }
 
     // ---- ConversationSession management ----
@@ -269,6 +314,8 @@ public class ConversationService {
                     String messageConversationId = conversation.getConversationId() != null
                             ? conversation.getConversationId()
                             : String.valueOf(conversation.getId());
+                    // 失败回合（pm-001）：还原 status=error + errorCategory，回复内容去掉标记前缀
+                    DecodedFailure failure = decodeFailureAnswer(conversation.getAnswer());
 
                     messages.add(buildMessage(
                             "user",
@@ -276,15 +323,19 @@ public class ConversationService {
                             timestamp,
                             messageConversationId,
                             null,
-                            includeUsername ? conversation.getUser().getUsername() : null
+                            includeUsername ? conversation.getUser().getUsername() : null,
+                            null,
+                            null
                     ));
                     messages.add(buildMessage(
                             "assistant",
-                            conversation.getAnswer(),
+                            failure != null ? failure.content() : conversation.getAnswer(),
                             timestamp,
                             messageConversationId,
                             parseReferenceMappings(conversation.getReferenceMappingsJson()),
-                            includeUsername ? conversation.getUser().getUsername() : null
+                            includeUsername ? conversation.getUser().getUsername() : null,
+                            failure != null ? "error" : null,
+                            failure != null ? failure.errorCategory() : null
                     ));
                 });
 
@@ -292,7 +343,8 @@ public class ConversationService {
     }
 
     private Map<String, Object> buildMessage(String role, String content, String timestamp, String conversationId,
-                                             Map<String, Map<String, Object>> referenceMappings, String username) {
+                                             Map<String, Map<String, Object>> referenceMappings, String username,
+                                             String status, String errorCategory) {
         Map<String, Object> message = new HashMap<>();
         message.put("role", role);
         message.put("content", content);
@@ -307,6 +359,12 @@ public class ConversationService {
         }
         if (username != null && !username.isBlank()) {
             message.put("username", username);
+        }
+        if (status != null) {
+            message.put("status", status);
+        }
+        if (errorCategory != null) {
+            message.put("errorCategory", errorCategory);
         }
         return message;
     }
