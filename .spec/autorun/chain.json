@@ -1,36 +1,28 @@
 {
-  "chain": "ui-beautification",
-  "plan": ".spec/plans/ui-beautification.md",
+  "chain": "pm-experience-upgrade",
+  "plan": ".spec/plans/pm-experience-upgrade.md",
   "mode": "in-session (zcode has no spawn CLI; fresh-session continuation substituted by main session, disclosed per contract)",
-  "roundCap": "unbounded (user pre-authorized unlimited rounds)",
+  "roundCap": "unbounded (user pre-authorized continuation until features complete)",
   "pushPolicy": "local merge to main only; remote push withheld per AGENTS.md hard rule pending explicit user authorization",
+  "division": "GLM-5.3 plans (PM audit / round planning); GLM-5.3-Flash writes code (implementation workflows)",
   "rounds": [
     {
       "round": 1,
       "features": [
-        "colorize+quieter",
-        "layout+typeset"
+        "F1",
+        "F2",
+        "F3"
       ],
-      "slug": "2026-10-20_beautify-ui-surface",
-      "status": "done (archived)"
+      "slug": "2026-10-24_audit-pm-experience",
+      "status": "done (F1-F3: LLM E2E 恢复 + 体验日志 + backlog 34 项)"
     },
     {
       "round": 2,
       "features": [
-        "animate+delight",
-        "bolder+overdrive"
+        "F4"
       ],
-      "slug": "2026-10-20_beautify-ui-experience",
-      "status": "done (archived)"
-    },
-    {
-      "round": 3,
-      "features": [
-        "收口验证"
-      ],
-      "slug": "2026-10-20_beautify-ui-closeout",
-      "status": "done (archived)"
+      "slug": "2026-10-24_fix-p0-experience",
+      "status": "active"
     }
-  ],
-  "status": "completed 5/5"
+  ]
 }
