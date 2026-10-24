@@ -1,6 +1,8 @@
 package com.mindbase.repository;
 
 import com.mindbase.model.Conversation;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -30,7 +32,7 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
      */
     @EntityGraph(attributePaths = "user")
     List<Conversation> findByUserIdOrderByTimestampAsc(Long userId);
-    
+
     /**
      * 根据时间范围查询所有对话记录。
      *
@@ -45,4 +47,18 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     List<Conversation> findAllByOrderByTimestampAsc();
 
     List<Conversation> findByConversationIdOrderByTimestampAsc(String conversationId);
+
+    // ---- 分页查询（管理端聊天记录，pm-008）：按 (timestamp, id) 双键稳定排序，与 toMessageHistory 的排序一致 ----
+
+    @EntityGraph(attributePaths = "user")
+    Page<Conversation> findByUserIdAndTimestampBetweenOrderByTimestampAscIdAsc(Long userId, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable);
+
+    @EntityGraph(attributePaths = "user")
+    Page<Conversation> findByUserIdOrderByTimestampAscIdAsc(Long userId, Pageable pageable);
+
+    @EntityGraph(attributePaths = "user")
+    Page<Conversation> findByTimestampBetweenOrderByTimestampAscIdAsc(LocalDateTime startDate, LocalDateTime endDate, Pageable pageable);
+
+    @EntityGraph(attributePaths = "user")
+    Page<Conversation> findAllByOrderByTimestampAscIdAsc(Pageable pageable);
 }

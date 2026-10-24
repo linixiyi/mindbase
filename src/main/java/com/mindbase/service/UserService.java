@@ -17,6 +17,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -76,8 +77,48 @@ public class UserService {
     @Autowired
     private UsageQuotaService usageQuotaService;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    /**
+     * 用户禁用标记（pm-012）。
+     * 红线「不改数据库表结构」约束下，users 表无 enabled 列，禁用态以 Redis 持久键（无 TTL）承载：
+     * 写入 = 禁用、删除 = 启用，两者均幂等。注意 Redis 数据丢失会使禁用态回退为启用（已在实现说明标注）。
+     */
+    private static final String DISABLED_USER_KEY_PREFIX = "user:status:disabled:";
+
     @Value("${spring.servlet.multipart.max-file-size:50MB}")
     private String globalUploadMaxFileSize;
+
+    /** 查询用户是否被禁用（禁用态读取失败时按未禁用处理，避免 Redis 抖动误伤正常登录） */
+    public boolean isUserDisabled(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        try {
+            return Boolean.TRUE.equals(stringRedisTemplate.hasKey(DISABLED_USER_KEY_PREFIX + userId));
+        } catch (Exception e) {
+            logger.error("查询用户禁用状态失败: userId={}", userId, e);
+            return false;
+        }
+    }
+
+    /** 设置用户启用/禁用（幂等）：禁用写持久标记，启用删标记 */
+    public void setUserEnabled(Long userId, boolean enabled) {
+        String key = DISABLED_USER_KEY_PREFIX + userId;
+        try {
+            if (enabled) {
+                stringRedisTemplate.delete(key);
+                logger.info("用户已启用: userId={}", userId);
+            } else {
+                stringRedisTemplate.opsForValue().set(key, "1");
+                logger.info("用户已禁用: userId={}", userId);
+            }
+        } catch (Exception e) {
+            logger.error("更新用户启用状态失败: userId={}, enabled={}", userId, enabled, e);
+            throw new CustomException("更新用户状态失败，请稍后重试", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 
     /**
      * 注册新用户。
@@ -248,6 +289,11 @@ public class UserService {
         if (!PasswordUtil.matches(password, user.getPassword())) {
             // 若不匹配，抛出自定义异常，状态码为 401 Unauthorized
             throw new CustomException("Invalid username or password", HttpStatus.UNAUTHORIZED);
+        }
+        // 禁用账号拒绝登录（pm-012）：与密码校验分开返回明确文案
+        if (isUserDisabled(user.getId())) {
+            logger.warn("禁用用户尝试登录: username={}, userId={}", username, user.getId());
+            throw new CustomException("账号已被禁用，请联系管理员", HttpStatus.FORBIDDEN);
         }
         // 认证成功，返回用户的用户名
         return user.getUsername();
@@ -784,6 +830,8 @@ public class UserService {
                     userMap.put("orgTags", orgTagDetails);
                     userMap.put("primaryOrg", user.getPrimaryOrg());
                     userMap.put("status", user.getRole() == User.Role.USER ? 1 : 0);
+                    // 禁用态（pm-012）：前端启停开关以此为准，未禁用的用户恒为 true
+                    userMap.put("enabled", !isUserDisabled(user.getId()));
                     userMap.put("createdAt", user.getCreatedAt());
                     userMap.put("usage", usageSnapshots.getOrDefault(
                             String.valueOf(user.getId()),

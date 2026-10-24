@@ -50,8 +50,38 @@ const appliedParams = ref<{ userid?: number; start_date?: string; end_date?: str
 
 const hasActiveFilters = computed(() => Boolean(appliedParams.value.userid || appliedParams.value.start_date));
 
+/** 管理端对话历史分页（pm-008）：page/size 以问答回合为单位，服务端分页 */
+interface ConversationHistoryPage {
+  records: Api.Chat.Message[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+const DEFAULT_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+const pagination = reactive({
+  page: 1,
+  pageSize: DEFAULT_PAGE_SIZE,
+  itemCount: 0
+});
+
+function changePage(page: number) {
+  pagination.page = page;
+  getList();
+}
+
+function changePageSize(pageSize: number) {
+  pagination.pageSize = pageSize;
+  pagination.page = 1;
+  getList();
+}
+
 async function searchHistory() {
   appliedParams.value = { ...params.value };
+  pagination.page = 1;
   await getList();
 }
 
@@ -66,12 +96,13 @@ onMounted(getList);
 async function getList() {
   loading.value = true;
   errorMsg.value = '';
-  const { error, data } = await request<Api.Chat.Message[]>({
+  const { error, data } = await request<ConversationHistoryPage>({
     url: 'admin/conversation',
-    params: appliedParams.value
+    params: { ...appliedParams.value, page: pagination.page, size: pagination.pageSize }
   });
   if (!error) {
-    list.value = data;
+    list.value = data.records;
+    pagination.itemCount = data.totalElements;
     scrollToBottom();
   } else {
     errorMsg.value = '无法连接到记录服务，请检查网络后重试';
@@ -149,6 +180,20 @@ async function getList() {
         </div>
       </NSpin>
     </NScrollbar>
+
+    <!-- 服务端分页（pm-008）：仅渲染当前页，page/size 走查询参数 -->
+    <div v-if="!errorMsg && pagination.itemCount > 0" class="history-pagination">
+      <NPagination
+        :page="pagination.page"
+        :page-size="pagination.pageSize"
+        :item-count="pagination.itemCount"
+        :page-sizes="PAGE_SIZE_OPTIONS"
+        show-size-picker
+        :disabled="loading"
+        @update:page="changePage"
+        @update:page-size="changePageSize"
+      />
+    </div>
   </div>
 </template>
 
@@ -169,6 +214,15 @@ async function getList() {
   flex-shrink: 0;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--app-border);
+}
+
+/* 分页收束页脚：与筛选行同律的发丝线，页码居中（服务端分页，pm-008） */
+.history-pagination {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-border);
 }
 
 .history-messages {

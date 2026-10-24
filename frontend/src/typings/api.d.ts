@@ -127,6 +127,8 @@ declare namespace Api {
       userId: string;
       username: string;
       status: number;
+      /** 后端禁用/启用端点落地后下发；缺省时回退 status 展示 */
+      enabled?: boolean;
       orgTags: Pick<OrgTag.Item, 'tagId' | 'name'>[];
       primaryOrg: string;
       createdAt: string;
@@ -476,6 +478,31 @@ declare namespace Api {
     }
   }
 
+  /** 文件处理死信：GET /admin/dead-letters + POST /admin/dead-letters/{id}/replay */
+  namespace DeadLetter {
+    interface Item {
+      id: number;
+      fileMd5: string | null;
+      taskType: string | null;
+      /** 文件处理任务 JSON，重放时原样回投 */
+      payload: string | null;
+      errorMessage: string | null;
+      /** 死信记录自身在 DLT 中的位置 */
+      sourceTopic: string;
+      sourcePartition: number;
+      sourceOffset: number;
+      createdAt: string;
+    }
+
+    interface ListPayload {
+      records: Item[];
+      total: number;
+      pages: number;
+      current: number;
+      size: number;
+    }
+  }
+
   namespace Document {
     interface DownloadResponse {
       fileName: string;
@@ -486,6 +513,152 @@ declare namespace Api {
 
     interface ReferenceDetailResponse extends Chat.ReferenceEvidence {
       referenceNumber: number;
+    }
+  }
+
+  /** 疑似文档冲突：POST /admin/document-conflicts/{id}/resolve 的人工裁决 */
+  namespace DocumentConflict {
+    type Status = 'PENDING' | 'KEEP_NEW' | 'KEEP_EXISTING' | 'IGNORED' | 'OBSOLETE';
+
+    interface Item {
+      id: number;
+      pairKey: string;
+      newFileMd5: string;
+      newChunkId: number;
+      newFileName: string | null;
+      existingFileMd5: string;
+      existingChunkId: number;
+      existingFileName: string | null;
+      similarity: number;
+      maskedSimilarity: number | null;
+      newSnippet: string | null;
+      existingSnippet: string | null;
+      newValues: string | null;
+      existingValues: string | null;
+      llmReason: string | null;
+      status: Status;
+      createdAt: string;
+      resolvedBy: string | null;
+      resolvedAt: string | null;
+      resolutionNote: string | null;
+    }
+
+    interface ListPayload {
+      records: Item[];
+      total: number;
+      pages: number;
+      current: number;
+      size: number;
+    }
+  }
+
+  /** 知识索引管理：GET/POST /admin/knowledge-index */
+  namespace KnowledgeIndex {
+    interface IndexInfo {
+      name: string;
+      live: boolean;
+      meta: Record<string, string>;
+      docCount: number;
+    }
+
+    type RebuildState = 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+
+    interface RebuildStatus {
+      state: RebuildState;
+      phase: string;
+      targetProvider: string;
+      targetModelVersion: string;
+      targetIndex: string;
+      previousIndex: string | null;
+      totalFiles: number;
+      processedFiles: number;
+      skippedFiles: number;
+      indexedChunks: number;
+      expectedChunks: number;
+      actualChunks: number;
+      message: string | null;
+      startedAt: string;
+      finishedAt: string | null;
+    }
+
+    interface Overview {
+      liveIndex: string | null;
+      legacyConcreteIndex: boolean;
+      indices: IndexInfo[];
+      rebuild: RebuildStatus | null;
+    }
+  }
+
+  /** 离线 RAG 评测：POST /admin/eval/run + GET /admin/eval/runs */
+  namespace RagEval {
+    type RunState = 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+
+    interface EvalSummary {
+      totalCases: number;
+      labeledCases: number;
+      retrievalHits: number;
+      recallAtK: number | null;
+      mrr: number | null;
+      docRecallAtK: number | null;
+      evidenceLabeledCases: number;
+      meanExpectedDocCoverage: number | null;
+      judgedCases: number;
+      correctCases: number;
+      meanJudgeScore: number | null;
+      accuracy: number | null;
+      needsHumanReviewCount: number;
+      failedCases: number;
+      retrievalModeCounts: Record<string, number>;
+      diagnosisCounts: Record<string, number>;
+    }
+
+    interface HumanAgreement {
+      status: 'NO_REVIEWS' | 'INSUFFICIENT_SAMPLE' | 'OK' | 'NEEDS_RECALIBRATION';
+      warning: string | null;
+      reviewedCases: number;
+      comparableCases: number;
+      agreedCases: number;
+      agreementRate: number | null;
+      cohensKappa: number | null;
+      judgeCorrectRate: number | null;
+      humanCorrectRate: number | null;
+      scoredCases: number;
+      meanAbsoluteScoreDiff: number | null;
+      humanOnlyCases: number;
+      disagreementCaseIds: string[];
+    }
+
+    interface RunStatus {
+      runId: string;
+      label: string;
+      datasetSource: string;
+      topK: number;
+      state: RunState;
+      totalCases: number;
+      completedCases: number;
+      operator: string;
+      reportPath: string | null;
+      summary: EvalSummary | null;
+      humanAgreement: HumanAgreement | null;
+      message: string | null;
+      startedAt: string;
+      finishedAt: string | null;
+    }
+
+    interface ReportPayload {
+      runId: string;
+      label: string;
+      datasetSource: string;
+      topK: number;
+      startedAt: string;
+      finishedAt: string | null;
+      config: Record<string, unknown>;
+      summary: EvalSummary;
+      diagnosisGuide: Record<string, string>;
+      humanReview?: {
+        reviews?: unknown[];
+        agreement?: HumanAgreement;
+      };
     }
   }
 }

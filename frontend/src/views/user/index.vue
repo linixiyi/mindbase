@@ -1,6 +1,6 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
-import { NButton, NTag } from 'naive-ui';
+import { NButton, NPopconfirm, NTag } from 'naive-ui';
 import UserSearch from './modules/user-search.vue';
 import OrgTagSettingDialog from './modules/org-tag-setting-dialog.vue';
 import TokenQuotaDialog from './modules/token-quota-dialog.vue';
@@ -10,6 +10,15 @@ const authStore = useAuthStore();
 
 function apiFn(params: Api.User.SearchParams) {
   return request<Api.User.List>({ url: '/admin/users/list', params });
+}
+
+/** 后端下发 enabled 后以它为准；未下发时回退既有 status 展示 */
+function isRowEnabled(row: Api.User.Item) {
+  return row.enabled ?? row.status === 1;
+}
+
+function isSelfRow(row: Api.User.Item) {
+  return String(authStore.userInfo.id) === String(row.userId);
 }
 
 const {
@@ -59,8 +68,8 @@ const {
       title: '是否启用',
       width: 100,
       render: row => (
-        <NTag bordered={false} type={row.status ? 'success' : 'warning'}>
-          {row.status ? '已启用' : '已禁用'}
+        <NTag bordered={false} type={isRowEnabled(row) ? 'success' : 'warning'}>
+          {isRowEnabled(row) ? '已启用' : '已禁用'}
         </NTag>
       )
     },
@@ -126,7 +135,7 @@ const {
     {
       key: 'operate',
       title: '操作',
-      width: 230,
+      width: 330,
       render: row => (
         <div class="flex gap-2">
           <NButton type="primary" quaternary size="small" onClick={() => handleOrgTag(row)}>
@@ -137,11 +146,57 @@ const {
               追加 Token
             </NButton>
           ) : null}
+          {renderStatusAction(row)}
         </div>
       )
     }
   ]
 });
+
+function renderStatusAction(row: Api.User.Item) {
+  if (isSelfRow(row)) {
+    return null;
+  }
+  if (isRowEnabled(row)) {
+    return (
+      <NPopconfirm onPositiveClick={() => handleToggleStatus(row, false)}>
+        {{
+          default: () => `禁用后 ${row.username} 将无法登录，确认继续吗？`,
+          trigger: () => (
+            <NButton type="warning" quaternary size="small">
+              禁用
+            </NButton>
+          )
+        }}
+      </NPopconfirm>
+    );
+  }
+  return (
+    <NPopconfirm onPositiveClick={() => handleToggleStatus(row, true)}>
+      {{
+        default: () => `启用后 ${row.username} 可重新登录，确认继续吗？`,
+        trigger: () => (
+          <NButton type="primary" quaternary size="small">
+            启用
+          </NButton>
+        )
+      }}
+    </NPopconfirm>
+  );
+}
+
+async function handleToggleStatus(row: Api.User.Item, enabled: boolean) {
+  const { error } = await request({
+    url: `/admin/users/${row.userId}/status`,
+    method: 'patch',
+    data: { enabled }
+  });
+
+  if (!error) {
+    window.$message?.success(enabled ? `已启用 ${row.username}` : `已禁用 ${row.username}`);
+    await getData();
+  }
+}
 
 const visible = ref(false);
 const editingData = ref<Api.User.Item | null>(null);
@@ -187,7 +242,7 @@ function handleTokenQuota(row: Api.User.Item) {
         :data="data"
         size="small"
         :flex-height="!appStore.isMobile"
-        :scroll-x="1400"
+        :scroll-x="1500"
         :loading="loading"
         remote
         :row-key="row => row.userId"

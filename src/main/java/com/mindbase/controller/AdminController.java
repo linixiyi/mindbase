@@ -1,6 +1,7 @@
 package com.mindbase.controller;
 
 import com.mindbase.exception.CustomException;
+import com.mindbase.model.Conversation;
 import com.mindbase.model.OrganizationTag;
 import com.mindbase.model.RechargePackage;
 import com.mindbase.model.User;
@@ -19,6 +20,7 @@ import com.mindbase.utils.JwtUtils;
 import com.mindbase.utils.LogUtils;
 import com.mindbase.utils.MinioMigrationUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -754,24 +756,99 @@ public class AdminController {
         String trimmed = reason.trim();
         return trimmed.length() > 200 ? trimmed.substring(0, 200) : trimmed;
     }
+
+    /**
+     * 启用/禁用用户（pm-012）。
+     * 幂等：重复提交同一状态为无变化成功；禁用后该用户登录被拒（authenticateUser 拦截）、
+     * 既有 token 经 invalidateAllUserTokens 全部失效；不禁用管理员自己以防锁死。
+     */
+    @PatchMapping("/users/{userId}/status")
+    public ResponseEntity<?> updateUserStatus(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long userId,
+            @RequestBody UpdateUserStatusRequest request) {
+
+        LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("ADMIN_UPDATE_USER_STATUS");
+        String adminUsername = null;
+        try {
+            adminUsername = jwtUtils.extractUsernameFromToken(token.replace("Bearer ", ""));
+            User admin = validateAdmin(adminUsername);
+
+            if (request.enabled() == null) {
+                throw new CustomException("enabled 参数不能为空", HttpStatus.BAD_REQUEST);
+            }
+            // 不允许禁用当前登录的管理员自己，避免把自己锁在门外
+            if (!request.enabled() && admin.getId().equals(userId)) {
+                throw new CustomException("不能禁用当前登录的管理员账号", HttpStatus.BAD_REQUEST);
+            }
+
+            User targetUser = userRepository.findById(userId)
+                    .orElseThrow(() -> new CustomException("目标用户不存在", HttpStatus.NOT_FOUND));
+
+            boolean alreadyDisabled = userService.isUserDisabled(userId);
+            if (request.enabled() == !alreadyDisabled) {
+                // 幂等：目标状态与现状一致，直接返回当前状态
+                LogUtils.logBusiness("ADMIN_UPDATE_USER_STATUS", adminUsername,
+                        "用户状态无变化（幂等）：userId=%d, enabled=%s", userId, request.enabled());
+            } else {
+                userService.setUserEnabled(userId, request.enabled());
+                if (!request.enabled()) {
+                    // 禁用即时踢出该用户全部已登录会话（复用既有批量登出链路）
+                    jwtUtils.invalidateAllUserTokens(String.valueOf(userId));
+                }
+                LogUtils.logBusiness("ADMIN_UPDATE_USER_STATUS", adminUsername,
+                        "管理员更新用户状态：userId=%d, username=%s, enabled=%s",
+                        userId, targetUser.getUsername(), request.enabled());
+                LogUtils.logUserOperation(adminUsername, "ADMIN_UPDATE_USER_STATUS",
+                        String.valueOf(userId), request.enabled() ? "ENABLED" : "DISABLED");
+            }
+
+            monitor.end(request.enabled() ? "用户已启用" : "用户已禁用");
+            return ResponseEntity.ok(Map.of(
+                    "code", 200,
+                    "message", request.enabled() ? "用户已启用" : "用户已禁用",
+                    "data", Map.of(
+                            "userId", userId,
+                            "username", targetUser.getUsername(),
+                            "enabled", request.enabled()
+                    )
+            ));
+        } catch (CustomException e) {
+            LogUtils.logBusinessError("ADMIN_UPDATE_USER_STATUS", adminUsername, "更新用户状态失败: %s", e, e.getMessage());
+            monitor.end("更新用户状态失败: " + e.getMessage());
+            return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));
+        } catch (Exception e) {
+            LogUtils.logBusinessError("ADMIN_UPDATE_USER_STATUS", adminUsername, "更新用户状态异常: %s", e, e.getMessage());
+            monitor.end("更新用户状态异常: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("code", 500, "message", "更新用户状态失败: " + e.getMessage()));
+        }
+    }
     
     /**
-     * 管理员查询所有对话历史
+     * 管理员分页查询所有对话历史（pm-008）
+     * page/size 以「问答回合」为单位（一条记录展开为 user+assistant 两条消息），
+     * 无全量分支：当前唯一消费方是管理端聊天记录页，无导出类场景。
      */
     @GetMapping("/conversation")
     public ResponseEntity<?> getAllConversations(
             @RequestHeader("Authorization") String token,
             @RequestParam(required = false) String userid,
             @RequestParam(required = false) String start_date,
-            @RequestParam(required = false) String end_date) {
-        
+            @RequestParam(required = false) String end_date,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("ADMIN_GET_ALL_CONVERSATIONS");
         String adminUsername = null;
         try {
             adminUsername = jwtUtils.extractUsernameFromToken(token.replace("Bearer ", ""));
             validateAdmin(adminUsername);
-            
-            LogUtils.logBusiness("ADMIN_GET_ALL_CONVERSATIONS", adminUsername, "管理员开始查询持久化对话历史，目标用户ID: %s, 时间范围: %s 到 %s", userid, start_date, end_date);
+
+            int pageNumber = Math.max(page, 1);
+            int pageSize = Math.min(Math.max(size, 1), 100);
+
+            LogUtils.logBusiness("ADMIN_GET_ALL_CONVERSATIONS", adminUsername, "管理员开始分页查询持久化对话历史，目标用户ID: %s, 时间范围: %s 到 %s, page=%d, size=%d", userid, start_date, end_date, pageNumber, pageSize);
 
             String targetUsername = null;
             if (userid != null && !userid.isEmpty()) {
@@ -795,22 +872,30 @@ public class AdminController {
 
             LocalDateTime startDateTime = parseStartDate(start_date);
             LocalDateTime endDateTime = parseEndDate(end_date);
-            List<Map<String, Object>> allConversations = conversationService.toMessageHistory(
-                    conversationService.getAllConversations(adminUsername, targetUsername, startDateTime, endDateTime),
-                    true
-            );
+            Page<Conversation> conversationPage = conversationService.getAllConversations(
+                    adminUsername, targetUsername, startDateTime, endDateTime, pageNumber, pageSize);
+            List<Map<String, Object>> pageMessages = conversationService.toMessageHistory(conversationPage.getContent(), true);
 
-            LogUtils.logBusiness("ADMIN_GET_ALL_CONVERSATIONS", adminUsername, "管理员查询完成，共获取到 %d 条历史消息", allConversations.size());
+            LogUtils.logBusiness("ADMIN_GET_ALL_CONVERSATIONS", adminUsername,
+                    "管理员查询完成，本页 %d 条问答记录（%d 条消息），总计 %d 条",
+                    conversationPage.getNumberOfElements(), pageMessages.size(), conversationPage.getTotalElements());
             LogUtils.logUserOperation(adminUsername, "ADMIN_GET_ALL_CONVERSATIONS", "conversation_history", "SUCCESS");
             monitor.end("管理员查询对话历史成功");
-            
-            // 构建统一响应格式
+
+            // 构建统一响应格式：data 内含当前页消息与分页元信息
+            Map<String, Object> data = new HashMap<>();
+            data.put("records", pageMessages);
+            data.put("page", conversationPage.getNumber() + 1);
+            data.put("size", conversationPage.getSize());
+            data.put("totalElements", conversationPage.getTotalElements());
+            data.put("totalPages", conversationPage.getTotalPages());
+
             Map<String, Object> response = new HashMap<>();
             response.put("code", 200);
-            response.put("message", "获取对话历史成功");  
-            response.put("data", allConversations);
+            response.put("message", "获取对话历史成功");
+            response.put("data", data);
             return ResponseEntity.ok().body(response);
-            
+
         } catch (CustomException e) {
             LogUtils.logBusinessError("ADMIN_GET_ALL_CONVERSATIONS", adminUsername, "管理员获取对话历史失败: %s", e, e.getMessage());
             monitor.end("管理员获取对话历史失败: " + e.getMessage());
@@ -1235,6 +1320,8 @@ record OrgTagRequest(String tagId, String name, String description, String paren
 record AssignOrgTagsRequest(List<String> orgTags) {}
 
 record AddUserTokenRequest(Long llmToken, Long embeddingToken, String reason) {}
+
+record UpdateUserStatusRequest(Boolean enabled) {}
 
 // 添加组织标签更新请求记录类
 record OrgTagUpdateRequest(String name, String description, String parentTag, Long uploadMaxSizeMb) {}

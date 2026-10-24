@@ -12,6 +12,9 @@ const overviewError = ref('');
 const rateLimitLoading = ref(false);
 const rateLimitSaving = ref(false);
 const rateLimits = ref<Api.Admin.RateLimitSettings | null>(null);
+// 限流配置读取失败态（pm-011）：失败不回填硬编码默认值，进入与总览一致的错误态并禁用保存，
+// 避免一次网络抖动 + 一次顺手保存就用客户端猜测值覆盖线上真实限流参数
+const rateLimitError = ref('');
 
 // Chart series colors derive from the active Naive theme (token pipeline), so both
 // themes and the indigo accent stay consistent without hardcoding hex values.
@@ -38,39 +41,6 @@ async function getOverview() {
     overviewError.value = '无法获取用量数据，请检查网络后重试';
   }
   overviewLoading.value = false;
-}
-
-function createDefaultRateLimitSettings(): Api.Admin.RateLimitSettings {
-  return {
-    chatMessage: {
-      max: 30,
-      windowSeconds: 60
-    },
-    llmGlobalToken: {
-      minuteMax: 120000,
-      minuteWindowSeconds: 60,
-      dayMax: 8000000,
-      dayWindowSeconds: 86400
-    },
-    embeddingUploadToken: {
-      minuteMax: 200000,
-      minuteWindowSeconds: 60,
-      dayMax: 20000000,
-      dayWindowSeconds: 86400
-    },
-    embeddingQueryRequest: {
-      minuteMax: 60,
-      minuteWindowSeconds: 60,
-      dayMax: 5000,
-      dayWindowSeconds: 86400
-    },
-    embeddingQueryGlobalToken: {
-      minuteMax: 60000,
-      minuteWindowSeconds: 60,
-      dayMax: 4000000,
-      dayWindowSeconds: 86400
-    }
-  };
 }
 
 function cloneTokenBudgetLimit(payload?: Partial<Api.Admin.TokenBudgetLimit> | null): Api.Admin.TokenBudgetLimit {
@@ -112,14 +82,16 @@ async function getRateLimits() {
 
   if (!error && data) {
     rateLimits.value = cloneRateLimitSettings(data);
+    rateLimitError.value = '';
   } else if (!rateLimits.value) {
-    rateLimits.value = createDefaultRateLimitSettings();
+    // 无缓存可用时进入错误态（pm-011）：不回填硬编码默认值，保存按钮同步禁用
+    rateLimitError.value = '无法获取限流配置，请检查网络后重试';
   }
   rateLimitLoading.value = false;
 }
 
 async function submitRateLimits() {
-  if (!rateLimits.value) {
+  if (!rateLimits.value || rateLimitError.value) {
     return;
   }
 
@@ -287,12 +259,37 @@ onMounted(() => {
       <template #header>调用限流配置</template>
       <template #header-extra>
         <div class="flex items-center gap-2">
-          <NButton type="primary" size="small" :loading="rateLimitSaving" @click="submitRateLimits">保存配置</NButton>
+          <NButton
+            type="primary"
+            size="small"
+            :loading="rateLimitSaving"
+            :disabled="!rateLimits || Boolean(rateLimitError)"
+            @click="submitRateLimits"
+          >
+            保存配置
+          </NButton>
         </div>
       </template>
 
       <NSpin :show="rateLimitLoading">
-        <div v-if="rateLimits" class="limits-layout">
+        <!--
+          读取失败态（pm-011）：与总览错误态同律（azure 徽标 error 变体 + 原因 + 重试），
+          不再回填默认值渲染可编辑表单
+        -->
+        <div v-if="rateLimitError && !rateLimits" class="usage-state usage-state--error">
+          <div class="app-state-badge app-state-badge--error">
+            <icon-lucide:circle-alert class="text-icon-large" />
+          </div>
+          <p class="usage-state__title">限流配置加载失败</p>
+          <p class="usage-state__desc">{{ rateLimitError }}</p>
+          <NButton size="small" :disabled="rateLimitLoading" @click="getRateLimits">
+            <template #icon>
+              <icon-lucide:rotate-cw />
+            </template>
+            重试
+          </NButton>
+        </div>
+        <div v-else-if="rateLimits" class="limits-layout">
           <div class="limit-card">
             <div class="limit-title">聊天消息</div>
             <div class="limit-grid">

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import com.mindbase.model.User;
 import com.mindbase.repository.UserRepository;
 import com.mindbase.service.TokenCacheService;
+import com.mindbase.service.UserService;
 
 import javax.crypto.SecretKey;
 import java.util.Base64;
@@ -33,9 +34,12 @@ public class JwtUtils {
     
     @Autowired
     private UserRepository userRepository;
-    
+
     @Autowired
     private TokenCacheService tokenCacheService;
+
+    @Autowired
+    private UserService userService;
 
     /**
      * 解析 Base64 密钥，并返回 SecretKey
@@ -50,10 +54,17 @@ public class JwtUtils {
      */
     public String generateToken(String username) {
         SecretKey key = getSigningKey(); // 解析密钥
-        
+
         // 获取用户信息
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // 禁用账号不再签发新 token（pm-012）：登录已被 authenticateUser 拦截，
+        // 这里收口 token 过期宽限期刷新等旁路，防止禁用用户绕过限制拿到新 token
+        if (userService.isUserDisabled(user.getId())) {
+            logger.warn("Refuse to generate token for disabled user: {}", username);
+            throw new RuntimeException("User is disabled");
+        }
         
         // 生成唯一的tokenId
         String tokenId = generateTokenId();

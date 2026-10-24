@@ -63,6 +63,30 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'conflict-resolution',
+    path: '/conflict-resolution',
+    component: 'layout.base$view.conflict-resolution',
+    meta: {
+      title: 'conflict-resolution',
+      i18nKey: 'route.conflict-resolution',
+      roles: ['ADMIN'],
+      icon: 'lucide:scale',
+      order: 10
+    }
+  },
+  {
+    name: 'dead-letter',
+    path: '/dead-letter',
+    component: 'layout.base$view.dead-letter',
+    meta: {
+      title: 'dead-letter',
+      i18nKey: 'route.dead-letter',
+      roles: ['ADMIN'],
+      icon: 'lucide:mail-warning',
+      order: 13
+    }
+  },
+  {
     name: 'iframe-page',
     path: '/iframe-page/:url',
     component: 'layout.base$view.iframe-page',
@@ -96,6 +120,18 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.knowledge-base',
       icon: 'lucide:folder-open',
       order: 3
+    }
+  },
+  {
+    name: 'knowledge-index',
+    path: '/knowledge-index',
+    component: 'layout.base$view.knowledge-index',
+    meta: {
+      title: 'knowledge-index',
+      i18nKey: 'route.knowledge-index',
+      roles: ['ADMIN'],
+      icon: 'lucide:layers',
+      order: 11
     }
   },
   {
@@ -143,6 +179,18 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.personal-center',
       icon: 'lucide:circle-user-round',
       order: 7
+    }
+  },
+  {
+    name: 'rag-eval',
+    path: '/rag-eval',
+    component: 'layout.base$view.rag-eval',
+    meta: {
+      title: 'rag-eval',
+      i18nKey: 'route.rag-eval',
+      roles: ['ADMIN'],
+      icon: 'lucide:clipboard-check',
+      order: 12
     }
   },
   {

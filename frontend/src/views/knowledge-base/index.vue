@@ -45,7 +45,10 @@ async function apiFn(params: Api.Common.CommonSearchParams = {}): Promise<FlatRe
 }
 
 function canManageFile(row: Api.KnowledgeBase.UploadTask) {
-  return authStore.isAdmin || String(row.userId) === String(authStore.userInfo.id);
+  if (authStore.isAdmin) return true;
+  // 本地上传任务（尚未回填服务端 userId）一律视为本人文件，避免本人新传的行丢失管理按钮
+  if (row.userId === undefined || row.userId === null) return true;
+  return String(row.userId) === String(authStore.userInfo.id);
 }
 
 function renderIcon(fileName: string) {
@@ -251,23 +254,27 @@ async function getList() {
 }
 
 async function handleDelete(fileMd5: string) {
+  // 翻页后删除的行可能不在本页 tasks 里（index=-1），此时直接用行数据的 fileMd5 走 DELETE 接口
   const index = tasks.value.findIndex(task => task.fileMd5 === fileMd5);
+  const localTask = index !== -1 ? tasks.value[index] : null;
 
-  if (index !== -1) {
-    tasks.value[index].requestIds?.forEach(requestId => {
+  if (localTask) {
+    localTask.requestIds?.forEach(requestId => {
       request.cancelRequest(requestId);
     });
-  }
 
-  // 如果文件一个分片也没有上传完成，则直接删除
-  if (tasks.value[index].uploadedChunks && tasks.value[index].uploadedChunks.length === 0) {
-    tasks.value.splice(index, 1);
-    return;
+    // 如果文件一个分片也没有上传完成，则直接删除本地任务
+    if (localTask.uploadedChunks && localTask.uploadedChunks.length === 0) {
+      tasks.value.splice(index, 1);
+      return;
+    }
   }
 
   const { error } = await request({ url: `/documents/${fileMd5}`, method: 'DELETE' });
   if (!error) {
-    tasks.value.splice(index, 1);
+    if (index !== -1) {
+      tasks.value.splice(index, 1);
+    }
     window.$message?.success('删除成功');
     await getData();
   }
@@ -629,14 +636,18 @@ async function onBeforeUpload(
         :pagination="mobilePagination"
         class="sm:h-full"
       >
-        <!-- R11 delight：空态与兄弟表格视图同律（azure 徽标 tile + 教学文案，上传入口在表头不重复） -->
+        <!--
+          R11 delight：空态与兄弟表格视图同律（azure 徽标 tile + 教学文案）。
+          冷启动（pm-004）：空态中央放「上传第一个文档」主 CTA 直开上传弹窗，表头入口保留不删
+        -->
         <template #empty>
           <div class="table-state">
             <div class="app-state-badge">
               <icon-lucide:file-text class="text-icon-large" />
             </div>
             <p class="table-state__title">暂无文件</p>
-            <p class="table-state__desc">上传文档后，解析与向量化状态会汇总到这里</p>
+            <p class="table-state__desc">上传第一份文档，完成解析与向量化后，就可在聊天中提问并获得带引用的回答</p>
+            <NButton size="small" type="primary" :disabled="loading" @click="handleUpload">上传第一个文档</NButton>
           </div>
         </template>
       </NDataTable>

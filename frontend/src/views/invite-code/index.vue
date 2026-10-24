@@ -102,7 +102,9 @@ const mobilePagination = computed(() => ({
 
 const hasCheckedRows = computed(() => checkedRowKeys.value.length > 0);
 
-const inviteShareBaseUrl = 'https://your-domain.example/#/login/register';
+// 分享基址按当前部署 origin 运行时推导（pm-010）：本地/线上自动成立，不再产出占位域名死链；
+// 路由为 hash 模式（VITE_ROUTER_HISTORY_MODE=hash），注册页路径带 #/
+const inviteShareBaseUrl = `${window.location.origin}/#/login/register`;
 
 const columns = computed<DataTableColumns<Api.InviteCode.Item>>(() => [
   {

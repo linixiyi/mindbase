@@ -22,13 +22,17 @@ declare module "@elegant-router/types" {
     "500": "/500";
     "chat": "/chat";
     "chat-history": "/chat-history";
+    "conflict-resolution": "/conflict-resolution";
+    "dead-letter": "/dead-letter";
     "iframe-page": "/iframe-page/:url";
     "invite-code": "/invite-code";
     "knowledge-base": "/knowledge-base";
+    "knowledge-index": "/knowledge-index";
     "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?";
     "model-provider": "/model-provider";
     "org-tag": "/org-tag";
     "personal-center": "/personal-center";
+    "rag-eval": "/rag-eval";
     "recharge": "/recharge";
     "recharge-manage": "/recharge-manage";
     "usage-monitor": "/usage-monitor";
@@ -69,13 +73,17 @@ declare module "@elegant-router/types" {
     | "500"
     | "chat"
     | "chat-history"
+    | "conflict-resolution"
+    | "dead-letter"
     | "iframe-page"
     | "invite-code"
     | "knowledge-base"
+    | "knowledge-index"
     | "login"
     | "model-provider"
     | "org-tag"
     | "personal-center"
+    | "rag-eval"
     | "recharge"
     | "recharge-manage"
     | "usage-monitor"
@@ -103,11 +111,15 @@ declare module "@elegant-router/types" {
     | "login"
     | "chat-history"
     | "chat"
+    | "conflict-resolution"
+    | "dead-letter"
     | "invite-code"
     | "knowledge-base"
+    | "knowledge-index"
     | "model-provider"
     | "org-tag"
     | "personal-center"
+    | "rag-eval"
     | "recharge-manage"
     | "recharge"
     | "usage-monitor"
