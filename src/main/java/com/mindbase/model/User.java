@@ -31,6 +31,13 @@ public class User {
     @Column(name = "primary_org")
     private String primaryOrg; // 用户主组织标签
 
+    /**
+     * 是否启用（pm-012/G2）：users.enabled 列为禁用态真相源，1 启用、0 禁用，默认启用。
+     * 旧实现的 Redis 持久键 user:status:disabled:{id} 已退役，不再作为禁用依据。
+     */
+    @Column(nullable = false, columnDefinition = "BOOLEAN DEFAULT 1")
+    private Boolean enabled = true;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

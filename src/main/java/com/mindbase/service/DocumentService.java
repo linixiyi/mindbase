@@ -125,9 +125,18 @@ public class DocumentService {
      * adminDelete=true 时与 reindex/retry 一致按全局 MD5 定位记录（管理员可删除他人文档），
      * 删除目标以记录归属者为准；普通用户仍按 (fileMd5,userId) 定位并删除自己的记录。
      *
+     * 原子段（TOCTOU 收口）：进入即以悲观写锁读（findAllByFileMd5ForUpdate，SELECT ... FOR UPDATE，
+     * 走 uk_file_upload_md5_user 的 file_md5 前缀索引）锁定该 MD5 的全部持有者行与索引间隙直到事务提交
+     * （MySQL InnoDB 默认 REPEATABLE READ，仓库未改隔离级别）——并发删除事务在此串行化，
+     * 并发同 MD5 上传/秒传建记录（getOrCreateFileUpload 的 INSERT）被间隙锁挡到本事务提交之后。
+     * 检查持有者、删记录与全局清理决策因此基于同一份不会中途变化的持有者集合。
+     * 库内删除（FileUpload 记录、分片元数据、向量记录）同事务原子生效，失败即整体回滚；
+     * ES/MinIO/预览缓存为外部资源，只能尽力清理（失败吞掉，残留可由重传自愈），
+     * 且安排在记录删除之后，中断不会再出现“记录仍在、共享数据已被清”的失败态。
+     *
      * 该方法将删除:
      * 1. 目标持有者的 FileUpload 记录（按 fileMd5+userId scoped）
-     * 2. 最后持有者分支: Elasticsearch 中的向量数据、MinIO 中的文件、DocumentVector 记录、全部分片元数据
+     * 2. 最后持有者分支: DocumentVector 记录、全部分片元数据、Elasticsearch 中的向量数据、MinIO 中的文件
      * 3. 仍有其他持有者分支: 目标持有者自己的分片元数据（共享对象与索引保持不动）
      *
      * @param fileMd5 文件MD5
@@ -139,6 +148,9 @@ public class DocumentService {
         logger.info("开始删除文档: fileMd5={}, userId={}, adminDelete={}", fileMd5, userId, adminDelete);
 
         try {
+            // TOCTOU 收口：悲观写锁读同一 MD5 的全部持有者，锁到事务提交；后续判定基于这份被锁定的持有者集合
+            List<FileUpload> md5Holders = fileUploadRepository.findAllByFileMd5ForUpdate(fileMd5);
+
             // 定位要删除的文件记录：管理员走全局 MD5 查询（与 reindex/retry 一致），普通用户保持 (fileMd5,userId)
             FileUpload fileUpload = (adminDelete
                     ? fileUploadRepository.findFirstByFileMd5OrderByCreatedAtDesc(fileMd5)
@@ -149,12 +161,35 @@ public class DocumentService {
             String targetUserId = fileUpload.getUserId();
 
             // 删除前检查同 MD5 的其他持有者：(fileMd5,userId) 有唯一键 uk_file_upload_md5_user，每个用户至多一条记录
-            boolean otherHolderExists = fileUploadRepository.findAllByFileMd5(fileMd5).stream()
+            boolean otherHolderExists = md5Holders.stream()
                     .anyMatch(holder -> !targetUserId.equals(holder.getUserId()));
 
+            // 先删目标持有者的 FileUpload 记录（scoped，其他持有者的记录不受影响），
+            // 外部清理随后执行——即使清理中断也只留下可由重传自愈的残留，不会出现“记录仍在、共享数据已被清”
+            fileUploadRepository.deleteByFileMd5AndUserId(fileMd5, targetUserId);
+            logger.info("成功删除文件上传记录: fileMd5={}, userId={}", fileMd5, targetUserId);
+
             if (!otherHolderExists) {
-                // 最后一个持有者：本次删除后该 MD5 归零，执行全局清理
-                // 1. 删除Elasticsearch中的数据
+                // 最后一个持有者：本次删除后该 MD5 归零，执行全局清理。
+                // 库内删除失败直接抛出，随事务一起回滚（含上面已删的记录），不留半删状态
+                try {
+                    documentVectorRepository.deleteByFileMd5(fileMd5);
+                    logger.info("成功删除文档向量记录: {}", fileMd5);
+                } catch (Exception e) {
+                    logger.error("删除文档向量记录时出错: {}", fileMd5, e);
+                    throw e;
+                }
+
+                // 删除分片元数据，避免同 MD5 文件再次上传时误判分片已经存在
+                try {
+                    int deletedChunkRows = chunkInfoRepository.deleteByFileMd5(fileMd5);
+                    logger.info("成功删除文档分片元数据: fileMd5={}, deletedRows={}", fileMd5, deletedChunkRows);
+                } catch (Exception e) {
+                    logger.error("删除文档分片元数据时出错: {}", fileMd5, e);
+                    throw e;
+                }
+
+                // 删除Elasticsearch中的数据（外部资源，尽力清理）
                 try {
                     elasticsearchService.deleteByFileMd5(fileMd5);
                     logger.info("成功从Elasticsearch删除文档: {}", fileMd5);
@@ -163,7 +198,7 @@ public class DocumentService {
                     // 继续删除其他数据
                 }
 
-                // 2. 删除MinIO中的文件（使用MD5作为对象路径）
+                // 删除MinIO中的文件（使用MD5作为对象路径，外部资源，尽力清理）
                 try {
                     String objectName = "merged/" + fileUpload.getFileMd5();
                     minioClient.removeObject(
@@ -192,40 +227,18 @@ public class DocumentService {
                 }
 
                 invalidatePdfSinglePagePreviewCache(fileMd5);
-
-                // 3. 删除DocumentVector记录
-                try {
-                    documentVectorRepository.deleteByFileMd5(fileMd5);
-                    logger.info("成功删除文档向量记录: {}", fileMd5);
-                } catch (Exception e) {
-                    logger.error("删除文档向量记录时出错: {}", fileMd5, e);
-                    // 继续删除其他数据
-                }
-
-                // 删除分片元数据，避免同 MD5 文件再次上传时误判分片已经存在
-                try {
-                    int deletedChunkRows = chunkInfoRepository.deleteByFileMd5(fileMd5);
-                    logger.info("成功删除文档分片元数据: fileMd5={}, deletedRows={}", fileMd5, deletedChunkRows);
-                } catch (Exception e) {
-                    logger.error("删除文档分片元数据时出错: {}", fileMd5, e);
-                    // 继续删除其他数据
-                }
             } else {
                 // 仍有其他用户持有同一 MD5：共享对象与索引不动，只清理目标持有者自己的分片元数据，
-                // 避免其后续重新上传同一文件时误判分片已经存在
+                // 避免其后续重新上传同一文件时误判分片已经存在（库内删除，失败随事务回滚）
                 try {
                     int deletedChunkRows = chunkInfoRepository.deleteByFileMd5AndUserId(fileMd5, targetUserId);
                     logger.info("同 MD5 仍有其他持有者，仅删除目标用户分片元数据: fileMd5={}, userId={}, deletedRows={}",
                             fileMd5, targetUserId, deletedChunkRows);
                 } catch (Exception e) {
                     logger.error("删除目标用户分片元数据时出错: fileMd5={}, userId={}", fileMd5, targetUserId, e);
-                    // 继续删除其他数据
+                    throw e;
                 }
             }
-
-            // 4. 删除目标持有者的 FileUpload 记录（scoped），其他持有者的记录不受影响
-            fileUploadRepository.deleteByFileMd5AndUserId(fileMd5, targetUserId);
-            logger.info("成功删除文件上传记录: fileMd5={}, userId={}", fileMd5, targetUserId);
 
             logger.info("文档删除完成: fileMd5={}, requester={}, targetUserId={}", fileMd5, userId, targetUserId);
         } catch (Exception e) {

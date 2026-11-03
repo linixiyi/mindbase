@@ -3,14 +3,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 
 const wss = new WebSocketServer({ port: 8080 });
 
-wss.on('connection', ws => {
-  console.log('Client connected.');
-
-  ws.on('message', message => {
-    const msg = message.toString();
-    console.log('Received:', msg);
-  });
-
+wss.on('connection', () => {
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
       for (let i = 0; i < 5; i += 1) {
@@ -29,10 +22,4 @@ wss.on('connection', ws => {
       }
     }
   });
-
-  ws.on('close', () => {
-    console.log('Client disconnected.');
-  });
 });
-
-console.log('WebSocket server is running on ws://localhost:8080');

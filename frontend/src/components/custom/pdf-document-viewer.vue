@@ -13,6 +13,9 @@ GlobalWorkerOptions.workerSrc = workerSrc;
 interface Props {
   url: string;
   sourceUrl?: string;
+  // file-preview 仍在传入本 prop（viewer 当前未消费）；消费方文件属 colorize 域、不在本轮车道文件集内，
+  // 为不跨域改文件先保留 API，警告按既有惯例显式豁免（同 no-console 的 disable 惯例）
+  // eslint-disable-next-line vue/no-unused-properties
   fileName?: string;
   pageNumber?: number;
   singlePageMode?: boolean;
@@ -25,7 +28,7 @@ interface Props {
 
 interface Emits {
   (
-    e: 'toolbar-change',
+    e: 'toolbarChange',
     payload: {
       modeLabel: string;
       helperText: string;
@@ -188,7 +191,7 @@ watch(zoom, () => {
 });
 
 watchEffect(() => {
-  emit('toolbar-change', toolbarState.value);
+  emit('toolbarChange', toolbarState.value);
 });
 
 useResizeObserver(stageRef, entries => {
@@ -515,6 +518,7 @@ async function loadDocument(url: string) {
     await forceRender(currentToken);
   } catch (error) {
     if (currentToken !== lifecycleToken) return;
+    // eslint-disable-next-line no-console
     console.error('[PDF 预览] 加载失败:', error);
     renderError.value = 'PDF 加载失败，请尝试新窗口打开或重新预览。';
   } finally {
@@ -687,6 +691,7 @@ async function renderCurrentPage(expectedToken = lifecycleToken, renderVersion =
     if (isBenignRenderError(error) || isRenderStale(expectedToken, renderVersion)) {
       return;
     }
+    // eslint-disable-next-line no-console
     console.error('[PDF 预览] 页面渲染失败:', error);
     renderError.value = 'PDF 页面渲染失败，请稍后重试。';
   }
@@ -1465,11 +1470,11 @@ async function cleanupPdfState() {
 
 <style scoped lang="scss">
 .pdf-viewer-shell {
-  @apply flex h-full min-h-0 flex-col bg-white;
+  @apply flex h-full min-h-0 flex-col bg-container;
 }
 
 .pdf-viewer-toolbar {
-  @apply flex items-start justify-between gap-3 border-b border-stone-200 bg-white px-3 py-2;
+  @apply flex items-start justify-between gap-3 border-b border-hairline bg-container px-3 py-2;
 }
 
 .toolbar-copy {
@@ -1477,7 +1482,7 @@ async function cleanupPdfState() {
 }
 
 .viewer-kicker {
-  @apply text-xs leading-5 text-stone-500;
+  @apply text-xs leading-5 text-secondary;
 }
 
 .viewer-badge {
@@ -1489,7 +1494,7 @@ async function cleanupPdfState() {
 }
 
 .toolbar-chip {
-  @apply inline-flex items-center text-xs text-stone-500;
+  @apply inline-flex items-center text-xs text-secondary;
 }
 
 .pdf-viewer-body {
@@ -1501,15 +1506,15 @@ async function cleanupPdfState() {
 }
 
 .page-sidebar {
-  @apply min-h-0 overflow-y-auto border-r border-stone-200 bg-white p-2;
+  @apply min-h-0 overflow-y-auto border-r border-hairline bg-container p-2;
 }
 
 .page-nav-item {
-  @apply mb-1 flex w-full flex-col items-start gap-1 rounded-8px px-3 py-3 text-left text-stone-700 transition;
+  @apply mb-1 flex w-full flex-col items-start gap-1 rounded-8px px-3 py-3 text-left text-base-text transition;
 }
 
 .page-nav-item:hover {
-  @apply bg-stone-50;
+  @apply bg-fill-subtle;
 }
 
 .page-nav-item.is-active {
@@ -1531,15 +1536,20 @@ async function cleanupPdfState() {
 }
 
 .page-stage {
-  @apply relative min-h-0 overflow-auto bg-white p-3;
+  @apply relative min-h-0 overflow-auto bg-container p-3;
 }
 
 .stage-feedback {
-  @apply flex h-full min-h-320px flex-col items-center justify-center gap-3 rounded-12px bg-stone-50 text-stone-500;
+  @apply flex h-full min-h-320px flex-col items-center justify-center gap-3 rounded-12px bg-fill-subtle text-secondary;
 }
 
 .stage-feedback.is-error {
-  @apply text-red-500;
+  /* 错误语义深阶（同域 file-preview 的 state-orb--error 写法）：亮色 700 / 暗色 400 */
+  color: rgb(var(--error-700-color));
+
+  .dark & {
+    color: rgb(var(--error-400-color));
+  }
 }
 
 .page-scroll-shell {
@@ -1547,11 +1557,11 @@ async function cleanupPdfState() {
 }
 
 .page-meta-row {
-  @apply mb-2 flex w-full max-w-960px items-center justify-between px-1 text-xs text-stone-500;
+  @apply mb-2 flex w-full max-w-960px items-center justify-between px-1 text-xs text-secondary;
 }
 
 .pdf-page-shell {
-  @apply relative bg-white;
+  @apply relative bg-container;
   --pdf-page-inset: 8px;
   padding: var(--pdf-page-inset);
 }
@@ -1613,10 +1623,11 @@ async function cleanupPdfState() {
 
 .page-loading-mask {
   /* R12 overdrive 复审：全仓 blur 纪律审计的唯二漏网之一——梯外 backdrop-blur-sm（且无 -webkit- 前缀，
-     工程边界②）与硬编码 bg-white/75 / text-stone-500（暖灰绕过 token、暗色不换血）就此收口。
+     工程边界②）与硬编码白纱/暖灰文字（绕过 token、暗色不换血）就此收口。
      渲染纱入 bar 档（内容从面下经过的最沉稳折射，与顶栏同款光学处境，DESIGN.md §18 › 玻璃 blur 分层）；
      面走 container 半透明 0.75（原透明度不动）、字走主墨——暗色下 ≈7:1、亮色 ≈14:1，双主题 AA。
-     viewer 其余 stone 调色板残留归 colorize 域，见 DESIGN.md §18 复审行 */
+     G4a（2026-11-04）：viewer 其余暖灰调色板与白底/红系硬编码杂色已全部 token 化
+     （hairline / secondary / base-text / fill-subtle / container / 错误语义深阶 700-400），暗色随主题成立 */
   @apply absolute inset-2 z-20 flex items-center justify-center gap-2 text-sm;
   background: rgb(var(--container-bg-color) / 0.75);
   color: rgb(var(--base-text-color));

@@ -310,7 +310,6 @@ function buildSubmitPayload() {
 }
 
 function handleFormSubmitError(e: any) {
-  console.error('提交异常:', e);
   if (Array.isArray(e)) {
     window.$message?.error('请填写完整的表单信息!');
     return;
@@ -327,12 +326,9 @@ function handleFormSubmitError(e: any) {
 }
 
 async function handleSubmit() {
-  console.log('开始提交，editingId:', editingId.value, 'isEditing:', isEditing.value);
-
   try {
     // 先进行表单验证
     await validate();
-    console.log('表单验证通过');
 
     submitting.value = true;
 
@@ -342,15 +338,11 @@ async function handleSubmit() {
 
     const submitData = buildSubmitPayload();
 
-    console.log('提交数据:', submitData);
-
-    const { error, data: respData } = await request({
+    const { error } = await request({
       url,
       method,
       data: submitData
     });
-
-    console.log('返回结果:', error, respData);
 
     if (!error) {
       window.$message?.success(isEditing.value ? '更新成功' : '创建成功');
