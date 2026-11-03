@@ -12,7 +12,4 @@ test('knowledge base column visibility', async ({ page }) => {
   await page.goto('http://127.0.0.1:9529/knowledge-base', { waitUntil: 'networkidle' });
   await expect(page.getByText('文件列表')).toBeVisible();
   await expect(page.getByText('向量化消耗')).toBeVisible();
-
-  const tableText = await page.locator('.n-data-table').textContent();
-  console.log(tableText);
 });

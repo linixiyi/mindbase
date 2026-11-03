@@ -19,7 +19,6 @@ interface Props {
   evidenceSnippet?: string;
   matchedChunkText?: string;
   score?: number | null;
-  chunkId?: number | null;
   visible: boolean;
 }
 
@@ -201,14 +200,6 @@ function applyPreviewResponse(data: PreviewResponse) {
 async function loadPreviewContent() {
   if (!props.fileName) return;
 
-  const previewMode = props.fileMd5 ? 'MD5' : '文件名';
-
-  console.log('[文件预览] 开始加载预览内容:', {
-    fileName: props.fileName,
-    fileMd5: props.fileMd5,
-    visible: props.visible
-  });
-
   loading.value = true;
   error.value = '';
   content.value = '';
@@ -223,19 +214,9 @@ async function loadPreviewContent() {
       ? { fileName: props.fileName, fileMd5: props.fileMd5, pageNumber: props.pageNumber }
       : { fileName: props.fileName, pageNumber: props.pageNumber };
 
-    console.log(`[文件预览] 使用${previewMode}模式预览, 请求参数:`, params);
-
     const { error: requestError, data } = await request<PreviewResponse>({
       url: '/documents/preview',
       params
-    });
-
-    console.log(`[文件预览] ${previewMode}模式API响应:`, {
-      hasError: Boolean(requestError),
-      error: requestError,
-      hasData: Boolean(data),
-      contentLength: data?.content?.length || 0,
-      contentPreview: data?.content?.substring(0, 100) || ''
     });
 
     if (requestError) {

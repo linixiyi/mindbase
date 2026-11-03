@@ -1,4 +1,5 @@
 import { useWebSocket } from '@vueuse/core';
+import { getChatFailureCopy } from '@/constants/chat-failure';
 import { request } from '@/service/request';
 
 export const useChatStore = defineStore(SetupStoreId.Chat, () => {
@@ -87,7 +88,9 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
 
     if (assistantIndex >= 0) {
       const assistant = list.value[assistantIndex];
-      assistant.content = snapshot.content || assistant.content || snapshot.errorMessage || '';
+      // FAILED 快照正文兜底取 chat-failure 字典话术（pm-015）：原始异常/技术串不再兜底为消息正文
+      const failureMessage = snapshot.status === 'FAILED' ? getChatFailureCopy(snapshot.errorCategory).message : '';
+      assistant.content = snapshot.content || assistant.content || failureMessage;
       assistant.status = nextStatus;
       assistant.generationId = snapshot.generationId;
       assistant.conversationId = snapshot.conversationId;

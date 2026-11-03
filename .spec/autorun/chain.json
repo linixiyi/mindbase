@@ -1,45 +1,28 @@
 {
-  "chain": "pm-experience-upgrade",
-  "plan": ".spec/plans/pm-experience-upgrade.md",
-  "mode": "in-session (zcode has no spawn CLI; fresh-session continuation substituted by main session, disclosed per contract)",
-  "roundCap": "unbounded (user pre-authorized continuation until features complete)",
-  "pushPolicy": "local merge to main only; remote push withheld per AGENTS.md hard rule pending explicit user authorization",
-  "division": "GLM-5.3 plans (PM audit / round planning); GLM-5.3-Flash writes code (implementation workflows)",
+  "chain": "pm-hardening-round",
+  "plan": ".spec/plans/pm-hardening-round.md",
+  "mode": "in-session (subagents/workflows on GLM-5.3-Flash start plan per user 2026-11-04 instruction; main session orchestrates only)",
+  "roundCap": "unbounded (user pre-authorized iterative rounds until 09:00)",
+  "pushPolicy": "push only on explicit user request",
   "rounds": [
     {
       "round": 1,
       "features": [
-        "F1",
-        "F2",
-        "F3"
+        "G1",
+        "G2",
+        "G3",
+        "G4"
       ],
-      "slug": "2026-10-24_audit-pm-experience",
-      "status": "done (F1-F3: LLM E2E 恢复 + 体验日志 + backlog 34 项)"
+      "slug": "2026-11-04_fix-hygiene-debt",
+      "status": "done (G1-G4 六门禁全绿 + G5 体验出 G6 聚焦)"
     },
     {
       "round": 2,
       "features": [
-        "F4"
+        "G6"
       ],
-      "slug": "2026-10-24_fix-p0-experience",
-      "status": "done (P0x3 全落地，真机 E2E 验收)"
-    },
-    {
-      "round": 3,
-      "features": [
-        "F5"
-      ],
-      "slug": "2026-10-24_fix-p1-experience",
-      "status": "done (P1 十项 + DLQ 追补)"
-    },
-    {
-      "round": 4,
-      "features": [
-        "F6"
-      ],
-      "slug": "2026-10-24_closeout-pm-experience",
-      "status": "done (文档同步+收敛声明)"
+      "slug": "2026-11-04_p2-high-value",
+      "status": "active"
     }
-  ],
-  "status": "completed 6/6"
+  ]
 }

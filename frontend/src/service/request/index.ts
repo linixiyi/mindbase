@@ -4,7 +4,14 @@ import { BACKEND_ERROR_CODE, createFlatRequest } from '@sa/axios';
 import { useAuthStore } from '@/store/modules/auth';
 import { getServiceBaseURL } from '@/utils/service';
 import { $t } from '@/locales';
-import { getAuthorization, handleExpiredRequest, normalizeBackendMessage, showErrorMsg } from './shared';
+import { observeRateLimitResponse } from './rate-limit';
+import {
+  getAuthorization,
+  handleExpiredRequest,
+  normalizeBackendMessage,
+  normalizeTransportErrorMessage,
+  showErrorMsg
+} from './shared';
 import type { RequestInstanceState } from './type';
 
 const isHttpProxy = import.meta.env.DEV && import.meta.env.VITE_HTTP_PROXY === 'Y';
@@ -29,6 +36,7 @@ function getFlatRequest(options: Partial<RequestOption<App.Service.Response>> = 
         // 无感知token刷新：自动更新本地存储的token
         const authStore = useAuthStore();
         authStore.setToken(newToken);
+        // eslint-disable-next-line no-console
         console.log('🔄 Token automatically refreshed');
       },
       isBackendSuccess(response) {
@@ -37,6 +45,7 @@ function getFlatRequest(options: Partial<RequestOption<App.Service.Response>> = 
         return String(response.data.code) === import.meta.env.VITE_SERVICE_SUCCESS_CODE;
       },
       async onBackendFail(response, instance) {
+        // eslint-disable-next-line no-console
         console.log('%c [ 👉 onBackendFail 👈 ]-35', 'font-size:16px; background:#3cd735; color:#80ff79;', response);
         const authStore = useAuthStore();
         const responseCode = String(response.data.code);
@@ -118,6 +127,12 @@ function getFlatRequest(options: Partial<RequestOption<App.Service.Response>> = 
         }
 
         message = normalizeBackendMessage(message);
+
+        // 网络/超时类英文技术串统一转中文分层文案（pm-022），后端业务文案原样放行
+        message = normalizeTransportErrorMessage(message, error);
+
+        // REST 429：响应体的 retryAfterSeconds 兑现为秒级倒计时（pm-022），登录等表单据此禁用按钮
+        observeRateLimitResponse(error.response);
 
         // 对需要登录的 403 做兜底处理；带业务文案的 403 继续向用户展示具体错误
         if (error.response?.status === 403) {

@@ -1,8 +1,10 @@
 package com.mindbase.repository;
 
 import com.mindbase.model.FileUpload;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,6 +21,15 @@ public interface FileUploadRepository extends JpaRepository<FileUpload, Long> {
     Optional<FileUpload> findFirstByFileMd5OrderByCreatedAtDesc(String fileMd5);
 
     List<FileUpload> findAllByFileMd5(String fileMd5);
+
+    /**
+     * 悲观写锁读同一 MD5 的全部持有者（SELECT ... FOR UPDATE，走 uk_file_upload_md5_user 的 file_md5 前缀索引）。
+     * 锁持有到事务提交：并发删除事务在此串行化，同 MD5 的新记录插入被索引间隙锁阻塞到本事务提交之后，
+     * 供删除链把『检查持有者→删记录→（最后持有者时）全局清理』收成原子段。
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select f from FileUpload f where f.fileMd5 = :fileMd5")
+    List<FileUpload> findAllByFileMd5ForUpdate(@Param("fileMd5") String fileMd5);
 
     List<FileUpload> findAllByVectorizationStatusIsNull();
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive } from 'vue';
 import { loginModuleRecord } from '@/constants/app';
+import { isRequestRateLimited, requestRateLimitRemainingSeconds } from '@/service/request/rate-limit';
 import { useAuthStore } from '@/store/modules/auth';
 import { useRouterPush } from '@/hooks/common/router';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
@@ -48,6 +49,12 @@ const rules = computed<Record<keyof FormRuleModel, App.Global.FormRule[]>>(() =>
 });
 
 async function handleSubmit() {
+  // 登录限流倒计时（pm-022）：冷却期内禁止提交，按钮展示剩余秒数
+  if (isRequestRateLimited.value) {
+    window.$message?.warning(`发送过于频繁，${requestRateLimitRemainingSeconds.value} 秒后可重试`);
+    return;
+  }
+
   await validate();
 
   const success = await authStore.login(model.userName, model.password);
@@ -94,8 +101,15 @@ async function handleSubmit() {
       </NCheckbox>
     </div>
     <div class="flex-col gap-6">
-      <NButton type="primary" size="large" block :loading="authStore.loginLoading" @click="handleSubmit">
-        {{ $t('page.login.common.login') }}
+      <NButton
+        type="primary"
+        size="large"
+        block
+        :loading="authStore.loginLoading"
+        :disabled="isRequestRateLimited"
+        @click="handleSubmit"
+      >
+        {{ isRequestRateLimited ? `${requestRateLimitRemainingSeconds} 秒后可重试` : $t('page.login.common.login') }}
       </NButton>
       <NButton block @click="toggleLoginModule('register')">
         {{ $t(loginModuleRecord.register) }}

@@ -63,7 +63,7 @@ function refresh() {
     </slot>
     <NButton size="small" @click="refresh">
       <template #icon>
-          <icon-lucide:rotate-cw class="text-icon" :class="{ 'animate-spin': loading }" />
+        <icon-lucide:rotate-cw class="text-icon" :class="{ 'animate-spin': loading }" />
       </template>
       {{ $t('common.refresh') }}
     </NButton>

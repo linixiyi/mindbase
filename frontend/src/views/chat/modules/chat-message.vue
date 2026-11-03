@@ -308,8 +308,8 @@ async function fetchReferenceDetail(sessionId: string, referenceNumber: number) 
     if (!detailError && detailData?.fileMd5) {
       return detailData;
     }
-  } catch (detailErr) {
-    console.warn('通过API查询引用详情失败:', detailErr);
+  } catch {
+    // 通过API查询引用详情失败时忽略，交由调用方使用兜底逻辑
   }
   return null;
 }
@@ -352,16 +352,6 @@ async function handleSourceFileClick(fileInfo: {
   const persistedDetail =
     props.msg.referenceMappings?.[String(referenceNumber)] || props.msg.referenceMappings?.[referenceNumber];
   const referenceSessionId = props.msg.generationId || props.msg.conversationId || props.sessionId;
-  console.log(
-    '点击了来源文件:',
-    fileName,
-    '引用编号:',
-    referenceNumber,
-    '提取的MD5:',
-    extractedMd5,
-    '会话ID:',
-    referenceSessionId
-  );
 
   try {
     const fallbackRetrievalQuery = props.retrievalQueryFallback || '';
@@ -396,8 +386,7 @@ async function handleSourceFileClick(fileInfo: {
         referenceNumber
       })
     );
-  } catch (err) {
-    console.error('文件下载失败:', err);
+  } catch {
     window.$message?.error(`文件下载失败: ${fileName}`);
   }
 }

@@ -404,8 +404,8 @@ public class ChatHandler {
             // generate_summary 已经把部分摘要流给前端，再让模型重写会拼出"半个旧摘要 + 新摘要"。
             // 直接以失败提示收尾，让 ReAct 循环立即 finalize，避免数据不一致。
             if ("generate_summary".equals(toolCall.name()) && summaryStreamStarted.get()) {
-                appendStreamChunk(userId, generationId, conversationId,
-                        "\n\n（摘要流式生成中断：" + exception.getMessage() + "）");
+                // 中断占位只写用户话术（pm-015）：异常原文已在上方 logger.warn 留档，不进流式内容/生成快照
+                appendStreamChunk(userId, generationId, conversationId, "\n\n（摘要生成中断，请稍后重试）");
                 return new ExecutedToolResult(
                         "工具 " + toolCall.name() + " 已部分流式输出后失败: " + exception.getMessage(),
                         true

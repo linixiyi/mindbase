@@ -352,6 +352,61 @@ class UserServiceTest {
         assertEquals("PRIVATE_alice", user.getOrgTags());
     }
 
+    @Test
+    void testDisabledUserLoginRejectedAfterRedisKeyCleared() {
+        // pm-012/G2 验收：禁用态真相源为 users.enabled 列——旧实现把禁用态唯一承载在
+        // Redis 键 user:status:disabled:{id} 上，键被清/丢失后禁用即失效。
+        // 现在即使 Redis 中没有任何禁用键（单测中不接 Redis，等价于键被清空），登录仍必须被拒绝。
+        User user = new User();
+        user.setId(2L);
+        user.setUsername("e2e-pm-user");
+        user.setPassword(PasswordUtil.encode("password123"));
+        user.setEnabled(false);
+        when(userRepository.findByUsername("e2e-pm-user")).thenReturn(Optional.of(user));
+
+        CustomException exception = assertThrows(CustomException.class,
+                () -> userService.authenticateUser("e2e-pm-user", "password123"));
+
+        assertEquals("账号已被禁用，请联系管理员", exception.getMessage());
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatus());
+    }
+
+    @Test
+    void testIsUserDisabledReadsEnabledColumnAsSourceOfTruth() {
+        // 禁用列读取（JwtUtils.generateToken / AdminController 消费同一路径）
+        User disabled = new User();
+        disabled.setId(2L);
+        disabled.setEnabled(false);
+        User enabled = new User();
+        enabled.setId(3L);
+        enabled.setEnabled(true);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(disabled));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(enabled));
+
+        assertEquals(true, userService.isUserDisabled(2L));
+        assertEquals(false, userService.isUserDisabled(3L));
+        // 用户不存在保持既有语义：视为未禁用
+        assertEquals(false, userService.isUserDisabled(404L));
+        assertEquals(false, userService.isUserDisabled(null));
+    }
+
+    @Test
+    void testSetUserEnabledWritesEnabledColumn() {
+        // 状态端点写列（AdminController PATCH /admin/users/{id}/status 消费同一路径）
+        User user = new User();
+        user.setId(2L);
+        user.setEnabled(true);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+
+        userService.setUserEnabled(2L, false);
+        assertEquals(false, user.getEnabled());
+        verify(userRepository).save(user);
+
+        userService.setUserEnabled(2L, true);
+        assertEquals(true, user.getEnabled());
+        verify(userRepository, times(2)).save(user);
+    }
+
     private User organizationUser() {
         User user = new User();
         user.setId(1L);
