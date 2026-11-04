@@ -32,6 +32,36 @@ function handleUnarchive(cid: string) {
   chatStore.unarchiveSession(cid);
 }
 
+// 会话重命名（pm-016）：行内编辑，Enter/失焦提交、Esc 取消；提交后 store 即时更新标题并持久化
+const editingId = ref('');
+const editingTitle = ref('');
+
+function startRename(session: Api.Chat.ConversationSession) {
+  editingId.value = session.conversationId;
+  editingTitle.value = session.title;
+}
+
+function cancelRename() {
+  editingId.value = '';
+  editingTitle.value = '';
+}
+
+async function commitRename(session: Api.Chat.ConversationSession) {
+  if (editingId.value !== session.conversationId) {
+    return;
+  }
+  const title = editingTitle.value.trim();
+  cancelRename();
+  if (!title || title === session.title) {
+    return;
+  }
+  await chatStore.renameSession(session.conversationId, title);
+}
+
+function handleDelete(cid: string) {
+  chatStore.deleteSession(cid);
+}
+
 function setActiveTab(tab: 'active' | 'archived') {
   activeTab.value = tab;
 }
@@ -122,38 +152,76 @@ function formatDate(dateStr?: string) {
                 <icon-lucide:message-circle />
               </div>
               <div class="min-w-0 flex-1">
-                <div class="chat-session__title truncate text-16px font-500">{{ session.title }}</div>
-                <div class="chat-session__time text-12px">{{ formatDate(session.updatedAt) }}</div>
+                <NInput
+                  v-if="editingId === session.conversationId"
+                  v-model:value="editingTitle"
+                  class="chat-session__rename"
+                  size="tiny"
+                  :maxlength="50"
+                  :autofocus="true"
+                  @click.stop
+                  @keyup.enter="commitRename(session)"
+                  @keyup.esc="cancelRename"
+                  @blur="commitRename(session)"
+                />
+                <template v-else>
+                  <div class="chat-session__title truncate text-16px font-500">{{ session.title }}</div>
+                  <div class="chat-session__time text-12px">{{ formatDate(session.updatedAt) }}</div>
+                </template>
               </div>
 
-              <!-- Action button -->
-              <NPopconfirm v-if="activeTab === 'active'" @positive-click="handleArchive(session.conversationId)">
-                <template #trigger>
-                  <NButton
-                    class="chat-session__action shrink-0 transition-opacity"
-                    :class="{ 'opacity-0 group-hover:opacity-100': session.conversationId !== conversationId }"
-                    text
-                    size="tiny"
-                    @click.stop
-                  >
-                    <template #icon>
-                      <icon-lucide:archive class="text-icon-small" />
-                    </template>
-                  </NButton>
-                </template>
-                归档后可在「已归档」中找回
-              </NPopconfirm>
-              <NButton
-                v-else
-                class="chat-session__action shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-                text
-                size="tiny"
-                @click.stop="handleUnarchive(session.conversationId)"
+              <!-- Action buttons（pm-016：重命名 + 删除，随归档/恢复同区收纳） -->
+              <div
+                v-if="editingId !== session.conversationId"
+                class="flex shrink-0 items-center gap-0.5 transition-opacity"
+                :class="{ 'opacity-0 group-hover:opacity-100': session.conversationId !== conversationId }"
+                @click.stop
               >
-                <template #icon>
-                  <icon-lucide:archive-restore class="text-icon-small" />
-                </template>
-              </NButton>
+                <NButton
+                  v-if="activeTab === 'active'"
+                  class="chat-session__action"
+                  text
+                  size="tiny"
+                  title="重命名"
+                  @click="startRename(session)"
+                >
+                  <template #icon>
+                    <icon-lucide:pencil class="text-icon-small" />
+                  </template>
+                </NButton>
+                <NPopconfirm v-if="activeTab === 'active'" @positive-click="handleArchive(session.conversationId)">
+                  <template #trigger>
+                    <NButton class="chat-session__action" text size="tiny" title="归档">
+                      <template #icon>
+                        <icon-lucide:archive class="text-icon-small" />
+                      </template>
+                    </NButton>
+                  </template>
+                  归档后可在「已归档」中找回
+                </NPopconfirm>
+                <NButton
+                  v-else
+                  class="chat-session__action"
+                  text
+                  size="tiny"
+                  title="恢复"
+                  @click="handleUnarchive(session.conversationId)"
+                >
+                  <template #icon>
+                    <icon-lucide:archive-restore class="text-icon-small" />
+                  </template>
+                </NButton>
+                <NPopconfirm @positive-click="handleDelete(session.conversationId)">
+                  <template #trigger>
+                    <NButton class="chat-session__action" text size="tiny" title="删除">
+                      <template #icon>
+                        <icon-lucide:trash-2 class="text-icon-small" />
+                      </template>
+                    </NButton>
+                  </template>
+                  删除后该会话及其消息将无法恢复
+                </NPopconfirm>
+              </div>
             </div>
           </TransitionGroup>
         </NSpin>
@@ -294,6 +362,11 @@ function formatDate(dateStr?: string) {
 
 .chat-session__title {
   color: var(--app-text);
+}
+
+/* 行内重命名（pm-016）：NInput 就地替换标题行，尺寸贴行高，材质吃全局 NInput 单源不另立词汇 */
+.chat-session__rename {
+  font-size: 14px;
 }
 
 .chat-session__time {

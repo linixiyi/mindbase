@@ -239,6 +239,30 @@ function extractContextAnchorText(target: HTMLElement) {
     .trim();
 }
 
+// pm-017：引用预览载荷有界化——预览页只读不删（预览标签页刷新后需重读），改为写入侧 LRU 裁剪，
+// 同前缀键超过上限时按键内时间戳淘汰最旧条目，键数量不再随点击次数无限累积
+const REFERENCE_PREVIEW_STORAGE_PREFIX = 'reference-preview:';
+const REFERENCE_PREVIEW_STORAGE_LIMIT = 20;
+
+function pruneReferencePreviewStorage() {
+  const entries: Array<{ key: string; createdAt: number }> = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(REFERENCE_PREVIEW_STORAGE_PREFIX)) {
+      // 键格式 reference-preview:<Date.now()>:<随机串>，取前缀后的时间戳排序
+      const createdAt = Number.parseInt(key.slice(REFERENCE_PREVIEW_STORAGE_PREFIX.length), 10);
+      entries.push({ key, createdAt: Number.isNaN(createdAt) ? 0 : createdAt });
+    }
+  }
+  if (entries.length <= REFERENCE_PREVIEW_STORAGE_LIMIT) {
+    return;
+  }
+  entries.sort((a, b) => a.createdAt - b.createdAt);
+  for (const entry of entries.slice(0, entries.length - REFERENCE_PREVIEW_STORAGE_LIMIT)) {
+    localStorage.removeItem(entry.key);
+  }
+}
+
 function openReferencePreviewPage(payload: {
   retrievalMode?: Api.Chat.ReferenceEvidence['retrievalMode'];
   retrievalLabel?: string | null;
@@ -256,6 +280,7 @@ function openReferencePreviewPage(payload: {
 }) {
   const previewKey = `reference-preview:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
   localStorage.setItem(previewKey, JSON.stringify(payload));
+  pruneReferencePreviewStorage();
 
   const routeLocation = router.resolve({
     path: '/chat',

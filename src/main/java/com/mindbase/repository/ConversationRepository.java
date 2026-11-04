@@ -48,6 +48,12 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
 
     List<Conversation> findByConversationIdOrderByTimestampAsc(String conversationId);
 
+    /**
+     * 会话删除（pm-016）：按会话 ID 级联清掉该会话的全部消息行，避免删除会话后留下孤儿消息。
+     * 仅按 conversationId 匹配，不触碰未绑定会话的历史行。
+     */
+    void deleteByConversationId(String conversationId);
+
     // ---- 分页查询（管理端聊天记录，pm-008）：按 (timestamp, id) 双键稳定排序，与 toMessageHistory 的排序一致 ----
 
     @EntityGraph(attributePaths = "user")

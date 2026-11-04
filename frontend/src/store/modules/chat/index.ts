@@ -6,6 +6,10 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
   const NON_RETRYABLE_CLOSE_CODES = new Set([1002, 1003, 1007, 1008]);
   const WS_HEARTBEAT_PING = '__chat_ping__';
   const WS_HEARTBEAT_PONG = '__chat_pong__';
+  // pm-020 断线提示分级：同一轮断线内轻提示只发一次；持续断线超过该时长升级为不自动消失的横幅
+  const CONNECTION_ESCALATION_MS = 10_000;
+  // pm-021 刷新恢复：选中会话 id 持久在 sessionStorage（标签页级），刷新后恢复选中
+  const ACTIVE_SESSION_STORAGE_KEY = 'mindbase:chat:active-conversation';
 
   const conversationId = ref<string>('');
   const input = ref<Api.Chat.Input>({ message: '' });
@@ -24,6 +28,31 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
   const rateLimitUntil = ref<number | null>(null);
   const rateLimitRemainingSeconds = ref(0);
   let rateLimitTimer: ReturnType<typeof setInterval> | null = null;
+  // pm-020：与 connectionStatus 同源的升级状态位——断线后由同一 onDisconnected/onConnected 状态机驱动，
+  // 不另起重连计数机制（autoReconnect.retries 恒真导致 onFailed 不可达，分级提示改由本状态位承载）
+  const connectionEscalated = ref(false);
+  const disconnectNotified = ref(false);
+  let escalationTimer: number | null = null;
+
+  function clearConnectionEscalation() {
+    if (escalationTimer !== null) {
+      window.clearTimeout(escalationTimer);
+      escalationTimer = null;
+    }
+    connectionEscalated.value = false;
+    disconnectNotified.value = false;
+  }
+
+  function startConnectionEscalation() {
+    // 自动重连每次失败都会再触发 onDisconnected：升级计时只按整轮断线起算一次，不随重试重置
+    if (escalationTimer !== null || connectionEscalated.value) {
+      return;
+    }
+    escalationTimer = window.setTimeout(() => {
+      escalationTimer = null;
+      connectionEscalated.value = true;
+    }, CONNECTION_ESCALATION_MS);
+  }
 
   function mapGenerationStatus(status?: Api.Chat.GenerationStatus): Api.Chat.Message['status'] {
     if (status === 'COMPLETED' || status === 'CANCELLED') {
@@ -168,11 +197,22 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
     });
     if (!error && data) {
       sessions.value = data;
-      // Auto-select first active session if none is active
       if (!conversationId.value) {
-        const firstActive = data.find(s => s.status === 'ACTIVE');
-        if (firstActive) {
-          await switchSession(firstActive.conversationId);
+        // pm-021：优先恢复本标签页刷新前正在浏览的会话；该会话已不存在（归档/删除）则回欢迎区
+        const storedId = sessionStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+        if (storedId) {
+          const stored = data.find(s => s.conversationId === storedId && s.status === 'ACTIVE');
+          if (stored) {
+            await switchSession(storedId);
+          } else {
+            sessionStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+          }
+        } else {
+          // Auto-select first active session if none is active
+          const firstActive = data.find(s => s.status === 'ACTIVE');
+          if (firstActive) {
+            await switchSession(firstActive.conversationId);
+          }
         }
       }
     }
@@ -187,6 +227,7 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
     if (!error && data) {
       conversationId.value = data.conversationId;
       list.value = [];
+      sessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, data.conversationId);
       await loadSessions();
     }
     return !error;
@@ -205,6 +246,7 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
     }
     conversationId.value = targetConversationId;
     list.value = [];
+    sessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, targetConversationId);
     await loadMessages(targetConversationId);
   }
 
@@ -240,6 +282,7 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
       if (targetConversationId === conversationId.value) {
         list.value = [];
         conversationId.value = '';
+        sessionStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
       }
     }
   }
@@ -252,6 +295,44 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
     if (!error) {
       await loadSessions();
     }
+  }
+
+  // 会话重命名（pm-016）：PATCH 持久化后即时更新本地标题，不整表刷新
+  async function renameSession(targetConversationId: string, title: string) {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      return false;
+    }
+    const { error } = await request({
+      url: `users/conversations/${targetConversationId}/title`,
+      method: 'PATCH',
+      data: { title: trimmed }
+    });
+    if (!error) {
+      const session = sessions.value.find(s => s.conversationId === targetConversationId);
+      if (session) {
+        session.title = trimmed;
+      }
+    }
+    return !error;
+  }
+
+  // 会话删除（pm-016）：删除后本地移除；删的是当前会话则清选中态与消息区，回到欢迎区
+  async function deleteSession(targetConversationId: string) {
+    const { error } = await request({
+      url: `users/conversations/${targetConversationId}`,
+      method: 'DELETE'
+    });
+    if (error) {
+      return false;
+    }
+    sessions.value = sessions.value.filter(s => s.conversationId !== targetConversationId);
+    if (targetConversationId === conversationId.value) {
+      conversationId.value = '';
+      list.value = [];
+      sessionStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+    }
+    return true;
   }
 
   const filteredSessions = computed(() => {
@@ -296,20 +377,39 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
       allowReconnect.value = true;
       authFailureNotified.value = false;
       intentionalDisconnect.value = false;
+      // pm-020：从升级横幅中恢复时闭环提示一次，横幅由 connectionEscalated 复位自行消失
+      const recoveredFromEscalation = connectionEscalated.value;
+      clearConnectionEscalation();
+      if (recoveredFromEscalation) {
+        window.$message?.success('聊天连接已恢复');
+      }
     },
     onDisconnected: (_, event) => {
       if (intentionalDisconnect.value) {
         intentionalDisconnect.value = false;
         allowReconnect.value = Boolean(socketUrl.value);
+        clearConnectionEscalation();
         return;
       }
       const closedBeforeHandshake = !handshakeConfirmed.value;
       const isAuthOrProtocolFailure = NON_RETRYABLE_CLOSE_CODES.has(event.code) || closedBeforeHandshake;
       allowReconnect.value = !isAuthOrProtocolFailure;
-      if (isAuthOrProtocolFailure && !authFailureNotified.value) {
-        authFailureNotified.value = true;
-        window.$message?.error('聊天连接鉴权失败，请重新登录后再试');
+      if (isAuthOrProtocolFailure) {
+        // 鉴权/协议失败不走重连：清掉升级计时，交由既有的鉴权错误提示
+        clearConnectionEscalation();
+        if (!authFailureNotified.value) {
+          authFailureNotified.value = true;
+          window.$message?.error('聊天连接鉴权失败，请重新登录后再试');
+        }
+        return;
       }
+      // pm-020 断线即轻提示（整轮只提示一次，重连中的『重连中』状态位已由 connectionStatus 承载）；
+      // 持续断线超过阈值升级为持续横幅（input-box 消费 connectionEscalated，不自动消失）
+      if (!disconnectNotified.value) {
+        disconnectNotified.value = true;
+        window.$message?.warning('聊天连接已断开，正在自动重连…');
+      }
+      startConnectionEscalation();
     }
   });
 
@@ -358,6 +458,8 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
     handshakeConfirmed.value = false;
     sessionId.value = '';
     authFailureNotified.value = false;
+    // pm-020：这里不清 connectionEscalated——手动「立即重连」尝试期间横幅保持显示（如实反映尚未恢复），
+    // 成功后由 onConnected 清除并提示恢复；登出/主动断开路径由 onDisconnected 的 intentional 分支清除
   }
 
   function wsOpen() {
@@ -480,6 +582,7 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
     activeTab,
     filteredSessions,
     connectionStatus,
+    connectionEscalated,
     isRateLimited,
     rateLimitRemainingSeconds,
     wsStatus,
@@ -503,6 +606,8 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
     switchSession,
     loadMessages,
     archiveSession,
-    unarchiveSession
+    unarchiveSession,
+    renameSession,
+    deleteSession
   };
 });

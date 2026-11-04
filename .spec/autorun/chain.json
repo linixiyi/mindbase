@@ -19,6 +19,14 @@
         "H2"
       ],
       "slug": "2026-11-04_chat-ux",
+      "status": "done (五项 + 回归修复)"
+    },
+    {
+      "round": 3,
+      "features": [
+        "H3"
+      ],
+      "slug": "2026-11-04_kb-governance",
       "status": "active"
     }
   ],

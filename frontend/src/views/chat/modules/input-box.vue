@@ -2,7 +2,8 @@
 import { getChatFailureFallbackMessage } from '@/constants/chat-failure';
 
 const chatStore = useChatStore();
-const { connectionStatus, input, isRateLimited, list, rateLimitRemainingSeconds, wsData } = storeToRefs(chatStore);
+const { connectionStatus, connectionEscalated, input, isRateLimited, list, rateLimitRemainingSeconds, wsData } =
+  storeToRefs(chatStore);
 
 function buildWsErrorMessage(data: Record<string, any>) {
   if (data.code === 429) {
@@ -433,6 +434,10 @@ const handShortcut = (e: KeyboardEvent) => {
   }
 };
 
+function reloadPage() {
+  window.location.reload();
+}
+
 watch(
   () => (isSending.value ? latestMessage.value : null),
   sending => {
@@ -449,6 +454,19 @@ onUnmounted(() => {
 
 <template>
   <div class="relative shrink-0 px-4 pb-4 pt-2">
+    <!--
+      pm-020 断线升级横幅：持续断线超过 10s 出现，不自动消失——含手动刷新引导与「立即重连」动作。
+      材质沿用既有警示提示配方（warning 10% 底 + 语义深阶文字，同 reference-preview 的 .preview-page-tip），
+      复用 store 与 connectionStatus 同源的状态机（connectionEscalated），不新起机制
+    -->
+    <div v-if="connectionEscalated" class="chat-connection-banner" role="alert">
+      <icon-lucide:wifi-off class="shrink-0 text-icon" />
+      <span class="chat-connection-banner__text">
+        聊天连接已断开超过 10 秒，自动重连仍未成功。请检查网络后重试，或刷新页面。
+      </span>
+      <NButton size="tiny" type="primary" secondary @click="chatStore.wsOpen()">立即重连</NButton>
+      <NButton size="tiny" secondary @click="reloadPage">刷新页面</NButton>
+    </div>
     <div class="chat-input-shell mx-auto max-w-[800px] w-full flex items-end gap-2">
       <textarea
         ref="inputRef"
@@ -530,6 +548,32 @@ textarea::placeholder {
 }
 
 .dark .chat-cooldown {
+  color: rgb(var(--warning-400-color));
+}
+
+/* pm-020 断线升级横幅：warning 10% 底 + 语义深阶文字（浅 -700 / 暗 -400），与
+   reference-preview 的 .preview-page-tip 同配方（DESIGN.md › 语义深阶律）；圆角取提示类 10px */
+.chat-connection-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto 8px;
+  max-width: 800px;
+  width: 100%;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgb(var(--warning-color) / 0.1);
+  color: rgb(var(--warning-700-color));
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.chat-connection-banner__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.dark .chat-connection-banner {
   color: rgb(var(--warning-400-color));
 }
 </style>
