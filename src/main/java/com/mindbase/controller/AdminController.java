@@ -297,13 +297,13 @@ public class AdminController {
         try {
             return ResponseEntity.ok(Map.of(
                     "code", 200,
-                    "message", "获取模型配置成功",
+                    "message", "获取模型供应商配置成功",
                     "data", modelProviderConfigService.getCurrentSettings()
             ));
         } catch (Exception e) {
-            LogUtils.logBusinessError("ADMIN_GET_MODEL_PROVIDERS", adminUsername, "获取模型配置失败", e);
+            LogUtils.logBusinessError("ADMIN_GET_MODEL_PROVIDERS", adminUsername, "获取模型供应商配置失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("code", 500, "message", "获取模型配置失败: " + e.getMessage()));
+                    .body(Map.of("code", 500, "message", "获取模型供应商配置失败: " + e.getMessage()));
         }
     }
 
@@ -318,16 +318,16 @@ public class AdminController {
         try {
             return ResponseEntity.ok(Map.of(
                     "code", 200,
-                    "message", "模型配置更新成功",
+                    "message", "模型供应商配置更新成功",
                     "data", modelProviderConfigService.updateScope(scope, request, adminUsername)
             ));
         } catch (CustomException e) {
-            LogUtils.logBusinessError("ADMIN_UPDATE_MODEL_PROVIDERS", adminUsername, "更新模型配置失败: %s", e, e.getMessage());
+            LogUtils.logBusinessError("ADMIN_UPDATE_MODEL_PROVIDERS", adminUsername, "更新模型供应商配置失败: %s", e, e.getMessage());
             return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));
         } catch (Exception e) {
-            LogUtils.logBusinessError("ADMIN_UPDATE_MODEL_PROVIDERS", adminUsername, "更新模型配置异常: %s", e, e.getMessage());
+            LogUtils.logBusinessError("ADMIN_UPDATE_MODEL_PROVIDERS", adminUsername, "更新模型供应商配置异常: %s", e, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("code", 500, "message", "更新模型配置失败: " + e.getMessage()));
+                    .body(Map.of("code", 500, "message", "更新模型供应商配置失败: " + e.getMessage()));
         }
     }
 

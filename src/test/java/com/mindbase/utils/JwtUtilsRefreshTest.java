@@ -1,20 +1,24 @@
 package com.mindbase.utils;
 
+import com.mindbase.exception.CustomException;
 import com.mindbase.model.User;
 import com.mindbase.repository.UserRepository;
 import com.mindbase.service.TokenCacheService;
+import com.mindbase.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 /**
  * JWT Token刷新机制测试
@@ -27,6 +31,9 @@ public class JwtUtilsRefreshTest {
 
     @Mock
     private TokenCacheService tokenCacheService;
+
+    @Mock
+    private UserService userService;
 
     @InjectMocks
     private JwtUtils jwtUtils;
@@ -50,6 +57,19 @@ public class JwtUtilsRefreshTest {
         // Mock用户仓库行为 (使用lenient模式避免不必要的stubbing警告)
         lenient().when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
         lenient().when(tokenCacheService.isTokenValid(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+        // pm-012：generateToken 会拒绝给禁用用户签发 token，测试用户默认未禁用
+        lenient().when(userService.isUserDisabled(org.mockito.ArgumentMatchers.any())).thenReturn(false);
+    }
+
+    @Test
+    void testGenerateTokenRefusedForDisabledUser() {
+        // 禁用用户拒签（pm-012）：抛 CustomException(401)，refreshToken 端点据此返回 401 而非 500
+        when(userService.isUserDisabled(1L)).thenReturn(true);
+
+        CustomException exception = assertThrows(CustomException.class,
+                () -> jwtUtils.generateToken("testuser"));
+        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatus());
+        assertEquals("账号已被禁用，请联系管理员", exception.getMessage());
     }
 
     @Test

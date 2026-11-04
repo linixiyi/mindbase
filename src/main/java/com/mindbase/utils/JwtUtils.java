@@ -8,10 +8,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import com.mindbase.exception.CustomException;
 import com.mindbase.model.User;
 import com.mindbase.repository.UserRepository;
 import com.mindbase.service.TokenCacheService;
 import com.mindbase.service.UserService;
+import org.springframework.http.HttpStatus;
 
 import javax.crypto.SecretKey;
 import java.util.Base64;
@@ -60,10 +62,11 @@ public class JwtUtils {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         // 禁用账号不再签发新 token（pm-012）：登录已被 authenticateUser 拦截，
-        // 这里收口 token 过期宽限期刷新等旁路，防止禁用用户绕过限制拿到新 token
+        // 这里收口 token 过期宽限期刷新等旁路，防止禁用用户绕过限制拿到新 token。
+        // 抛 CustomException(401) 让 refreshToken 端点映射为 401 而非 500（文案与登录 403 族一致）
         if (userService.isUserDisabled(user.getId())) {
             logger.warn("Refuse to generate token for disabled user: {}", username);
-            throw new RuntimeException("User is disabled");
+            throw new CustomException("账号已被禁用，请联系管理员", HttpStatus.UNAUTHORIZED);
         }
         
         // 生成唯一的tokenId

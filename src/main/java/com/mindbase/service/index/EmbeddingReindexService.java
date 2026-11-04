@@ -103,7 +103,7 @@ public class EmbeddingReindexService {
     /**
      * 提交重建任务（异步执行）。同一时间只允许一个任务。
      *
-     * @param targetProvider 目标 embedding provider 编码，需已在模型配置中保存好 API 地址、模型、维度和 Key
+     * @param targetProvider 目标 embedding provider 编码，需已在模型供应商配置中保存好 API 地址、模型、维度和 Key
      * @param fresh          true 时删除同名目标索引从头重建；false 时在已有目标索引上续建
      */
     public synchronized RebuildStatus startRebuild(String targetProvider, boolean fresh, String operator) {

@@ -247,7 +247,7 @@ onMounted(() => {
               <footer class="editor-actions">
                 <NButton quaternary @click="testModelProvider(selectedScope, currentProvider)">测试连接</NButton>
                 <NButton type="primary" :loading="modelProvidersSaving" @click="submitModelProviders(selectedScope)">
-                  保存{{ selectedScope === 'llm' ? '聊天模型' : 'Embedding' }}配置
+                  保存配置
                 </NButton>
               </footer>
             </section>
