@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="MindBase 是一个企业级 AI 知识库管理系统：混合检索、父子检索、强制引用标注、文档冲突检测、离线评测、多租户与模型治理。开源作品集项目。">
+<meta name="color-scheme" content="light">
+<title>MindBase · 企业级 RAG 知识库</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230071E3'/%3E%3Cpath d='M8 22V11l4.5 6L17 11l4.5 6L26 11' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+<style>
+:root{
+  --accent:#0071E3;
+  --accent-hover:#0058BD;
+  --accent-pressed:#004196;
+  --bg-layout:#F2F6FC;
+  --bg-container:#FFFFFF;
+  --text-primary:#1C2A3A;
+  --text-secondary:#5E6B7E;
+  --text-tertiary:#64758C;
+  --hairline:rgba(28,42,58,.09);
+  --fill-subtle:rgba(70,110,168,.09);
+  --fill-hover:rgba(70,110,168,.14);
+  --font-sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI","Helvetica Neue","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+  --font-mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --r-card:18px;
+  --r-pill:9999px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--font-sans);
+  font-size:16px;line-height:1.75;
+  color:var(--text-primary);
+  background:var(--bg-container);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+.container{max-width:1040px;margin:0 auto;padding:0 24px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.skip-link{position:absolute;left:-9999px;top:0;background:#fff;padding:8px 16px;z-index:99}
+.skip-link:focus{left:12px;top:12px}
+
+/* ── 顶栏：磨砂玻璃浮层 ── */
+.site-header{
+  position:sticky;top:0;z-index:20;
+  background:rgba(255,255,255,.66);
+  -webkit-backdrop-filter:blur(20px) saturate(1.8);
+  backdrop-filter:blur(20px) saturate(1.8);
+  border-bottom:1px solid var(--hairline);
+}
+.nav{display:flex;align-items:center;justify-content:space-between;height:56px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;color:var(--text-primary)}
+.brand:hover{text-decoration:none}
+.brand svg{display:block}
+.nav-links{display:flex;align-items:center;gap:28px;list-style:none}
+.nav-links a{font-size:14px;font-weight:500;color:var(--text-secondary)}
+.nav-links a:hover{color:var(--text-primary);text-decoration:none}
+.nav-links a.nav-gh{
+  display:inline-flex;align-items:center;gap:6px;
+  height:32px;padding:0 14px;border-radius:var(--r-pill);
+  background:var(--text-primary);color:#fff;font-weight:600;font-size:13px;
+}
+.nav-links a.nav-gh:hover{background:#000;color:#fff;text-decoration:none}
+
+/* ── Hero：晴空玻璃，极简渐变 ── */
+.hero{
+  background:
+    radial-gradient(1100px 480px at 78% -12%, rgba(0,113,227,.08), transparent 62%),
+    radial-gradient(860px 420px at 6% 30%, rgba(70,110,168,.06), transparent 58%),
+    linear-gradient(180deg, var(--bg-layout) 0%, #FBFDFF 78%, #FFFFFF 100%);
+  border-bottom:1px solid var(--hairline);
+  padding:104px 0 96px;
+  text-align:center;
+}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:6px 16px;border-radius:var(--r-pill);
+  background:rgba(255,255,255,.72);
+  border:1px solid var(--hairline);
+  font-size:13px;font-weight:500;color:var(--text-secondary);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+}
+.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.hero h1{
+  margin:28px auto 0;
+  font-size:clamp(40px,6vw,60px);font-weight:600;line-height:1.12;
+  letter-spacing:-.02em;
+}
+.hero .tagline{
+  margin:18px auto 0;max-width:640px;
+  font-size:clamp(17px,2.4vw,20px);font-weight:500;line-height:1.6;
+  color:var(--text-primary);
+}
+.hero .sub{
+  margin:14px auto 0;max-width:680px;
+  font-size:16px;color:var(--text-secondary);
+}
+.hero-actions{margin-top:36px;display:flex;justify-content:center;gap:14px;flex-wrap:wrap}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;
+  height:44px;padding:0 24px;border-radius:var(--r-pill);
+  font-size:15px;font-weight:600;line-height:1.4;
+  transition:background-color .18s ease;
+}
+.btn:hover{text-decoration:none}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-primary:active{background:var(--accent-pressed)}
+.btn-ghost{background:rgba(255,255,255,.72);color:var(--text-primary);border:1px solid var(--hairline)}
+.btn-ghost:hover{background:#fff;border-color:rgba(28,42,58,.18)}
+.hero-quote{
+  margin:44px auto 0;max-width:560px;
+  padding:16px 22px;border-radius:14px;
+  background:rgba(255,255,255,.72);
+  border:1px solid var(--hairline);
+  font-family:var(--font-mono);font-size:13.5px;line-height:1.7;
+  color:var(--text-secondary);text-align:left;
+}
+.hero-quote b{color:var(--accent);font-weight:600}
+
+/* ── 通用区块 ── */
+section{padding:88px 0}
+.section-head{max-width:640px;margin:0 auto 52px;text-align:center}
+.section-head .kicker{font-size:13px;font-weight:600;letter-spacing:.08em;color:var(--accent)}
+.section-head h2{margin-top:10px;font-size:clamp(26px,4vw,32px);font-weight:600;line-height:1.25}
+.section-head p{margin-top:14px;color:var(--text-secondary)}
+.divider{border:0;border-top:1px solid var(--hairline)}
+
+/* ── 核心能力 ── */
+.cap-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:20px}
+.cap-card{
+  background:var(--bg-container);
+  border:1px solid var(--hairline);border-radius:var(--r-card);
+  padding:26px 26px 24px;
+  box-shadow:0 1px 2px rgba(28,42,58,.04);
+}
+.cap-card .no{font-family:var(--font-mono);font-size:12px;color:var(--accent);font-weight:600}
+.cap-card h3{margin-top:8px;font-size:19px;font-weight:600;line-height:1.4}
+.cap-card p{margin-top:8px;font-size:14.5px;line-height:1.7;color:var(--text-secondary)}
+.cap-card code{font-family:var(--font-mono);font-size:.92em;background:var(--fill-subtle);border-radius:5px;padding:1px 6px;word-break:break-all}
+
+/* ── 架构一览 ── */
+.pipe-wrap{display:grid;gap:26px}
+.pipe{
+  background:var(--bg-layout);
+  border:1px solid var(--hairline);border-radius:var(--r-card);
+  padding:26px;
+}
+.pipe-label{font-size:13px;font-weight:600;color:var(--text-secondary);letter-spacing:.06em}
+.pipe-flow{margin-top:16px;display:flex;align-items:stretch;flex-wrap:wrap;gap:8px}
+.pipe-step{
+  background:var(--bg-container);
+  border:1px solid var(--hairline);border-radius:10px;
+  padding:10px 14px;text-align:center;
+}
+.pipe-step b{display:block;font-size:14px;font-weight:600;line-height:1.5}
+.pipe-step span{display:block;font-size:12px;color:var(--text-tertiary);line-height:1.5}
+.pipe-arrow{align-self:center;color:var(--accent);font-size:16px;font-weight:600;padding:0 2px}
+.pipe-note{margin-top:14px;font-size:13.5px;color:var(--text-secondary)}
+
+/* ── 技术栈 ── */
+.stack-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:20px}
+.stack-card{border:1px solid var(--hairline);border-radius:var(--r-card);padding:22px 24px;background:var(--bg-container)}
+.stack-card h3{font-size:16px;font-weight:600}
+.stack-card ul{margin-top:10px;list-style:none}
+.stack-card li{font-size:14px;color:var(--text-secondary);padding:5px 0;border-top:1px solid var(--hairline)}
+.stack-card li:first-child{border-top:0}
+
+/* ── 诚实声明 ── */
+.honesty{
+  background:var(--fill-subtle);
+  border:1px solid var(--hairline);border-radius:var(--r-card);
+  padding:40px 44px;
+  display:grid;grid-template-columns:1fr auto;gap:28px;align-items:center;
+}
+.honesty h2{font-size:22px;font-weight:600}
+.honesty p{margin-top:12px;font-size:15px;color:var(--text-secondary);max-width:560px}
+
+/* ── 页脚 ── */
+.site-footer{border-top:1px solid var(--hairline);padding:36px 0 44px}
+.site-footer .container{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.site-footer p{font-size:13.5px;color:var(--text-secondary)}
+.site-footer a{font-weight:500}
+
+/* ── 动效（尊重 reduced-motion）── */
+@media (prefers-reduced-motion: no-preference){
+  .hero .eyebrow,.hero h1,.hero .tagline,.hero .sub,.hero-actions,.hero-quote{
+    animation:rise .6s cubic-bezier(.2,.7,.3,1) both;
+  }
+  .hero .tagline{animation-delay:.06s}
+  .hero .sub{animation-delay:.12s}
+  .hero-actions{animation-delay:.18s}
+  .hero-quote{animation-delay:.24s}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+
+/* ── 响应式 ── */
+@media (max-width:720px){
+  .nav-links{display:none}
+  .hero{padding:72px 0 64px}
+  section{padding:64px 0}
+  .container{padding:0 20px}
+  .honesty{grid-template-columns:1fr;padding:30px 24px}
+  .honesty .btn{width:100%;justify-content:center}
+  .pipe{padding:20px}
+  .pipe-step{flex:1 1 100%}
+  .pipe-arrow{display:none}
+  .pipe-step + .pipe-step{margin-top:2px}
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">跳到主要内容</a>
+
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="#top" aria-label="MindBase 首页">
+      <svg width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0071E3"/><path d="M8 22V11l4.5 6L17 11l4.5 6L26 11" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+      MindBase
+    </a>
+    <nav aria-label="页面导航">
+      <ul class="nav-links">
+        <li><a href="#capabilities">核心能力</a></li>
+        <li><a href="#architecture">架构</a></li>
+        <li><a href="#stack">技术栈</a></li>
+        <li><a class="nav-gh" href="https://github.com/linixiyi/mindbase" rel="noopener">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          GitHub
+        </a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" id="top">
+    <div class="container">
+      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>企业级 RAG 知识库 · 开源作品集项目</p>
+      <h1>MindBase</h1>
+      <p class="tagline">上传文档，自动解析、分块并向量化入库；<br>用自然语言提问，得到基于知识库、逐句带来源引用的中文回答。</p>
+      <p class="sub">围绕 RAG 工作流构建的企业级 AI 知识库：检索质量、引用证据、权限隔离与调用治理，全部做进工程里。</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="https://github.com/linixiyi/mindbase" rel="noopener">查看 GitHub 仓库</a>
+        <a class="btn btn-ghost" href="#capabilities">了解核心能力</a>
+      </div>
+      <p class="hero-quote">回答强制基于检索片段，句末携带引用标注：<b>(来源#1: 产品白皮书.pdf | 第3页)</b></p>
+    </div>
+  </section>
+
+  <section id="capabilities">
+    <div class="container">
+      <div class="section-head">
+        <p class="kicker">CAPABILITIES</p>
+        <h2>核心能力</h2>
+        <p>八个可验证的工程深度点，全部有源码与文档对应。</p>
+      </div>
+      <div class="cap-grid">
+        <article class="cap-card" data-cap>
+          <p class="no">01</p>
+          <h3>混合检索</h3>
+          <p>BM25 与 KNN 双路并行召回，RRF 融合排序，可选接入 gte-rerank 重排模型。</p>
+        </article>
+        <article class="cap-card" data-cap>
+          <p class="no">02</p>
+          <h3>父子检索</h3>
+          <p>small-to-big：命中小分块后自动扩展相邻大分块提供给模型，引用仍指向命中的小分块，精度与上下文兼得。</p>
+        </article>
+        <article class="cap-card" data-cap>
+          <p class="no">03</p>
+          <h3>强制引用标注</h3>
+          <p>回答句末携带 <code>(来源#编号: 文件名 | 第X页)</code>，可选逐句校验，无依据的引用会被标记。</p>
+        </article>
+        <article class="cap-card" data-cap>
+          <p class="no">04</p>
+          <h3>文档冲突检测</h3>
+          <p>向量化完成后异步扫描相似但数字、版本号、日期不一致的分块对，由管理员在后台人工裁决保留哪一篇。</p>
+        </article>
+        <article class="cap-card" data-cap>
+          <p class="no">05</p>
+          <h3>离线评测框架</h3>
+          <p>检索看 Recall@K 与 MRR，生成看 LLM-as-a-judge，支持人工抽检与评委一致率（Cohen's kappa），内置 50 条评测集。</p>
+        </article>
+        <article class="cap-card" data-cap>
+          <p class="no">06</p>
+          <h3>多租户权限过滤</h3>
+          <p>组织标签与用户/组织关系驱动检索与问答过滤，文档公开/私有加细粒度授权。</p>
+        </article>
+        <article class="cap-card" data-cap>
+          <p class="no">07</p>
+          <h3>模型调用治理</h3>
+          <p>按供应商熔断、舱壁隔离、指数退避重试、LLM 主备自动切换，Redis 令牌桶对关键接口限流。</p>
+        </article>
+        <article class="cap-card" data-cap>
+          <p class="no">08</p>
+          <h3>Kafka 可靠投递</h3>
+          <p>文档处理全链路走 Kafka：解析、分块、Embedding、写入 Elasticsearch，失败自动重试并进入死信队列，支持人工重放。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <section id="architecture">
+    <div class="container">
+      <div class="section-head">
+        <p class="kicker">ARCHITECTURE</p>
+        <h2>架构一览</h2>
+        <p>两条主链路：文档如何变成可检索的知识，问题如何变成带引用的回答。</p>
+      </div>
+      <div class="pipe-wrap">
+        <div class="pipe">
+          <p class="pipe-label">入库链路 · INGESTION</p>
+          <div class="pipe-flow" role="list">
+            <div class="pipe-step" role="listitem"><b>分片上传</b><span>断点续传 · 秒传 MD5</span></div>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <div class="pipe-step" role="listitem"><b>解析</b><span>LiteParse / Tika · PDF 保留页码</span></div>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <div class="pipe-step" role="listitem"><b>分块</b><span>可选上下文检索</span></div>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <div class="pipe-step" role="listitem"><b>Embedding</b><span>向量化</span></div>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <div class="pipe-step" role="listitem"><b>Elasticsearch</b><span>索引写入</span></div>
+          </div>
+          <p class="pipe-note">全链路由 Kafka 串联：失败自动重试，进入死信队列后支持管理员人工重放。</p>
+        </div>
+        <div class="pipe">
+          <p class="pipe-label">问答链路 · RETRIEVAL &amp; GENERATION</p>
+          <div class="pipe-flow" role="list">
+            <div class="pipe-step" role="listitem"><b>WebSocket 提问</b><span>流式输出 · 可主动中断</span></div>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <div class="pipe-step" role="listitem"><b>双路召回</b><span>BM25 + KNN</span></div>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <div class="pipe-step" role="listitem"><b>RRF 融合</b><span>可选 gte-rerank 重排</span></div>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <div class="pipe-step" role="listitem"><b>父子扩展</b><span>小命中 · 大上下文</span></div>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <div class="pipe-step" role="listitem"><b>生成回答</b><span>强制引用标注</span></div>
+          </div>
+          <p class="pipe-note">检索、重排与工具调用共用请求级时间预算；多租户过滤贯穿检索全程。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <section id="stack">
+    <div class="container">
+      <div class="section-head">
+        <p class="kicker">TECH STACK</p>
+        <h2>技术栈</h2>
+        <p>与仓库 README 一致，无夸大。</p>
+      </div>
+      <div class="stack-grid">
+        <div class="stack-card">
+          <h3>后端</h3>
+          <ul>
+            <li>Spring Boot 3.4.2（Java 17）</li>
+            <li>Spring Data JPA</li>
+            <li>Spring Security + JWT</li>
+            <li>WebSocket（WebFlux）</li>
+          </ul>
+        </div>
+        <div class="stack-card">
+          <h3>前端</h3>
+          <ul>
+            <li>Vue 3.5 + TypeScript</li>
+            <li>Vite 6 · pnpm workspace</li>
+            <li>Naive UI · UnoCSS</li>
+            <li>Pinia · 基于 SoybeanAdmin</li>
+          </ul>
+        </div>
+        <div class="stack-card">
+          <h3>存储与中间件</h3>
+          <ul>
+            <li>MySQL 8 · Redis</li>
+            <li>Elasticsearch 8.10</li>
+            <li>Apache Kafka</li>
+            <li>MinIO 对象存储</li>
+          </ul>
+        </div>
+        <div class="stack-card">
+          <h3>AI 与解析</h3>
+          <ul>
+            <li>OpenAI 兼容 LLM API</li>
+            <li>Embedding API · 重排 API</li>
+            <li>Apache Tika + LiteParse</li>
+            <li>可选 OCR（Tesseract / 云服务）</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <section id="honesty">
+    <div class="container">
+      <div class="honesty">
+        <div>
+          <h2>这是作品集项目</h2>
+          <p>MindBase 由开发者独立设计并实现，按真实企业产品的标准打磨。它目前没有真实客户、生产部署数据或用户证言——本页所有能力描述均来自仓库 README 与源码，欢迎在 GitHub 逐条对照验证。</p>
+        </div>
+        <a class="btn btn-primary" href="https://github.com/linixiyi/mindbase" rel="noopener">前往 GitHub 查看源码</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <p>MindBase · 企业级 RAG 知识库 · 开源作品集项目</p>
+    <p><a href="https://github.com/linixiyi/mindbase" rel="noopener">github.com/linixiyi/mindbase</a></p>
+  </div>
+</footer>
+</body>
+</html>
