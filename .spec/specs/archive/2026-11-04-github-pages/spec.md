@@ -34,7 +34,7 @@
 - route: build
 - 执行段：动态工作流（Flash）：设计 → 无头验证+detect 门禁 → 修理 → 独立复审（事实核对）
 ## 6. 成功标准与验证方式
-- [ ] 页面产出并验证 -> verify: task-g7-page
-- [ ] 发布成功 -> verify: task-g7-publish（主会话，URL 200）
+- [x] 页面产出并验证 -> verify: task-g7-page
+- [x] 发布成功 -> verify: task-g7-publish（https://linixiyi.github.io/mindbase/ 200，2026-11-04）
 ## 7. 风险与约束
 - 公开仓库+公开页：内容涉密扫描零容忍；不出现任何 .env 值/生产 IP
