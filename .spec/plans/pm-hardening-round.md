@@ -8,7 +8,7 @@
 - [x] G4 债务清理：pm-003 删除 TOCTOU 收口；pdf-document-viewer stone 色板 token 化；eslint 存量 warning 清零
 - [x] G5 产品自体验一轮（主会话/体验员）：核心旅程 + 新治理面，产出下一轮聚焦
 - [x] G6 P2 高价值项落地（pm-014 命令面板 + pm-029/030/031 术语 IA + toggle bug 修复）
-- [ ] G7 GitHub Pages 介绍页：设计（impeccable Persuade 模式）+ gh-pages 发布
+- [x] G7 GitHub Pages 介绍页：设计（impeccable Persuade 模式）+ 发布 https://linixiyi.github.io/mindbase/
 
 ## 约定
 - 特性行自首轮执行起冻结；细化落各包文档
