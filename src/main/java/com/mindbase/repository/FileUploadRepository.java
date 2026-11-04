@@ -2,8 +2,10 @@ package com.mindbase.repository;
 
 import com.mindbase.model.FileUpload;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -16,8 +18,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+/**
+ * pm-023：追加 JpaSpecificationExecutor 以支持可访问范围的 SQL 层真分页 + 条件筛选
+ * （本人文件 OR 公开文件 OR 所属组织标签文件 的动态组合），不再全量取回后内存切片
+ */
 @Repository
-public interface FileUploadRepository extends JpaRepository<FileUpload, Long> {
+public interface FileUploadRepository extends JpaRepository<FileUpload, Long>, JpaSpecificationExecutor<FileUpload> {
     Optional<FileUpload> findFirstByFileMd5OrderByCreatedAtDesc(String fileMd5);
 
     List<FileUpload> findAllByFileMd5(String fileMd5);
@@ -87,11 +93,16 @@ public interface FileUploadRepository extends JpaRepository<FileUpload, Long> {
     
     /**
      * 查询用户自己上传的所有文件
-     * 
+     *
      * @param userId 用户ID
      * @return 用户上传的文件列表
      */
     List<FileUpload> findByUserId(String userId);
+
+    /**
+     * pm-023：用户自己上传文件的 SQL 层分页版本（/documents/uploads 带分页参数时使用）
+     */
+    Page<FileUpload> findByUserId(String userId, Pageable pageable);
 
     List<FileUpload> findByUserIdAndFileNameOrderByCreatedAtDesc(String userId, String fileName);
 

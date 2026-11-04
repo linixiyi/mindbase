@@ -328,6 +328,29 @@ declare namespace Api {
       topK: number;
     }
 
+    /** pm-024a：知识库列表服务端筛选（与分页参数同链下发给 /documents/accessible） */
+    interface SearchFilter {
+      /** 文件名关键词（空串/null 均不过滤） */
+      fileName: string;
+      /** 公开/私有（null=全部） */
+      isPublic: boolean;
+      /** 上传状态=处理中(UPLOADING)/已完成(COMPLETED)；向量化失败(VECTOR_FAILED) */
+      status: 'UPLOADING' | 'COMPLETED' | 'VECTOR_FAILED';
+    }
+
+    /**
+     * 列表查询参数 = 分页 + 筛选（与 user 页 SearchParams 同律：RecordNullable 全字段可选可空， 满足 useTable 对 apiFn 参数型与 CommonSearchParams
+     * 的双向兼容）
+     */
+    type ListParams = CommonType.RecordNullable<Common.CommonSearchParams & SearchFilter>;
+
+    /** 筛选表单草稿（NSelect 值不支持 boolean，公开/私有以 'PUBLIC'/'PRIVATE' 承载， 查询时在视图内换算为 boolean|null 再下发） */
+    type FilterDraft = {
+      fileName: string | null;
+      isPublic: 'PUBLIC' | 'PRIVATE' | null;
+      status: 'UPLOADING' | 'COMPLETED' | 'VECTOR_FAILED' | null;
+    };
+
     interface SearchResult {
       fileMd5: string;
       chunkId: number;

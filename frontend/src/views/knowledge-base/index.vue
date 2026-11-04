@@ -1,13 +1,13 @@
 <script setup lang="tsx">
 import type { UploadFileInfo } from 'naive-ui';
 import { NButton, NEllipsis, NModal, NPopconfirm, NProgress, NTag, NUpload } from 'naive-ui';
-import type { FlatResponseData } from '@sa/axios';
 import { uploadAccept } from '@/constants/common';
 import { UploadStatus } from '@/enum';
 import SvgIcon from '@/components/custom/svg-icon.vue';
 import FilePreview from '@/components/custom/file-preview.vue';
 import UploadDialog from './modules/upload-dialog.vue';
 import SearchDialog from './modules/search-dialog.vue';
+import KbSearch from './modules/kb-search.vue';
 
 const appStore = useAppStore();
 const authStore = useAuthStore();
@@ -17,31 +17,13 @@ const previewVisible = ref(false);
 const previewFileName = ref('');
 const previewFileMd5 = ref('');
 
-async function apiFn(params: Api.Common.CommonSearchParams = {}): Promise<FlatResponseData<Api.KnowledgeBase.List>> {
-  const response = await request<Api.KnowledgeBase.UploadTask[] | Api.KnowledgeBase.List>({
+function apiFn(params: Api.KnowledgeBase.ListParams) {
+  // pm-023：分页/筛选参数原样下发，服务端 SQL 层真分页 + 筛选（pm-024a），
+  // 返回 Page 结构直接交给 useTable transformer，前端不再做二次切片
+  return request<Api.KnowledgeBase.List>({
     url: '/documents/accessible',
     params
   });
-  if (response.error) return response as FlatResponseData<Api.KnowledgeBase.List>;
-
-  const payload = response.data;
-  if (!Array.isArray(payload)) return response as FlatResponseData<Api.KnowledgeBase.List>;
-
-  const page = params.page && params.page > 0 ? params.page : 1;
-  const size = params.size && params.size > 0 ? params.size : 10;
-  const start = (page - 1) * size;
-  const pageData = payload.slice(start, start + size);
-
-  return {
-    ...response,
-    data: {
-      data: pageData,
-      content: pageData,
-      number: page,
-      size,
-      totalElements: payload.length
-    }
-  };
 }
 
 function canManageFile(row: Api.KnowledgeBase.UploadTask) {
@@ -74,11 +56,32 @@ function closeFilePreview() {
   previewFileMd5.value = '';
 }
 
-const { columns, columnChecks, data, getData, loading, mobilePagination } = useTable({
+const {
+  columns,
+  columnChecks,
+  data,
+  getData,
+  loading,
+  mobilePagination,
+  updateSearchParams,
+  getDataByPage,
+  searchParams
+} = useTable({
   apiFn,
+  // pm-024a：筛选参数与分页同链（searchParams → apiFn → /documents/accessible）
+  apiParams: {
+    fileName: null,
+    isPublic: null,
+    status: null
+  },
   showTotal: true,
   immediate: false,
   columns: () => [
+    {
+      type: 'selection',
+      // pm-024b：仅服务端已落库且本人可管理的行可勾选；本地上传中的任务（无服务端 id）不可选
+      disabled: row => !canManageFile(row) || row.id === undefined || row.id === null
+    },
     {
       key: 'fileName',
       title: '文件名',
@@ -217,6 +220,9 @@ function syncTaskFromServer(target: Api.KnowledgeBase.UploadTask, source: Api.Kn
   const status = source.status === UploadStatus.Uploading && !isLocalUploading ? UploadStatus.Break : source.status;
 
   Object.assign(target, {
+    // pm-024b：同步服务端行 id——表格渲染的行对象会合并为 store task（原缺 id），
+    // 缺 id 会让行选择列被禁用判定与 row-key（id ?? fileMd5）落空
+    id: source.id,
     fileName: source.fileName,
     totalSize: source.totalSize,
     status,
@@ -279,6 +285,142 @@ async function handleDelete(fileMd5: string) {
     await getData();
   }
 }
+
+// #region 列表筛选（pm-024a：服务端过滤，与分页参数同链）
+const filterDraft = ref<Api.KnowledgeBase.FilterDraft>({ fileName: null, isPublic: null, status: null });
+const hasActiveFilters = computed(
+  () => Boolean(filterDraft.value.fileName) || filterDraft.value.isPublic !== null || Boolean(filterDraft.value.status)
+);
+
+/** 表单草稿换算为服务端筛选参数（'PUBLIC'/'PRIVATE' → boolean|null） */
+function appliedFilters(): Api.KnowledgeBase.ListParams {
+  const { fileName, isPublic, status } = filterDraft.value;
+  let publicFilter: boolean | null = null;
+  if (isPublic === 'PUBLIC') publicFilter = true;
+  if (isPublic === 'PRIVATE') publicFilter = false;
+  return { fileName, isPublic: publicFilter, status };
+}
+
+async function searchFiles() {
+  updateSearchParams(appliedFilters());
+  await getDataByPage(1);
+}
+
+async function resetFilters() {
+  filterDraft.value = { fileName: null, isPublic: null, status: null };
+  await searchFiles();
+}
+// #endregion
+
+// #region 批量操作（pm-024b：多选 + 批量删除/批量重试向量化，受控并发复用单条端点）
+const checkedRowKeys = ref<Array<string | number>>([]);
+
+function handleCheck(rowKeys: Array<string | number>) {
+  checkedRowKeys.value = rowKeys;
+}
+
+/** 当前页中处于勾选状态的行（翻页后不存在的勾选键自动不参与批量操作） */
+const checkedRows = computed(() => data.value.filter(row => checkedRowKeys.value.includes(row.id ?? row.fileMd5)));
+
+const retryableCheckedRows = computed(() => checkedRows.value.filter(row => canRetryVectorization(row)));
+
+const batchDeleting = ref(false);
+const batchRetrying = ref(false);
+
+// 翻页即清空勾选：批量操作条始终对应当前可见页的勾选语义
+watch(
+  () => searchParams.page,
+  () => {
+    checkedRowKeys.value = [];
+  }
+);
+
+/** 受控并发：固定 worker 数递归消费队列（与 store 分片上传的 runWorker 同律）， 单条失败不中断其余条目 */
+async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T) => Promise<void>) {
+  const queue = [...items];
+  const runWorker = async (): Promise<void> => {
+    const item = queue.shift();
+    if (item === undefined) return;
+    await worker(item);
+    await runWorker();
+  };
+  const runners = Array.from({ length: Math.min(limit, queue.length) }, () => runWorker());
+  await Promise.all(runners);
+}
+
+async function handleBatchDelete() {
+  const rows = checkedRows.value.filter(row => row.id !== undefined && row.id !== null);
+  if (!rows.length) return;
+
+  batchDeleting.value = true;
+  let successCount = 0;
+  let failedCount = 0;
+
+  await runWithConcurrency(rows, 3, async row => {
+    // 与单条 handleDelete 同语义：先取消在途分片请求，再走 DELETE 端点
+    // （端点内是 pm-003 持有者隔离删除：仅删请求者记录，最后持有者才全局清理 ES/MinIO/向量）
+    const taskIndex = tasks.value.findIndex(task => task.fileMd5 === row.fileMd5);
+    if (taskIndex !== -1) {
+      tasks.value[taskIndex].requestIds?.forEach(requestId => {
+        request.cancelRequest(requestId);
+      });
+    }
+
+    const { error } = await request({ url: `/documents/${row.fileMd5}`, method: 'DELETE' });
+    if (error) {
+      failedCount += 1;
+      return;
+    }
+    successCount += 1;
+    const index = tasks.value.findIndex(task => task.fileMd5 === row.fileMd5);
+    if (index !== -1) {
+      tasks.value.splice(index, 1);
+    }
+  });
+
+  batchDeleting.value = false;
+  checkedRowKeys.value = [];
+  if (failedCount === 0) {
+    window.$message?.success(`已删除 ${successCount} 个文件`);
+  } else {
+    window.$message?.warning(`已删除 ${successCount} 个文件，${failedCount} 个删除失败`);
+  }
+  await getData();
+}
+
+async function handleBatchRetryVectorization() {
+  const rows = retryableCheckedRows.value;
+  if (!rows.length) return;
+
+  batchRetrying.value = true;
+  let successCount = 0;
+  let failedCount = 0;
+
+  await runWithConcurrency(rows, 3, async row => {
+    const { error } = await request({
+      url: `/documents/${row.fileMd5}/vectorization/retry`,
+      method: 'POST'
+    });
+    if (error) {
+      failedCount += 1;
+      return;
+    }
+    successCount += 1;
+    row.vectorizationStatus = 'PROCESSING';
+    row.vectorizationErrorMessage = null;
+    row.actualEmbeddingTokens = undefined;
+    row.actualChunkCount = undefined;
+  });
+
+  batchRetrying.value = false;
+  if (failedCount === 0) {
+    window.$message?.success(`已提交 ${successCount} 个向量化重试任务`);
+  } else {
+    window.$message?.warning(`已提交 ${successCount} 个向量化重试任务，${failedCount} 个提交失败`);
+  }
+  await getList();
+}
+// #endregion
 
 // #region 文件上传
 const uploadVisible = ref(false);
@@ -621,20 +763,46 @@ async function onBeforeUpload(
               检索知识库
             </NButton>
           </template>
+          <!-- pm-024b：批量操作条，勾选行后出现（NPopconfirm 汇总计数确认） -->
+          <template #suffix>
+            <NSpace v-if="checkedRows.length" :size="8" align="center" :wrap="false">
+              <span class="text-muted text-12px">已选 {{ checkedRows.length }} 项</span>
+              <NPopconfirm @positive-click="handleBatchDelete">
+                <template #trigger>
+                  <NButton size="small" type="error" ghost :loading="batchDeleting">批量删除</NButton>
+                </template>
+                确认删除选中的
+                {{ checkedRows.length }} 个文件吗？仅删除你有权限的文件记录，其他持有者的同名文件不受影响。
+              </NPopconfirm>
+              <NButton
+                v-if="retryableCheckedRows.length"
+                size="small"
+                type="primary"
+                ghost
+                :loading="batchRetrying"
+                @click="handleBatchRetryVectorization"
+              >
+                批量重试向量化({{ retryableCheckedRows.length }})
+              </NButton>
+            </NSpace>
+          </template>
         </TableHeaderOperation>
       </template>
+      <KbSearch v-model:model="filterDraft" :loading="loading" @reset="resetFilters" @search="searchFiles" />
       <NDataTable
         :bordered="false"
         :columns="columns"
         :data="tableTasks"
         size="small"
         :flex-height="!appStore.isMobile"
-        :scroll-x="962"
+        :scroll-x="1010"
         :loading="loading"
         remote
-        :row-key="row => row.id"
+        :row-key="row => row.id ?? row.fileMd5"
         :pagination="mobilePagination"
+        :checked-row-keys="checkedRowKeys"
         class="sm:h-full"
+        @update:checked-row-keys="handleCheck"
       >
         <!--
           R11 delight：空态与兄弟表格视图同律（azure 徽标 tile + 教学文案）。
@@ -645,9 +813,16 @@ async function onBeforeUpload(
             <div class="app-state-badge">
               <icon-lucide:file-text class="text-icon-large" />
             </div>
-            <p class="table-state__title">暂无文件</p>
-            <p class="table-state__desc">上传第一份文档，完成解析与向量化后，就可在聊天中提问并获得带引用的回答</p>
-            <NButton size="small" type="primary" :disabled="loading" @click="handleUpload">上传第一个文档</NButton>
+            <template v-if="hasActiveFilters">
+              <p class="table-state__title">没有符合筛选条件的文件</p>
+              <p class="table-state__desc">调整文件名关键词、公开范围或状态后重试</p>
+              <NButton size="small" :disabled="loading" @click="resetFilters">清除筛选</NButton>
+            </template>
+            <template v-else>
+              <p class="table-state__title">暂无文件</p>
+              <p class="table-state__desc">上传第一份文档，完成解析与向量化后，就可在聊天中提问并获得带引用的回答</p>
+              <NButton size="small" type="primary" :disabled="loading" @click="handleUpload">上传第一个文档</NButton>
+            </template>
           </div>
         </template>
       </NDataTable>

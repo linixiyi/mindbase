@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { uploadAccept } from '@/constants/common';
+import { UploadStatus } from '@/enum';
 
 defineOptions({
   name: 'UploadDialog'
@@ -13,6 +14,10 @@ const orgLoadFailed = ref(false);
 let orgRequestId = 0;
 
 const authStore = useAuthStore();
+
+/** 本次提交的上传任务（pm-019 过程条 × pm-024c 多文件）：保存后对话框内逐文件展示当前阶段，失败可单文件重试 */
+const submittedTaskMd5s = ref<string[]>([]);
+const submitted = computed(() => submittedTaskMd5s.value.length > 0);
 
 const { formRef, validate, restoreValidation } = useNaiveForm();
 const { defaultRequiredRule } = useFormRules();
@@ -38,11 +43,14 @@ const rules = ref<FormRules>({
 
 const fileSizeLimitError = computed(() => {
   if (authStore.isAdmin) return '';
-  const file = model.value.fileList?.[0]?.file;
-  if (!file || !model.value.uploadMaxSizeBytes) return '';
-  if (file.size <= model.value.uploadMaxSizeBytes) return '';
+  if (!model.value.uploadMaxSizeBytes) return '';
+  // pm-024c：多文件逐个校验组织大小上限，超限文件点名提示
+  const oversized = (model.value.fileList || [])
+    .filter(item => item.file && item.file.size > model.value.uploadMaxSizeBytes!)
+    .map(item => item.file!.name);
+  if (!oversized.length) return '';
 
-  return `当前组织限制非管理员上传文件不超过 ${model.value.uploadMaxSizeMb} MB，当前文件大小为 ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+  return `以下文件超过组织限制 ${model.value.uploadMaxSizeMb} MB：${oversized.join('、')}`;
 });
 
 const submitDisabled = computed(
@@ -54,14 +62,70 @@ function close() {
 }
 
 const store = useKnowledgeBaseStore();
+const { tasks } = storeToRefs(store);
+/** 本次提交涉及的任务（pm-024c：多文件逐文件展示，随任务状态实时刷新） */
+const submittedTasks = computed(() =>
+  submittedTaskMd5s.value
+    .map(md5 => tasks.value.find(task => task.fileMd5 === md5))
+    .filter((task): task is Api.KnowledgeBase.UploadTask => Boolean(task))
+);
+
+type SubmittedStage = {
+  type: 'default' | 'success' | 'error';
+  label: string;
+  failed?: boolean;
+  hint?: string;
+};
+
+function submittedStageOf(task: Api.KnowledgeBase.UploadTask): SubmittedStage | null {
+  if (task.status === UploadStatus.Break) {
+    return { type: 'error', label: '上传失败', failed: true };
+  }
+  if (task.status === UploadStatus.Completed) {
+    if (task.vectorizationStatus === 'PENDING' || task.vectorizationStatus === 'PROCESSING') {
+      return { type: 'success', label: '已完成', hint: '向量化处理中，完成后可在文件列表查看实际 Tokens' };
+    }
+    if (task.vectorizationStatus === 'FAILED') {
+      return { type: 'success', label: '已完成', hint: '向量化失败，可在文件列表重试向量化' };
+    }
+    return { type: 'success', label: '已完成' };
+  }
+  if (task.status === UploadStatus.Uploading) return null;
+  return { type: 'default', label: '排队中' };
+}
+
+function retrySubmittedUpload(task: Api.KnowledgeBase.UploadTask) {
+  // 服务端恢复的断点任务可能没有本地 File（store 入队时已按 MD5 回填），此处兜底按文件名匹配本次表单文件
+  if (!task.file) {
+    const formFile = model.value.fileList?.find(item => item.file?.name === task.fileName)?.file;
+    if (formFile) {
+      task.file = formFile;
+    }
+  }
+  task.status = UploadStatus.Pending;
+  store.startUpload();
+}
+
 async function handleSubmit() {
   await validate();
   if (fileSizeLimitError.value) return;
 
   loading.value = true;
-  await store.enqueueUpload(model.value);
-  loading.value = false;
-  close();
+  try {
+    const involvedTasks = await store.enqueueUpload(model.value);
+    if (involvedTasks.length) {
+      // 提交成功：对话框逐文件展示实时阶段（多文件各自独立成败态）
+      submittedTaskMd5s.value = involvedTasks.map(task => task.fileMd5);
+    } else {
+      // 重复文件/正在上传中已由 store 给出错误提示，维持原行为关闭
+      close();
+    }
+  } catch (error) {
+    // MD5 读取等本地异常：给出可见反馈，loading 在 finally 中复位，不留静默失败
+    window.$message?.error(error instanceof Error ? error.message : '文件校验失败，请重试');
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function loadUploadOrganizations() {
@@ -88,6 +152,7 @@ async function loadUploadOrganizations() {
 watch(visible, () => {
   if (visible.value) {
     model.value = createDefaultModel();
+    submittedTaskMd5s.value = [];
     loadUploadOrganizations();
     restoreValidation();
   } else {
@@ -150,15 +215,11 @@ function onUpdate(option: unknown) {
         </NRadioGroup>
       </NFormItem>
       <NFormItem label="上传文件" path="fileList">
-        <NUpload
-          v-model:file-list="model.fileList"
-          :accept="uploadAccept"
-          :max="1"
-          :multiple="false"
-          :default-upload="false"
-        >
+        <NUpload v-model:file-list="model.fileList" :accept="uploadAccept" multiple :default-upload="false">
           <NButton>上传文件</NButton>
         </NUpload>
+        <!-- pm-024c：支持一次多选文件，逐个入队，每个文件独立进度与成败态 -->
+        <div v-if="!model.fileList?.length" class="text-muted mt-8px text-12px">支持多选文件，将逐个入队上传。</div>
         <div v-if="fileSizeLimitError" class="form-hint--error mt-8px text-12px">
           {{ fileSizeLimitError }}
         </div>
@@ -167,10 +228,55 @@ function onUpdate(option: unknown) {
         </div>
       </NFormItem>
     </NForm>
+
+    <!-- pm-019 过程感：哈希阶段的过程文案（多文件逐个计算 MD5） -->
+    <div v-if="loading" class="text-muted mt-8px text-12px">正在计算文件指纹（MD5），大文件可能需要数秒…</div>
+
+    <!-- pm-019 过程条 × pm-024c：保存后逐文件展示当前阶段（排队中/分片中/已完成/失败），失败可单文件重试 -->
+    <template v-if="submittedTasks.length">
+      <div v-for="task in submittedTasks" :key="task.fileMd5" class="mt-12px">
+        <div class="flex items-center gap-8px">
+          <span class="min-w-0 flex-1 truncate text-13px" :title="task.fileName">
+            {{ task.fileName }}
+          </span>
+          <template v-if="task.status === UploadStatus.Uploading">
+            <span class="text-muted whitespace-nowrap text-12px">分片中</span>
+            <NProgress
+              class="min-w-0 w-160px!"
+              type="line"
+              :percentage="Math.min(100, Math.round(task.progress))"
+              processing
+              :show-indicator="true"
+            />
+          </template>
+          <NTag v-else-if="submittedStageOf(task)" :type="submittedStageOf(task)!.type" size="small" :bordered="false">
+            {{ submittedStageOf(task)!.label }}
+          </NTag>
+          <NButton
+            v-if="submittedStageOf(task)?.failed"
+            size="tiny"
+            type="error"
+            quaternary
+            @click="retrySubmittedUpload(task)"
+          >
+            重试
+          </NButton>
+        </div>
+        <div v-if="submittedStageOf(task)?.hint" class="text-muted mt-4px text-12px">
+          {{ submittedStageOf(task)?.hint }}
+        </div>
+      </div>
+    </template>
+
     <template #action>
       <NSpace :size="16">
-        <NButton @click="close">取消</NButton>
-        <NButton type="primary" :disabled="submitDisabled" @click="handleSubmit">保存</NButton>
+        <template v-if="submitted">
+          <NButton @click="close">关闭</NButton>
+        </template>
+        <template v-else>
+          <NButton @click="close">取消</NButton>
+          <NButton type="primary" :loading="loading" :disabled="submitDisabled" @click="handleSubmit">保存</NButton>
+        </template>
       </NSpace>
     </template>
   </NModal>
