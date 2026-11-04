@@ -1,5 +1,6 @@
 import type { Router } from 'vue-router';
 import { useTitle } from '@vueuse/core';
+import { withAppBrandTitle } from '@/utils/title';
 import { $t } from '@/locales';
 
 export function createDocumentTitleGuard(router: Router) {
@@ -8,6 +9,6 @@ export function createDocumentTitleGuard(router: Router) {
 
     const documentTitle = i18nKey ? $t(i18nKey) : title;
 
-    useTitle(documentTitle);
+    useTitle(withAppBrandTitle(documentTitle));
   });
 }

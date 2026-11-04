@@ -332,6 +332,11 @@ declare namespace App {
         refresh: string;
         reset: string;
         search: string;
+        searchDocSection: string;
+        searchEmptyHint: string;
+        searchNoResult: string;
+        searchSearching: string;
+        searchShortcutHint: string;
         switch: string;
         tip: string;
         trigger: string;

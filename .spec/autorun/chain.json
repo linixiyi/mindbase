@@ -22,6 +22,14 @@
         "G6"
       ],
       "slug": "2026-11-04_p2-high-value",
+      "status": "done (三项全过，门禁含无头冒烟阴性对照)"
+    },
+    {
+      "round": 3,
+      "features": [
+        "G7"
+      ],
+      "slug": "2026-11-04-github-pages",
       "status": "active"
     }
   ]

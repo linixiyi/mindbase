@@ -114,7 +114,7 @@ async function getList() {
 <template>
   <!-- 去套盒：无卡片——页题与筛选行直接落在地面上，消息流不装盒（DESIGN.md › Layout › 去套盒/禁令①） -->
   <div class="workspace-page h-full flex-col overflow-hidden">
-    <h1 class="page-title">聊天记录</h1>
+    <h1 class="page-title">问答记录</h1>
     <NForm
       class="page-filters history-filters mb-0!"
       :model="params"
@@ -148,7 +148,7 @@ async function getList() {
       <div class="app-state-badge app-state-badge--error app-state-badge--page">
         <icon-lucide:circle-alert class="text-icon-xl" />
       </div>
-      <p class="history-state__title">聊天记录加载失败</p>
+      <p class="history-state__title">问答记录加载失败</p>
       <p class="history-state__desc">{{ errorMsg }}</p>
       <NButton size="small" :disabled="loading" @click="getList">
         <template #icon>
@@ -174,7 +174,7 @@ async function getList() {
             <NButton size="small" :disabled="loading" @click="resetFilters">清除筛选</NButton>
           </template>
           <template v-else>
-            <p class="history-state__title">暂无聊天记录</p>
+            <p class="history-state__title">暂无问答记录</p>
             <p class="history-state__desc">产生问答对话后，记录会汇总到这里</p>
           </template>
         </div>
