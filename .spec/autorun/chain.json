@@ -1,37 +1,20 @@
 {
-  "chain": "pm-hardening-round",
-  "plan": ".spec/plans/pm-hardening-round.md",
-  "mode": "in-session (subagents/workflows on GLM-5.3-Flash start plan per user 2026-11-04 instruction; main session orchestrates only)",
-  "roundCap": "unbounded (user pre-authorized iterative rounds until 09:00)",
+  "chain": "pm-polish-round",
+  "plan": ".spec/plans/pm-polish-round.md",
+  "mode": "in-session (subagents/workflows on GLM-5.3-Flash; start-plan primary, individual fallback per user precedent)",
+  "roundCap": "unbounded (iterative rounds per user standing instruction)",
   "pushPolicy": "push only on explicit user request",
   "rounds": [
     {
       "round": 1,
       "features": [
-        "G1",
-        "G2",
-        "G3",
-        "G4"
+        "H1"
       ],
-      "slug": "2026-11-04_fix-hygiene-debt",
-      "status": "done (G1-G4 六门禁全绿 + G5 体验出 G6 聚焦)"
-    },
-    {
-      "round": 2,
-      "features": [
-        "G6"
-      ],
-      "slug": "2026-11-04_p2-high-value",
-      "status": "done (三项全过，门禁含无头冒烟阴性对照)"
-    },
-    {
-      "round": 3,
-      "features": [
-        "G7"
-      ],
-      "slug": "2026-11-04-github-pages",
-      "status": "done (Pages 上线 200)"
+      "slug": "2026-11-04_polish-hygiene",
+      "status": "active (dwfrun-8f5b530e)"
     }
   ],
-  "status": "completed 7/7 (G1-G7)"
+  "scopeUpdates": [
+    "2026-11-04: user-directed scope add — pm-017 into H2; +H4 admin group; +H5 register group; +H6 debts incl. DLQ replay E2E; closeout now H7 (H1 mid-flight, its feature text untouched)"
+  ]
 }
