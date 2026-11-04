@@ -4,6 +4,7 @@ import { defineStore } from 'pinia';
 import { useBoolean } from '@sa/hooks';
 import { router } from '@/router';
 import { localStg } from '@/utils/storage';
+import { withAppBrandTitle } from '@/utils/title';
 import { SetupStoreId } from '@/enum';
 import { $t, setLocale } from '@/locales';
 import { setDayjsLocale } from '@/locales/dayjs';
@@ -77,7 +78,7 @@ export const useAppStore = defineStore(SetupStoreId.App, () => {
 
     const documentTitle = i18nKey ? $t(i18nKey) : title;
 
-    useTitle(documentTitle);
+    useTitle(withAppBrandTitle(documentTitle));
   }
 
   function init() {

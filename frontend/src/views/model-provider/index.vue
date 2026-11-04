@@ -72,7 +72,7 @@ async function getModelProviders() {
     modelProviders.value = cloneModelProviderSettings(data);
     modelProvidersError.value = '';
   } else if (!modelProviders.value) {
-    modelProvidersError.value = '无法获取模型配置，请检查网络后重试';
+    modelProvidersError.value = '无法获取模型供应商配置，请检查网络后重试';
   }
   modelProvidersLoading.value = false;
 }
@@ -106,7 +106,7 @@ async function submitModelProviders(scopeKey: 'llm' | 'embedding') {
 
   if (!error && data && modelProviders.value) {
     modelProviders.value[scopeKey] = cloneModelProviderScope(data);
-    window.$message?.success(scopeKey === 'llm' ? 'LLM 模型配置已更新' : 'Embedding 配置已更新');
+    window.$message?.success(scopeKey === 'llm' ? 'LLM 供应商配置已更新' : 'Embedding 供应商配置已更新');
   }
   modelProvidersSaving.value = false;
 }
@@ -140,8 +140,8 @@ onMounted(() => {
 
 <template>
   <div class="workspace-page min-h-500px flex-col-stretch overflow-auto">
-    <h1 class="page-title">模型配置</h1>
-    <NCard title="模型配置" :bordered="false" size="small" class="page-section sm:flex-1-hidden">
+    <h1 class="page-title">模型供应商</h1>
+    <NCard title="模型供应商" :bordered="false" size="small" class="page-section sm:flex-1-hidden">
       <div class="settings-content">
         <NTabs v-model:value="selectedScope" type="line" size="large" class="scope-tabs">
           <NTab name="llm">聊天模型</NTab>
@@ -153,7 +153,7 @@ onMounted(() => {
             <div class="app-state-badge app-state-badge--error">
               <icon-lucide:circle-alert class="text-icon-large" />
             </div>
-            <p class="provider-state__title">模型配置加载失败</p>
+            <p class="provider-state__title">模型供应商配置加载失败</p>
             <p class="provider-state__desc">{{ modelProvidersError }}</p>
             <NButton size="small" :disabled="modelProvidersLoading" @click="getModelProviders">
               <template #icon>
@@ -164,8 +164,8 @@ onMounted(() => {
           </div>
           <div v-else-if="currentScope && currentProvider" class="settings-layout">
             <aside class="provider-navigation">
-              <div class="navigation-label">服务商</div>
-              <nav aria-label="模型服务商" class="provider-list">
+              <div class="navigation-label">供应商</div>
+              <nav aria-label="模型供应商" class="provider-list">
                 <button
                   v-for="item in currentScope.providers"
                   :key="`${selectedScope}-${item.provider}`"
@@ -184,7 +184,7 @@ onMounted(() => {
                 <NSelect
                   v-model:value="currentScope.activeProvider"
                   :options="providerOptions"
-                  :input-props="{ id: 'active-provider', 'aria-label': '当前使用的服务商' }"
+                  :input-props="{ id: 'active-provider', 'aria-label': '当前使用的供应商' }"
                 />
               </div>
             </aside>
@@ -194,7 +194,7 @@ onMounted(() => {
                 <h2>{{ currentProvider.displayName }}</h2>
                 <div class="enable-control">
                   <span>{{ currentProvider.enabled ? '已启用' : '未启用' }}</span>
-                  <NSwitch v-model:value="currentProvider.enabled" size="small" aria-label="启用服务商" />
+                  <NSwitch v-model:value="currentProvider.enabled" size="small" aria-label="启用供应商" />
                 </div>
               </header>
 
@@ -256,7 +256,7 @@ onMounted(() => {
             <div class="app-state-badge">
               <icon-lucide:cloud-cog class="text-icon-large" />
             </div>
-            <p class="provider-state__title">暂未加载到模型配置</p>
+            <p class="provider-state__title">暂未加载到模型供应商配置</p>
             <p class="provider-state__desc">服务返回为空，重试或检查管理员权限后再试</p>
             <NButton size="small" @click="getModelProviders">
               <template #icon>

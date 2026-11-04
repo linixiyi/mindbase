@@ -26,7 +26,7 @@ export function fetchGetKnowledgeIndexRebuildStatus() {
   return request<Api.KnowledgeIndex.RebuildStatus | null>({ url: '/admin/knowledge-index/rebuild' });
 }
 
-/** 提交 embedding 重建：targetProvider 需已在模型配置中保存维度与 Key */
+/** 提交 embedding 重建：targetProvider 需已在模型供应商页保存维度与 Key */
 export function fetchStartKnowledgeIndexRebuild(data: { targetProvider: string; fresh: boolean }) {
   return request<Api.KnowledgeIndex.RebuildStatus>({
     url: '/admin/knowledge-index/rebuild',

@@ -1,0 +1,1 @@
+{"task": "task-g6-all", "cmd": "cd /Users/linyixi/PaiSmart/frontend && pnpm typecheck && pnpm exec eslint . && node /tmp/g6-smoke.mjs", "exit": 0, "duration_s": 49.118, "stdout_tail_sha256": "cbfbdb82888d3185bf901a724bd5b36267dab9e02d857ace22d8283a669a476c", "tree_fp": "7eee5ae7913227aac05734c49336a9e47e214c001727d78e73209e10eafd91e6", "at": "2026-11-04T02:44:29+00:00"}

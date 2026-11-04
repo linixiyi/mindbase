@@ -7,7 +7,7 @@
 - [x] G3 错误呈现硬化：pm-015 生成快照不再把异常原文当正文渲染；pm-022 用户可见错误全部中文化分层 + 429 retryAfterSeconds 在前端兑现
 - [x] G4 债务清理：pm-003 删除 TOCTOU 收口；pdf-document-viewer stone 色板 token 化；eslint 存量 warning 清零
 - [x] G5 产品自体验一轮（主会话/体验员）：核心旅程 + 新治理面，产出下一轮聚焦
-- [ ] G6 P2 高价值项落地（体验后定稿，候选：pm-014 命令面板 Ctrl+K+内容搜索、pm-029/030/031 术语与 IA 统一）
+- [x] G6 P2 高价值项落地（pm-014 命令面板 + pm-029/030/031 术语 IA + toggle bug 修复）
 - [ ] G7 GitHub Pages 介绍页：设计（impeccable Persuade 模式）+ gh-pages 发布
 
 ## 约定

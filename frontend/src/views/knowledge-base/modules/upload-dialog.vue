@@ -120,23 +120,23 @@ function onUpdate(option: unknown) {
     @positive-click="handleSubmit"
   >
     <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100" mt-10>
-      <NFormItem label="所属空间" path="orgTag">
+      <NFormItem label="组织标签" path="orgTag">
         <div class="w-full">
           <NSelect
             v-model:value="model.orgTag"
             :options="orgOptions"
             label-field="name"
             value-field="tagId"
-            placeholder="请选择所属空间"
+            placeholder="请选择组织标签"
             :loading="orgLoading"
             :disabled="orgLoading || orgOptions.length <= 1"
             filterable
             @update:value="(_, option) => onUpdate(option)"
           />
-          <div class="text-muted mt-8px text-12px">仅可选择自己的空间和已加入的组织。</div>
-          <div v-if="orgLoadFailed" class="form-hint--error mt-8px text-12px">空间列表加载失败，请关闭后重试。</div>
+          <div class="text-muted mt-8px text-12px">仅可选择自己所属的组织标签。</div>
+          <div v-if="orgLoadFailed" class="form-hint--error mt-8px text-12px">组织标签列表加载失败，请关闭后重试。</div>
           <div v-else-if="!orgLoading && !orgOptions.length" class="form-hint--error mt-8px text-12px">
-            暂无可上传的空间，请先配置组织成员关系。
+            暂无可选的组织标签，请先配置组织成员关系。
           </div>
         </div>
       </NFormItem>

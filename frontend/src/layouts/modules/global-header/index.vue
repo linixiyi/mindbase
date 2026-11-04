@@ -61,7 +61,11 @@ const headerRef = ref<ComponentPublicInstance | null>(null);
 let detachHairline: (() => void) | null = null;
 
 function setupHeaderHairline() {
-  const header = headerRef.value?.$el as HTMLElement | undefined;
+  // $el can be a fragment anchor (comment/text node) when a child component's template keeps a
+  // non-element root node in dev — it has no classList, so only accept a real element and let the
+  // hairline degrade to its CSS default (progressive enhancement) instead of throwing.
+  const root = headerRef.value?.$el;
+  const header = root instanceof HTMLElement ? root : undefined;
   const main = document.getElementById(LAYOUT_SCROLL_EL_ID);
   if (!header || !main) return;
 

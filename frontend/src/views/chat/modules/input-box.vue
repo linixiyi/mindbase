@@ -230,9 +230,9 @@ function startGenerationStatusMonitor() {
     }
     if (isCurrentPending(assistant) && Date.now() - lastStreamContentChangedAt > 130_000) {
       assistant.status = 'error';
-      assistant.content ||= '暂时无法同步回答，请刷新聊天记录查看结果。';
+      assistant.content ||= '暂时无法同步回答，请刷新后查看结果。';
       markExecutingToolsAsFailed(assistant);
-      window.$message?.warning('回答同步超时，请刷新聊天记录查看结果');
+      window.$message?.warning('回答同步超时，请刷新后查看结果');
       stopGenerationStatusMonitor();
     }
   }, 2000);

@@ -59,7 +59,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.chat-history',
       roles: ['ADMIN'],
       icon: 'lucide:history',
-      order: 2
+      order: 11
     }
   },
   {
@@ -71,7 +71,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.conflict-resolution',
       roles: ['ADMIN'],
       icon: 'lucide:scale',
-      order: 10
+      order: 12
     }
   },
   {
@@ -83,7 +83,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.dead-letter',
       roles: ['ADMIN'],
       icon: 'lucide:mail-warning',
-      order: 13
+      order: 15
     }
   },
   {
@@ -108,7 +108,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.invite-code',
       icon: 'lucide:key-round',
       roles: ['ADMIN'],
-      order: 6
+      order: 8
     }
   },
   {
@@ -119,7 +119,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       title: 'knowledge-base',
       i18nKey: 'route.knowledge-base',
       icon: 'lucide:folder-open',
-      order: 3
+      order: 2
     }
   },
   {
@@ -131,7 +131,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.knowledge-index',
       roles: ['ADMIN'],
       icon: 'lucide:layers',
-      order: 11
+      order: 13
     }
   },
   {
@@ -155,7 +155,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.model-provider',
       icon: 'lucide:sliders-horizontal',
       roles: ['ADMIN'],
-      order: 5
+      order: 7
     }
   },
   {
@@ -167,7 +167,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.org-tag',
       icon: 'lucide:tags',
       roles: ['ADMIN'],
-      order: 4
+      order: 6
     }
   },
   {
@@ -178,7 +178,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       title: 'personal-center',
       i18nKey: 'route.personal-center',
       icon: 'lucide:circle-user-round',
-      order: 7
+      order: 4
     }
   },
   {
@@ -190,7 +190,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.rag-eval',
       roles: ['ADMIN'],
       icon: 'lucide:clipboard-check',
-      order: 12
+      order: 14
     }
   },
   {
@@ -201,7 +201,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       title: 'recharge',
       i18nKey: 'route.recharge',
       icon: 'lucide:gauge',
-      order: 8
+      order: 3
     }
   },
   {
@@ -213,7 +213,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.recharge-manage',
       icon: 'lucide:credit-card',
       roles: ['ADMIN'],
-      order: 9
+      order: 10
     }
   },
   {
@@ -225,7 +225,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.usage-monitor',
       icon: 'lucide:receipt-text',
       roles: ['ADMIN'],
-      order: 6
+      order: 9
     }
   },
   {
@@ -236,7 +236,8 @@ export const generatedRoutes: GeneratedRoute[] = [
       title: 'user',
       i18nKey: 'route.user',
       icon: 'lucide:users',
-      roles: ['ADMIN']
+      roles: ['ADMIN'],
+      order: 5
     }
   }
 ];

@@ -291,7 +291,7 @@ const tokenRecordColumns = computed(() => [
             </button>
           </div>
           <p v-else-if="orgTagsError" class="text-muted profile-note">组织标签加载失败，请刷新页面重试</p>
-          <p v-else class="profile-note text-muted">暂无组织标签，请联系管理员加入组织</p>
+          <p v-else class="profile-note text-muted">暂无组织标签，请联系管理员分配组织标签</p>
         </section>
 
         <section class="profile-records">
