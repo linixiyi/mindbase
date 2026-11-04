@@ -228,6 +228,44 @@ public class ConversationService {
         sessionRepository.save(session);
     }
 
+    /**
+     * 会话重命名（pm-016）：仅会话属主可改名；标题去空白、非空，超长截断到 50
+     * （与 updateSessionTitleIfDefault 的截断口径一致），改名即持久化。
+     */
+    @Transactional
+    public void renameConversationSession(Long userId, String conversationId, String title) {
+        validateConversationOwner(userId, conversationId);
+        if (title == null || title.isBlank()) {
+            throw new CustomException("会话标题不能为空", HttpStatus.BAD_REQUEST);
+        }
+        String trimmed = title.trim();
+        if (trimmed.length() > 50) {
+            trimmed = trimmed.substring(0, 50);
+        }
+        ConversationSession session = sessionRepository.findByConversationId(conversationId)
+                .orElseThrow(() -> new CustomException("对话不存在", HttpStatus.NOT_FOUND));
+        session.setTitle(trimmed);
+        sessionRepository.save(session);
+    }
+
+    /**
+     * 会话删除（pm-016）：级联删除该会话的全部消息行与会话行，仅属主可删（管理员不跨用户删）；
+     * 同时清掉 Redis 的短期聊天上下文与会话指针，避免后续消息写进已删会话。
+     * 不触碰知识库文档与引用证据数据本身。
+     */
+    @Transactional
+    public void deleteConversationSession(Long userId, String conversationId) {
+        validateConversationOwner(userId, conversationId);
+        conversationRepository.deleteByConversationId(conversationId);
+        sessionRepository.findByConversationId(conversationId).ifPresent(sessionRepository::delete);
+
+        String currentKey = "user:" + userId + ":current_conversation";
+        if (conversationId.equals(redisTemplate.opsForValue().get(currentKey))) {
+            redisTemplate.delete(currentKey);
+        }
+        redisTemplate.delete("conversation:" + conversationId);
+    }
+
     private void touchSessionUpdatedAt(String conversationId) {
         sessionRepository.findByConversationId(conversationId).ifPresent(session -> {
             session.setUpdatedAt(LocalDateTime.now());

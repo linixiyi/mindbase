@@ -15,16 +15,135 @@ const { list, sessionId, conversationId } = storeToRefs(chatStore);
 const loading = ref(false);
 const scrollbarRef = ref<InstanceType<typeof NScrollbar>>();
 
+// pm-018：流式生成期间尊重用户滚动位置。此前对消息数组浅拷贝的 watch 在任何一次 chunk
+// 追加后都无条件 scrollToBottom，长回答流式期间上翻回看会被反复拽回底部。现在：
+// 1) 距底超过 FOLLOW_THRESHOLD 视为「上翻」，chunk 到达不再吸底，只点亮「回到底部」玻璃 chip；
+// 2) 用户回到底部（自己滚回或点 chip 平滑回底）即恢复自动跟随；
+// 3) 切换/新建会话恢复默认跟随——首条消息、新会话始终吸底。
+const FOLLOW_THRESHOLD = 120;
+const followBottom = ref(true);
+const hasNewWhileAway = ref(false);
+// 点 chip 后的平滑回底途中：滚动事件来自动画本身，不当作用户上翻
+const restoringBottom = ref(false);
+
+const showBackToBottom = computed(() => hasNewWhileAway.value && !followBottom.value);
+
+// naive-ui NScrollbar 公开实例只暴露 scrollTo/scrollBy，滚动容器元素不从实例取——
+// 元素级 scroll 事件不冒泡，事件目标即 .n-scrollbar-container 本身，从事件捕获最可靠
+let scrollEl: HTMLElement | null = null;
+
+function distanceFromBottom() {
+  const el = scrollEl;
+  if (!el) return 0;
+  return el.scrollHeight - el.scrollTop - el.clientHeight;
+}
+
+function handleScroll(e: Event) {
+  if (e.target instanceof HTMLElement) {
+    scrollEl = e.target;
+  }
+  if (restoringBottom.value) {
+    // 平滑回底途中只关心是否落底；中途位置不改变跟随状态
+    if (distanceFromBottom() <= FOLLOW_THRESHOLD) {
+      restoringBottom.value = false;
+      followBottom.value = true;
+      hasNewWhileAway.value = false;
+    }
+    return;
+  }
+  if (distanceFromBottom() <= FOLLOW_THRESHOLD) {
+    followBottom.value = true;
+    hasNewWhileAway.value = false;
+  } else {
+    // 用户上翻：作废在途的延迟吸底（否则 100ms 窗口内的 chunk 定时器会把视口又拽回底部，
+    // 落底事件还会把跟随态重新拉回 true——流式期间几乎必现的竞态）
+    followBottom.value = false;
+    cancelPendingScroll();
+  }
+}
+
 watch(() => [...list.value], scrollToBottom);
 
+let scrollTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelPendingScroll() {
+  if (scrollTimer !== null) {
+    clearTimeout(scrollTimer);
+    scrollTimer = null;
+  }
+}
+
 function scrollToBottom() {
-  setTimeout(() => {
-    scrollbarRef.value?.scrollBy({
-      top: 999999999999999,
-      behavior: 'auto'
-    });
+  if (!followBottom.value) {
+    // 上翻期间到达的新内容：只点亮「回到底部」，不拽视口（平滑回底途中也不点亮）
+    cancelPendingScroll();
+    if (!restoringBottom.value) {
+      hasNewWhileAway.value = true;
+    }
+    return;
+  }
+  cancelPendingScroll();
+  // 记录调度时刻的 scrollTop：100ms 延迟窗口内内容增长不改变 scrollTop（只会推高距底值），
+  // 只有用户翻动才改变它——以它作「窗口内用户已翻走」的判据，距底增大不误伤跟随
+  const scheduledFromTop = scrollEl?.scrollTop ?? null;
+  scrollTimer = setTimeout(() => {
+    scrollTimer = null;
+    // 落点双检：延迟窗口内用户已翻走（跟随态已被滚动事件翻转，或 scrollTop 已移动而事件
+    // 尚未派发——markdown 高亮等长帧下可能发生）则放弃吸底，转为点亮「回到底部」
+    const userMoved =
+      !followBottom.value ||
+      (scheduledFromTop !== null && scrollEl !== null && Math.abs(scrollEl.scrollTop - scheduledFromTop) > 1);
+    if (!userMoved) {
+      scrollbarRef.value?.scrollBy({
+        top: 999999999999999,
+        behavior: 'auto'
+      });
+    } else if (!restoringBottom.value) {
+      hasNewWhileAway.value = true;
+    }
   }, 100);
 }
+
+function backToBottom() {
+  restoringBottom.value = true;
+  hasNewWhileAway.value = false;
+  scrollbarRef.value?.scrollTo({
+    top: 999999999999999,
+    behavior: 'smooth'
+  });
+  // 流式期间底部持续下移，平滑动画的落点是发起时刻的旧底部——可能始终差一小段够不到
+  // 阈值。1s 后复查：已落底则恢复跟随并吸掉残距；未落底就以新底部为目标再平滑补一段
+  // （最多 3 次）；仍不落底则放弃，保持「上翻」态，下一个 chunk 会重新点亮 chip
+  let retries = 0;
+  const settle = () => {
+    if (!restoringBottom.value) return;
+    if (distanceFromBottom() <= FOLLOW_THRESHOLD) {
+      restoringBottom.value = false;
+      followBottom.value = true;
+      hasNewWhileAway.value = false;
+      scrollToBottom();
+      return;
+    }
+    if (retries >= 3) {
+      restoringBottom.value = false;
+      return;
+    }
+    retries += 1;
+    scrollbarRef.value?.scrollTo({
+      top: 999999999999999,
+      behavior: 'smooth'
+    });
+    setTimeout(settle, 1000);
+  };
+  setTimeout(settle, 1000);
+}
+
+// 切换/新建会话：恢复默认吸底跟随（pm-018「首条消息/新会话默认跟随」）
+watch(conversationId, () => {
+  followBottom.value = true;
+  hasNewWhileAway.value = false;
+  restoringBottom.value = false;
+});
 
 const range = ref<[number, number] | null>(null);
 
@@ -99,6 +218,12 @@ async function getList() {
   historyRequestId += 1;
   const requestId = historyRequestId;
   const messagesBeforeRequest = [...list.value];
+  // 无选中会话不回填全量历史（pm-016）：删除/归档当前会话清选中态后，消息区停在欢迎区；
+  // 选中会话后 params 变化会再次触发本次加载
+  if (!conversationId.value) {
+    loading.value = false;
+    return;
+  }
   loading.value = true;
   const { error, data } = await request<Api.Chat.Message[]>({
     url: 'users/conversation',
@@ -132,7 +257,8 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 
 <template>
   <Suspense>
-    <div class="h-0 flex flex-col flex-1">
+    <!-- relative：pm-018 的「回到底部」chip 与日期筛选钮共同的本组件定位上下文（浮层锚在本列内，不越到输入框之下） -->
+    <div class="relative h-0 flex flex-col flex-1">
       <!--
         日期筛选：默认隐藏，收进右上角图标触发的浮层（overlay 材质由 global.scss 的 .n-popover 承担）；
         pm-006 改义：range 只驱动前端过滤（visibleMessages），不再进请求参数
@@ -195,7 +321,7 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
       </div>
 
       <!-- Message list -->
-      <NScrollbar v-else ref="scrollbarRef" class="flex-1">
+      <NScrollbar v-else ref="scrollbarRef" class="flex-1" @scroll="handleScroll">
         <NSpin :show="loading">
           <div v-if="filterActive && visibleMessages.length === 0" class="chat-filter-empty">
             所选日期范围内没有消息，可调整范围或清除筛选
@@ -213,6 +339,25 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
           </div>
         </NSpin>
       </NScrollbar>
+
+      <!--
+        pm-018：上翻期间有新内容到达时浮出的「回到底部」chip。胶囊玻璃材质走 global.scss 的
+        .app-glass-chip 单源供给（DESIGN.md §12），36px 高与日期筛选钮同档、12px 缘距节奏；
+        落在消息列底部、输入框之上，点击平滑回底并恢复吸底跟随
+      -->
+      <div
+        v-if="showBackToBottom"
+        class="chat-back-to-bottom pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center"
+      >
+        <button
+          type="button"
+          class="app-glass-chip pointer-events-auto h-9 gap-1.5 rounded-full px-3.5"
+          @click="backToBottom"
+        >
+          <icon-lucide:arrow-down class="text-icon" />
+          回到底部
+        </button>
+      </div>
     </div>
   </Suspense>
 </template>
@@ -248,6 +393,18 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
   line-height: 1.55;
   color: var(--app-text-secondary);
   text-align: center;
+}
+
+/* pm-018「回到底部」浮层：容器只负责居中与不挡点击（pointer-events-none），button 自己恢复
+   pointer-events；入场一次性上浮（复用 chat-welcome-rise 关键帧），消失即 v-if 摘除——
+   伴随回底动作本身，无需出场动画 */
+.chat-back-to-bottom {
+  animation: chat-welcome-rise var(--app-dur-base, 250ms) var(--app-ease-emphasized, ease) both;
+}
+
+.chat-back-to-bottom button {
+  font-size: 13px;
+  color: var(--app-text-secondary);
 }
 
 /* R2 welcome：一次性 stagger 入场（250ms emphasized）；建议问法为胶囊，hover 提到主色 */
