@@ -22,9 +22,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.redis.core.StringRedisTemplate;
+
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 
 import java.io.ByteArrayOutputStream;
 import java.io.BufferedReader;
@@ -468,6 +475,88 @@ public class DocumentService {
         }
     }
     
+    /**
+     * 分页查询用户可访问的文件列表（pm-023：SQL 层真分页，替代「全量取回 + 内存 subList」；
+     * pm-024a：文件名关键词 / 公开私有 / 状态的服务端筛选与分页同链下发）
+     *
+     * 可访问范围与 getAccessibleFiles 一致：本人文件 OR 公开文件 OR（所属有效组织标签的文件）。
+     * orgTag 名由调用方对返回页的内容做一次批量查询回填，避免逐行查名的 N+1。
+     *
+     * @param userId       用户ID
+     * @param fileName     文件名关键词（可空，不区分大小写包含匹配）
+     * @param isPublic     公开/私有筛选（可空=不过滤）
+     * @param statusFilter 状态筛选（UPLOADING=上传/合并中，COMPLETED=上传已完成，
+     *                     VECTOR_FAILED=向量化失败；可空=不过滤，未知值忽略）
+     * @param pageable     分页与排序参数
+     */
+    public Page<FileUpload> getAccessibleFilesPage(String userId, String fileName, Boolean isPublic,
+                                                   String statusFilter, Pageable pageable) {
+        logger.info("分页获取用户可访问文件列表: userId={}, fileName={}, isPublic={}, status={}",
+                userId, fileName, isPublic, statusFilter);
+
+        try {
+            backfillLegacyVectorizationStatuses();
+
+            User user = resolveUser(userId);
+            String userDbId = String.valueOf(user.getId());
+            List<String> userEffectiveTags = orgTagCacheService.getUserEffectiveOrgTags(user.getUsername());
+
+            Specification<FileUpload> spec = (root, query, cb) ->
+                    buildAccessiblePredicate(root, cb, userDbId, userEffectiveTags, fileName, isPublic, statusFilter);
+
+            Page<FileUpload> page = fileUploadRepository.findAll(spec, pageable);
+            logger.info("成功分页获取用户可访问文件列表: userId={}, pageContent={}, totalElements={}",
+                    userId, page.getNumberOfElements(), page.getTotalElements());
+            return page;
+        } catch (Exception e) {
+            logger.error("分页获取用户可访问文件列表失败: userId={}", userId, e);
+            throw new RuntimeException("分页获取可访问文件列表失败: " + e.getMessage(), e);
+        }
+    }
+
+    private Predicate buildAccessiblePredicate(Root<FileUpload> root, CriteriaBuilder cb,
+                                               String userDbId, List<String> userEffectiveTags,
+                                               String fileName, Boolean isPublic, String statusFilter) {
+        // 可访问范围：本人文件 OR 公开文件 OR（所属组织标签文件，仅私有行——公开行已由上一支覆盖）
+        List<Predicate> accessible = new ArrayList<>();
+        accessible.add(cb.equal(root.get("userId"), userDbId));
+        accessible.add(cb.equal(root.get("isPublic"), true));
+        if (userEffectiveTags != null && !userEffectiveTags.isEmpty()) {
+            accessible.add(cb.and(root.get("orgTag").in(userEffectiveTags), cb.equal(root.get("isPublic"), false)));
+        }
+        Predicate predicate = cb.or(accessible.toArray(new Predicate[0]));
+
+        if (fileName != null && !fileName.isBlank()) {
+            predicate = cb.and(predicate, cb.like(cb.lower(root.get("fileName")),
+                    "%" + fileName.trim().toLowerCase() + "%"));
+        }
+        if (isPublic != null) {
+            predicate = cb.and(predicate, cb.equal(root.get("isPublic"), isPublic));
+        }
+        if (statusFilter != null && !statusFilter.isBlank()) {
+            Predicate statusPredicate = buildStatusPredicate(statusFilter.trim(), root, cb);
+            if (statusPredicate != null) {
+                predicate = cb.and(predicate, statusPredicate);
+            }
+        }
+        return predicate;
+    }
+
+    /**
+     * 状态筛选语义与列表展示口径一致：上传状态列（处理中/已完成）与「实际向量化」列的失败态。
+     * 未知筛选值不套用条件（返回未过滤结果），避免脏参数把列表误判成空。
+     */
+    private Predicate buildStatusPredicate(String statusFilter, Root<FileUpload> root, CriteriaBuilder cb) {
+        return switch (statusFilter) {
+            case "UPLOADING" -> cb.or(
+                    cb.equal(root.get("status"), FileUpload.STATUS_UPLOADING),
+                    cb.equal(root.get("status"), FileUpload.STATUS_MERGING));
+            case "COMPLETED" -> cb.equal(root.get("status"), FileUpload.STATUS_COMPLETED);
+            case "VECTOR_FAILED" -> cb.equal(root.get("vectorizationStatus"), FileUpload.VECTORIZATION_STATUS_FAILED);
+            default -> null;
+        };
+    }
+
     /**
      * 获取用户上传的所有文件列表
      *

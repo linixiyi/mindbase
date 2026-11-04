@@ -11,6 +11,10 @@ import com.mindbase.utils.JwtUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -20,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -219,7 +224,11 @@ public class DocumentController {
     
     /**
      * 获取用户可访问的所有文件列表
-     * 
+     *
+     * 带 page/size 时走 SQL 层真分页（pm-023）+ 服务端筛选（pm-024a：fileName/isPublic/status），
+     * 返回 Page 结构（data/content/number/size/totalElements）；不带分页参数保持旧契约返回全量数组
+     * （chat 页冷启动探测等旧调用方依赖）。
+     *
      * @param userId 当前用户ID
      * @param orgTags 用户所属组织标签
      * @return 可访问的文件列表
@@ -229,20 +238,43 @@ public class DocumentController {
             @RequestAttribute("userId") String userId,
             @RequestAttribute("orgTags") String orgTags,
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
-        
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String fileName,
+            @RequestParam(required = false) Boolean isPublic,
+            @RequestParam(required = false) String status) {
+
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("GET_ACCESSIBLE_FILES");
         try {
-            LogUtils.logBusiness("GET_ACCESSIBLE_FILES", userId, "接收到获取可访问文件请求: orgTags=%s", orgTags);
-            
-            List<FileUpload> files = documentService.getAccessibleFiles(userId, orgTags);
-            List<Map<String, Object>> fileData = convertFilesToResponse(files);
-            Object data = (page != null || size != null) ? paginateList(fileData, page, size) : fileData;
-            
-            LogUtils.logUserOperation(userId, "GET_ACCESSIBLE_FILES", "file_list", "SUCCESS");
-            LogUtils.logBusiness("GET_ACCESSIBLE_FILES", userId, "成功获取可访问文件: fileCount=%d", files.size());
+            LogUtils.logBusiness("GET_ACCESSIBLE_FILES", userId,
+                    "接收到获取可访问文件请求: orgTags=%s, page=%s, size=%s, fileName=%s, isPublic=%s, status=%s",
+                    orgTags, page, size, fileName, isPublic, status);
+
+            Object data;
+            if (page != null || size != null) {
+                // pm-023：SQL 层真分页 + 筛选；新文档在前，createdAt 同值时以 id 兜底保证翻页稳定
+                int pageNumber = page == null || page < 1 ? 1 : page;
+                int pageSize = size == null || size < 1 ? 10 : size;
+                Pageable pageable = PageRequest.of(pageNumber - 1, pageSize,
+                        Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+                Page<FileUpload> filePage = documentService.getAccessibleFilesPage(userId, fileName, isPublic, status, pageable);
+                List<Map<String, Object>> pageData = convertFilesToResponse(filePage.getContent());
+                data = buildPagePayload(pageData, pageNumber, pageSize, filePage.getTotalElements());
+
+                LogUtils.logUserOperation(userId, "GET_ACCESSIBLE_FILES", "file_list", "SUCCESS");
+                LogUtils.logBusiness("GET_ACCESSIBLE_FILES", userId,
+                        "成功获取可访问文件分页: pageNumber=%d, pageSize=%d, pageContent=%d, totalElements=%d",
+                        pageNumber, pageSize, pageData.size(), filePage.getTotalElements());
+            } else {
+                // 兼容旧契约：无分页参数返回全量数组；orgTag 名同样批量查询（pm-023 N+1 收口）
+                List<FileUpload> files = documentService.getAccessibleFiles(userId, orgTags);
+                List<Map<String, Object>> fileData = convertFilesToResponse(files);
+                data = fileData;
+
+                LogUtils.logUserOperation(userId, "GET_ACCESSIBLE_FILES", "file_list", "SUCCESS");
+                LogUtils.logBusiness("GET_ACCESSIBLE_FILES", userId, "成功获取可访问文件: fileCount=%d", files.size());
+            }
             monitor.end("获取可访问文件成功");
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("code", 200);
             response.put("message", "获取可访问文件列表成功");
@@ -258,14 +290,10 @@ public class DocumentController {
         }
     }
 
-    private Map<String, Object> paginateList(List<Map<String, Object>> records, Integer page, Integer size) {
-        int pageNumber = page == null || page < 1 ? 1 : page;
-        int pageSize = size == null || size < 1 ? 10 : size;
-        int total = records.size();
-        int fromIndex = Math.min((pageNumber - 1) * pageSize, total);
-        int toIndex = Math.min(fromIndex + pageSize, total);
-        List<Map<String, Object>> pageData = records.subList(fromIndex, toIndex);
-
+    /**
+     * 构造与旧 paginateList 相同结构的分页负载（前端 useTable transformer 按此结构读取）
+     */
+    private Map<String, Object> buildPagePayload(List<Map<String, Object>> pageData, int pageNumber, int pageSize, long total) {
         Map<String, Object> result = new HashMap<>();
         result.put("data", pageData);
         result.put("content", pageData);
@@ -274,42 +302,60 @@ public class DocumentController {
         result.put("totalElements", total);
         return result;
     }
-    
+
     /**
      * 获取用户上传的所有文件列表
-     * 
+     *
+     * 带 page/size 时返回 SQL 层分页的 Page 结构（pm-023），否则保持旧契约返回全量数组。
+     *
      * @param userId 当前用户ID
      * @return 用户上传的文件列表
      */
     @GetMapping("/uploads")
     public ResponseEntity<?> getUserUploadedFiles(
-            @RequestAttribute("userId") String userId) {
-        
+            @RequestAttribute("userId") String userId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("GET_USER_UPLOADED_FILES");
         try {
-            LogUtils.logBusiness("GET_USER_UPLOADED_FILES", userId, "接收到获取用户上传文件请求");
-            
-            List<FileUpload> files = documentService.getUserUploadedFiles(userId);
+            LogUtils.logBusiness("GET_USER_UPLOADED_FILES", userId, "接收到获取用户上传文件请求: page=%s, size=%s", page, size);
 
-            // 添加详细日志：追踪每个文件的MD5
-            LogUtils.logBusiness("GET_USER_UPLOADED_FILES", userId, "开始处理文件列表，总数: %d", files.size());
-            for (int i = 0; i < files.size(); i++) {
-                FileUpload file = files.get(i);
+            Object data;
+            if (page != null || size != null) {
+                int pageNumber = page == null || page < 1 ? 1 : page;
+                int pageSize = size == null || size < 1 ? 10 : size;
+                Pageable pageable = PageRequest.of(pageNumber - 1, pageSize,
+                        Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+                Page<FileUpload> filePage = fileUploadRepository.findByUserId(userId, pageable);
+                List<Map<String, Object>> pageData = convertFilesToResponse(filePage.getContent());
+                data = buildPagePayload(pageData, pageNumber, pageSize, filePage.getTotalElements());
                 LogUtils.logBusiness("GET_USER_UPLOADED_FILES", userId,
-                    "文件[%d]: fileName=%s, fileMd5=%s, totalSize=%d",
-                    i, file.getFileName(), file.getFileMd5(), file.getTotalSize());
+                        "成功获取用户上传文件分页: pageNumber=%d, pageSize=%d, pageContent=%d, totalElements=%d",
+                        pageNumber, pageSize, pageData.size(), filePage.getTotalElements());
+            } else {
+                List<FileUpload> files = documentService.getUserUploadedFiles(userId);
+
+                // 添加详细日志：追踪每个文件的MD5
+                LogUtils.logBusiness("GET_USER_UPLOADED_FILES", userId, "开始处理文件列表，总数: %d", files.size());
+                for (int i = 0; i < files.size(); i++) {
+                    FileUpload file = files.get(i);
+                    LogUtils.logBusiness("GET_USER_UPLOADED_FILES", userId,
+                        "文件[%d]: fileName=%s, fileMd5=%s, totalSize=%d",
+                        i, file.getFileName(), file.getFileMd5(), file.getTotalSize());
+                }
+
+                data = convertFilesToResponse(files);
+                LogUtils.logBusiness("GET_USER_UPLOADED_FILES", userId, "成功获取用户上传文件: fileCount=%d", files.size());
             }
 
-            List<Map<String, Object>> fileData = convertFilesToResponse(files);
-            
             LogUtils.logUserOperation(userId, "GET_USER_UPLOADED_FILES", "file_list", "SUCCESS");
-            LogUtils.logBusiness("GET_USER_UPLOADED_FILES", userId, "成功获取用户上传文件: fileCount=%d", files.size());
             monitor.end("获取用户上传文件成功");
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("code", 200);
             response.put("message", "获取用户上传文件列表成功");
-            response.put("data", fileData);
+            response.put("data", data);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             LogUtils.logBusinessError("GET_USER_UPLOADED_FILES", userId, "获取用户上传文件失败", e);
@@ -322,6 +368,8 @@ public class DocumentController {
     }
 
     private List<Map<String, Object>> convertFilesToResponse(List<FileUpload> files) {
+        // pm-023：orgTag 名对整页文件一次性批量查询回填，替代逐行 findByTagId 的 N+1
+        Map<String, String> tagNames = getOrgTagNames(files);
         return files.stream().map(file -> {
             Map<String, Object> dto = new HashMap<>();
             dto.put("id", file.getId());
@@ -341,9 +389,45 @@ public class DocumentController {
             dto.put("actualChunkCount", file.getActualChunkCount());
             dto.put("vectorizationStatus", file.getVectorizationStatus());
             dto.put("vectorizationErrorMessage", file.getVectorizationErrorMessage());
-            dto.put("orgTagName", getOrgTagName(file.getOrgTag()));
+            dto.put("orgTagName", resolveOrgTagName(file.getOrgTag(), tagNames));
             return dto;
         }).collect(Collectors.toList());
+    }
+
+    /**
+     * pm-023：一次查询取回本页文件涉及的全部组织标签名（无标签/查询失败时返回空表，逐行回退 tagId）
+     */
+    private Map<String, String> getOrgTagNames(List<FileUpload> files) {
+        List<String> tagIds = files.stream()
+                .map(FileUpload::getOrgTag)
+                .filter(tagId -> tagId != null && !tagId.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+        if (tagIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        try {
+            Map<String, String> tagNames = new HashMap<>();
+            for (OrganizationTag tag : organizationTagRepository.findByTagIdIn(tagIds)) {
+                tagNames.put(tag.getTagId(), tag.getName());
+            }
+            return tagNames;
+        } catch (Exception e) {
+            LogUtils.logBusinessError("GET_ORG_TAG_NAMES", "system", "批量查询组织标签名称失败", e);
+            return Collections.emptyMap();
+        }
+    }
+
+    /**
+     * 与原 getOrgTagName 行为一致：命中批量结果取标签名，否则回退原 tagId
+     */
+    private String resolveOrgTagName(String tagId, Map<String, String> tagNames) {
+        if (tagId == null || tagId.isEmpty()) {
+            return null;
+        }
+        String name = tagNames.get(tagId);
+        return name != null ? name : tagId;
     }
     
     /**
@@ -925,29 +1009,4 @@ public class DocumentController {
     }
 
     private record RequestAuthContext(String userId, String orgTags) {}
-    
-    /**
-     * 根据tagId获取tagName
-     *
-     * @param tagId 组织标签ID
-     * @return 组织标签名称，如果找不到则返回原tagId
-     */
-    private String getOrgTagName(String tagId) {
-        if (tagId == null || tagId.isEmpty()) {
-            return null;
-        }
-        
-        try {
-            Optional<OrganizationTag> tagOpt = organizationTagRepository.findByTagId(tagId);
-            if (tagOpt.isPresent()) {
-                return tagOpt.get().getName();
-            } else {
-                LogUtils.logBusiness("GET_ORG_TAG_NAME", "system", "找不到组织标签: tagId=%s", tagId);
-                return tagId; // 如果找不到标签名称，返回原tagId
-            }
-        } catch (Exception e) {
-            LogUtils.logBusinessError("GET_ORG_TAG_NAME", "system", "查询组织标签名称失败: tagId=%s", e, tagId);
-            return tagId; // 发生错误时返回原tagId
-        }
-    }
 } 

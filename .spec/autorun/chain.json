@@ -27,6 +27,14 @@
         "H3"
       ],
       "slug": "2026-11-04_kb-governance",
+      "status": "done (三项全过 30/30)"
+    },
+    {
+      "round": 4,
+      "features": [
+        "H4"
+      ],
+      "slug": "2026-11-04_admin-visibility",
       "status": "active"
     }
   ],
