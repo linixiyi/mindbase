@@ -77,7 +77,7 @@ public class ModelProviderConfigService {
                 .filter(ProviderConfigView::active)
                 .findFirst()
                 .map(provider -> toActiveProvider(scope, provider))
-                .orElseThrow(() -> new CustomException("未找到激活的模型配置: " + scope, HttpStatus.INTERNAL_SERVER_ERROR));
+                .orElseThrow(() -> new CustomException("未找到激活的模型供应商配置: " + scope, HttpStatus.INTERNAL_SERVER_ERROR));
     }
 
     /**
@@ -121,7 +121,7 @@ public class ModelProviderConfigService {
                 .filter(provider -> provider.provider().equals(normalized))
                 .findFirst()
                 .map(provider -> toActiveProvider(scope, provider))
-                .orElseThrow(() -> new CustomException("未找到模型配置: " + scope + "/" + providerCode, HttpStatus.BAD_REQUEST));
+                .orElseThrow(() -> new CustomException("未找到模型供应商配置: " + scope + "/" + providerCode, HttpStatus.BAD_REQUEST));
     }
 
     public synchronized ScopeSettingsView updateScope(String scope, UpdateScopeRequest request, String updatedBy) {
@@ -372,7 +372,7 @@ public class ModelProviderConfigService {
 
     private void validateUpdateRequest(String scope, UpdateScopeRequest request) {
         if (request == null || request.providers() == null || request.providers().isEmpty()) {
-            throw new CustomException("模型配置不能为空", HttpStatus.BAD_REQUEST);
+            throw new CustomException("模型供应商配置不能为空", HttpStatus.BAD_REQUEST);
         }
         String activeProvider = normalizeProvider(request.activeProvider());
         boolean activeExists = false;

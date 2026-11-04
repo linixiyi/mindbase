@@ -3,6 +3,7 @@ import { onKeyStroke } from '@vueuse/core';
 import { useBoolean } from '@sa/hooks';
 import { $t } from '@/locales';
 import SearchModal from './components/search-modal.vue';
+import { modKeyLabel } from './keys';
 
 defineOptions({ name: 'GlobalSearch' });
 
@@ -34,12 +35,14 @@ onKeyStroke(
 <template>
   <!--
  pm-014：触发钮以文字键帽标注全局快捷键（键帽材质复用 search-footer 的 operate-key 家族）。
-       ButtonIcon 只有默认插槽（button-icon.vue:38）——键帽放默认插槽随图标常显，悬停 tooltip 仍是 common.search 
+       ButtonIcon 只有默认插槽（button-icon.vue:38）——键帽放默认插槽随图标常显，悬停 tooltip 仍是 common.search。
+       G6 复审追修：click 绑回 ButtonIcon（inheritAttrs: false，经 $attrs 落到 NButton 原生按钮，button-icon.vue:7/36）
+       ——整钮可点，内层 span 只管样式，避免按钮空白 padding 区成为点击死区；键帽分平台标注与面板空态同源取 keys.ts
 -->
-  <ButtonIcon :tooltip-content="$t('common.search')">
-    <span class="global-search-trigger" @click="toggle">
+  <ButtonIcon :tooltip-content="$t('common.search')" @click="toggle">
+    <span class="global-search-trigger">
       <icon-lucide:search />
-      <span class="global-search-keycap">Ctrl K</span>
+      <span class="global-search-keycap">{{ modKeyLabel }} K</span>
     </span>
   </ButtonIcon>
   <SearchModal v-model:show="show" />

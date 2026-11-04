@@ -2,6 +2,8 @@
 
 MindBase 是一个企业级的 AI 知识库管理系统，围绕检索增强生成（RAG）工作流构建：上传文档后自动解析、分块、向量化并写入 Elasticsearch，用户用自然语言提问，系统基于知识库片段生成带引用的中文回答。
 
+项目介绍页（GitHub Pages）：https://linixiyi.github.io/mindbase/
+
 核心技术栈：Spring Boot 3.4 / Vue 3 / MySQL / Redis / Elasticsearch / Kafka / MinIO（或 RustFS）/ WebSocket。
 
 ## 核心功能

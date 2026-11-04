@@ -7,6 +7,7 @@ import { useRouteStore } from '@/store/modules/route';
 import { useAppStore } from '@/store/modules/app';
 import { useAuthStore } from '@/store/modules/auth';
 import { $t } from '@/locales';
+import { modKeyLabel } from '../keys';
 import SearchResult from './search-result.vue';
 import SearchFooter from './search-footer.vue';
 
@@ -189,10 +190,10 @@ registerShortcut();
 -->
       <template v-if="showEmpty">
         <NEmpty :show-icon="false" :description="emptyDescription" />
-        <!-- pm-014：空态随附面板快捷键提示，键帽复用页脚 operate-key 家族材质 -->
+        <!-- pm-014：空态随附面板快捷键提示，键帽复用页脚 operate-key 家族材质；分平台标注与顶栏触发钮同源取 keys.ts（macOS 显示 ⌘ K，不渲染 + 号） -->
         <p v-if="!isMobile" class="palette-empty-shortcut">
-          <span class="palette-keycap">Ctrl</span>
-          <span class="palette-keycap-plus">+</span>
+          <span class="palette-keycap">{{ modKeyLabel }}</span>
+          <span v-if="modKeyLabel === 'Ctrl'" class="palette-keycap-plus">+</span>
           <span class="palette-keycap">K</span>
           <span class="palette-empty-shortcut__text">{{ $t('common.searchShortcutHint') }}</span>
         </p>

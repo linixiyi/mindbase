@@ -33,7 +33,7 @@ public class SecretCryptoService {
 
         byte[] keyBytes = Base64.getDecoder().decode(base64Secret);
         if (keyBytes.length != 16 && keyBytes.length != 24 && keyBytes.length != 32) {
-            throw new IllegalStateException("模型配置加密密钥必须是 16/24/32 字节的 Base64 字符串");
+            throw new IllegalStateException("模型供应商配置加密密钥必须是 16/24/32 字节的 Base64 字符串");
         }
         this.keySpec = new SecretKeySpec(keyBytes, "AES");
     }
@@ -52,7 +52,7 @@ public class SecretCryptoService {
 
             return Base64.getEncoder().encodeToString(iv) + ":" + Base64.getEncoder().encodeToString(encrypted);
         } catch (Exception exception) {
-            throw new IllegalStateException("模型配置密钥加密失败", exception);
+            throw new IllegalStateException("模型供应商配置密钥加密失败", exception);
         }
     }
 
@@ -74,7 +74,7 @@ public class SecretCryptoService {
             byte[] decrypted = cipher.doFinal(encrypted);
             return new String(decrypted, StandardCharsets.UTF_8);
         } catch (Exception exception) {
-            throw new IllegalStateException("模型配置密钥解密失败", exception);
+            throw new IllegalStateException("模型供应商配置密钥解密失败", exception);
         }
     }
 

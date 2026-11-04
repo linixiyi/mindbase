@@ -11,7 +11,15 @@
         "H1"
       ],
       "slug": "2026-11-04_polish-hygiene",
-      "status": "active (dwfrun-8f5b530e)"
+      "status": "done (329/329 全量测试 + 五小修)"
+    },
+    {
+      "round": 2,
+      "features": [
+        "H2"
+      ],
+      "slug": "2026-11-04_chat-ux",
+      "status": "active"
     }
   ],
   "scopeUpdates": [

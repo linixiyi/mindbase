@@ -3,18 +3,20 @@ package com.mindbase.service;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 
 /**
  * UploadService 性能测试
- * 
+ *
  * 测试优化前后的性能差异：
  * - 优化前：逐个查询Redis，n个分片需要n次网络往返
  * - 优化后：一次性获取所有分片状态，只需要1次网络往返
+ *
+ * 说明：本测试只做纯计算对比演示，不注入任何 Spring Bean，因此不需要启动
+ * Spring 上下文（上下文启动已由 MindBaseApplicationTests 覆盖）。此前挂着的
+ * @SpringBootTest + @ActiveProfiles("test") 会让 test profile 的隔离上下文
+ * 强连本机 Redis——而 DotenvEnvironmentPostProcessor 在 test profile 下刻意
+ * 不加载 .env，本机 Redis 又启用了密码认证，上下文必然以 NOAUTH 失败。
  */
-@SpringBootTest
-@ActiveProfiles("test")
 public class UploadServicePerformanceTest {
 
     private static final Logger logger = LoggerFactory.getLogger(UploadServicePerformanceTest.class);
