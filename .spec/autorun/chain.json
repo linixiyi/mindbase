@@ -59,10 +59,11 @@
         "H7"
       ],
       "slug": "2026-11-04-polish-closeout",
-      "status": "active"
+      "status": "done (11/11 journey)"
     }
   ],
   "scopeUpdates": [
     "2026-11-04: user-directed scope add — pm-017 into H2; +H4 admin group; +H5 register group; +H6 debts incl. DLQ replay E2E; closeout now H7 (H1 mid-flight, its feature text untouched)"
-  ]
+  ],
+  "status": "completed 7/7 (H1-H7)"
 }
