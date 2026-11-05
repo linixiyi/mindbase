@@ -1,7 +1,9 @@
 package com.mindbase.controller;
 
+import com.mindbase.config.AppAuthProperties;
 import com.mindbase.exception.CustomException;
 import com.mindbase.exception.RateLimitExceededException;
+import com.mindbase.model.RegistrationMode;
 import com.mindbase.model.User;
 import com.mindbase.repository.UserRepository;
 import com.mindbase.service.RateLimitService;
@@ -33,6 +35,9 @@ public class UserController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private AppAuthProperties appAuthProperties;
 
     @Autowired
     private JwtUtils jwtUtils;
@@ -81,6 +86,24 @@ public class UserController {
             monitor.end("注册异常: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("code", 500, "message", "Internal server error"));
         }
+    }
+
+    // 注册策略查询接口（pm-033）
+    // 注册页为匿名可达页面，前端需免登录读取当前注册模式（OPEN/INVITE_ONLY/CLOSED），
+    // 用于驱动邀请码是否必填及提示文案；只暴露模式与是否需要邀请码，无敏感信息
+    @GetMapping("/registration-policy")
+    public ResponseEntity<?> registrationPolicy() {
+        AppAuthProperties.Registration registration = appAuthProperties.getRegistration();
+        RegistrationMode mode = registration.getMode();
+        boolean inviteRequired = registration.isInviteRequired() || mode == RegistrationMode.INVITE_ONLY;
+        // 响应遵循前端 request 封装的 {code, data} 信封约定（service/request/index.ts isBackendSuccess）
+        return ResponseEntity.ok(Map.of(
+                "code", 200,
+                "data", Map.of(
+                        "mode", mode.name(),
+                        "inviteRequired", inviteRequired
+                )
+        ));
     }
 
     // 用户登录接口

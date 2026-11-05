@@ -47,8 +47,9 @@ public class SecurityConfig {
                             .requestMatchers("/", "/test.html", "/static/test.html", "/static/**", "/*.js", "/*.css", "/*.ico").permitAll()
                             // 允许 WebSocket 连接
                             .requestMatchers("/chat/**", "/ws/**").permitAll()
-                            // 允许登录注册接口
-                            .requestMatchers("/api/v1/users/register", "/api/v1/users/login").permitAll()
+                            // 允许登录注册接口（registration-policy：注册页匿名读取注册模式，pm-033）
+                            .requestMatchers("/api/v1/users/register", "/api/v1/users/login",
+                                    "/api/v1/users/registration-policy").permitAll()
                             // 允许测试接口
                             .requestMatchers("/api/v1/test/**").permitAll()
                             // LiteParse OCR 回调接口：可通过 aliyun.ocr.callback-token 进行轻量校验

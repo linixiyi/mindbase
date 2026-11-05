@@ -206,6 +206,11 @@ const local: App.I18n.Schema = {
         title: 'Password Login',
         rememberMe: 'Remember username and password',
         forgetPassword: 'Forget password?',
+        forgotPasswordTitle: 'Forgot Password',
+        forgotPasswordTipLead: 'Self-service password recovery is not available on this site.',
+        forgotPasswordTipBody:
+          'Please contact the administrator to reset your password. Administrators can find account details under User Management.',
+        forgotPasswordConfirm: 'Got it',
         register: 'Register',
         otherAccountLogin: 'Other Account Login',
         otherLoginMode: 'Other Login Mode',
@@ -226,7 +231,9 @@ const local: App.I18n.Schema = {
         protocol: '《User Agreement》',
         and: 'and',
         policy: '《Privacy Policy》',
-        inviteCodeTip: 'This site is invite-only. If you do not have an invite code yet, contact the administrator.'
+        inviteCodeTip: 'This site is invite-only. If you do not have an invite code yet, contact the administrator.',
+        openRegistrationTip: 'Registration is open on this site. No invite code needed — just fill in the form.',
+        closedRegistrationTip: 'Registration is currently closed. Contact the administrator to get an account.'
       },
       resetPwd: {
         title: 'Reset Password'

@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { REGISTER_USERNAME_PREFILL_KEY } from '@/constants/app';
 import { inviteChannelConfig } from '@/constants/invite-channel';
+import { fetchRegistrationPolicy } from '@/service/api/auth';
+import type { RegistrationPolicy } from '@/service/api/auth';
 import { normalizeBackendMessage } from '@/service/request/shared';
 import { $t } from '@/locales';
 
@@ -32,6 +35,23 @@ const model: FormModel = reactive({
   inviteCode: ''
 });
 
+// pm-033 注册策略：由后端 registration-policy 下发驱动（OPEN/INVITE_ONLY/CLOSED）。
+// 读取失败时保持 null → 保守按「邀请码必填」展示，不出现误导性的开放注册提示。
+const registrationPolicy = ref<RegistrationPolicy | null>(null);
+
+async function loadRegistrationPolicy() {
+  const { data, error } = await fetchRegistrationPolicy();
+  if (!error && data) {
+    registrationPolicy.value = data;
+  }
+}
+
+loadRegistrationPolicy();
+
+const registrationClosed = computed(() => registrationPolicy.value?.mode === 'CLOSED');
+const inviteRequired = computed(() => (registrationPolicy.value ? registrationPolicy.value.inviteRequired : true));
+const showInviteField = computed(() => !registrationClosed.value && inviteRequired.value);
+
 const rules = computed<Record<keyof FormModel, App.Global.FormRule[]>>(() => {
   const { formRules, defaultRequiredRule, createConfirmPwdRule } = useFormRules();
 
@@ -39,8 +59,22 @@ const rules = computed<Record<keyof FormModel, App.Global.FormRule[]>>(() => {
     username: formRules.userName,
     password: formRules.pwd,
     confirmPassword: createConfirmPwdRule(model.password),
-    inviteCode: [defaultRequiredRule]
+    inviteCode: inviteRequired.value ? [defaultRequiredRule] : []
   };
+});
+
+const registrationTip = computed(() => {
+  if (registrationClosed.value) {
+    return $t('page.login.register.closedRegistrationTip');
+  }
+  return inviteRequired.value ? $t('page.login.register.inviteCodeTip') : $t('page.login.register.openRegistrationTip');
+});
+
+const invitePanelTitle = computed(() => {
+  if (registrationClosed.value) {
+    return 'MindBase 企业知识库';
+  }
+  return inviteRequired.value ? 'MindBase 企业知识库，欢迎加入内测。' : 'MindBase 企业知识库，欢迎加入。';
 });
 
 const loading = ref(false);
@@ -65,9 +99,11 @@ async function handleSubmit() {
   clearInviteCodeError();
   await validate();
   loading.value = true;
-  const { error } = await fetchRegister(model.username, model.password, model.inviteCode.trim());
+  const { error } = await fetchRegister(model.username, model.password, model.inviteCode.trim() || undefined);
   if (!error) {
     window.$message?.success('注册成功');
+    // pm-032 注册成功跳登录时带回用户名：sessionStorage 标签页级、读后即删，登录页优先于「记住我」回填
+    sessionStorage.setItem(REGISTER_USERNAME_PREFILL_KEY, model.username);
     toggleLoginModule('pwd-login');
   } else {
     const { rawMessage, message } = resolveRegisterError(error);
@@ -115,15 +151,17 @@ watch(
   <div class="register-layout">
     <aside class="invite-side-panel">
       <div class="invite-side-header">
-        <div class="invite-side-title">MindBase 企业知识库，欢迎加入内测。</div>
-        <div class="invite-side-desc">
+        <div class="invite-side-title">{{ invitePanelTitle }}</div>
+        <div v-if="registrationClosed" class="invite-side-desc">注册暂未开放，请联系管理员开通账号。</div>
+        <div v-else-if="!inviteRequired" class="invite-side-desc">当前开放注册，填写右侧表单即可创建账号。</div>
+        <div v-else class="invite-side-desc">
           联系
           <span class="invite-emphasis">{{ inviteChannelConfig.officialAccountName }}</span>
           领取邀请码，或使用同事分享的邀请链接完成注册。
         </div>
       </div>
 
-      <div class="invite-side-bottom">
+      <div v-if="!registrationClosed && inviteRequired" class="invite-side-bottom">
         <div class="invite-qr-shell">
           <img
             v-if="inviteChannelConfig.qrCodeImageUrl"
@@ -133,8 +171,8 @@ watch(
           />
           <div v-else class="invite-qr-placeholder">
             <icon-lucide:message-circle class="invite-qr-icon" />
-            <div class="invite-qr-title">二维码位</div>
-            <div class="invite-qr-desc">后续把二维码地址填到 `qrCodeImageUrl`，这里会直接展示扫码入口。</div>
+            <div class="invite-qr-title">邀请渠道</div>
+            <div class="invite-qr-desc">扫码入口暂未配置，请联系管理员获取邀请渠道。</div>
           </div>
         </div>
 
@@ -203,6 +241,7 @@ watch(
         </NInput>
       </NFormItem>
       <NFormItem
+        v-if="showInviteField"
         path="inviteCode"
         :validation-status="inviteCodeErrorMessage ? 'error' : undefined"
         :feedback="inviteCodeErrorMessage || undefined"
@@ -214,10 +253,18 @@ watch(
         </NInput>
       </NFormItem>
       <div class="register-form-tip mb-4">
-        {{ $t('page.login.register.inviteCodeTip') }}
+        {{ registrationTip }}
       </div>
       <NSpace vertical :size="18" class="w-full">
-        <NButton type="primary" size="large" round block :loading="loading" @click="handleSubmit">
+        <NButton
+          type="primary"
+          size="large"
+          round
+          block
+          :loading="loading"
+          :disabled="registrationClosed"
+          @click="handleSubmit"
+        >
           {{ $t('page.login.common.register') }}
         </NButton>
         <NButton block @click="toggleLoginModule('pwd-login')">
