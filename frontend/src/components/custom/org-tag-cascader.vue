@@ -32,6 +32,21 @@ onMounted(async () => {
   }
 });
 
+// 外部 options 异步加载（如弹窗打开后才拉全量树）时同步刷新，避免级联永远停留在挂载时的空数组
+watch(
+  () => props.options,
+  value => {
+    if (value) {
+      opts.value = value as unknown as CascaderOption[];
+      if (props.excludePrivate) {
+        opts.value.forEach(x => {
+          x.disabled = (x as unknown as Api.OrgTag.Item).tagId.startsWith('PRIVATE_');
+        });
+      }
+    }
+  }
+);
+
 const emit = defineEmits<{
   change: [CascaderOption | Array<CascaderOption | null> | null];
 }>();

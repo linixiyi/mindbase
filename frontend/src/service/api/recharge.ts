@@ -36,3 +36,12 @@ export function fetchRechargeOrderDetail(tradeNo: string) {
     method: 'get'
   });
 }
+
+/** 管理端：全量充值订单分页列表（pm-027 对账视图） */
+export function fetchAdminRechargeOrders(params: { page?: number; size?: number; status?: string; userId?: string }) {
+  return request<Api.Recharge.AdminOrderList>({
+    url: '/admin/recharge/orders',
+    method: 'get',
+    params
+  });
+}

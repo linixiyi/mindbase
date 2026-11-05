@@ -6,6 +6,7 @@ import {
   fetchCreateInviteCode,
   fetchDeleteInviteCode,
   fetchDisableInviteCode,
+  fetchEnableInviteCode,
   fetchGetInviteCodeList,
   fetchUpdateInviteCode
 } from '@/service/api';
@@ -16,6 +17,7 @@ interface InviteCodeFormModel {
   code: string;
   count: number | null;
   maxUses: number | null;
+  expiresAt: string | null;
 }
 
 const enabledOptions: SelectOption[] = [
@@ -74,6 +76,15 @@ const rules = ref<FormRules>({
       },
       message: '最大使用次数必须是大于 0 的整数',
       trigger: 'change'
+    }
+  ],
+  expiresAt: [
+    {
+      validator(_, value: string | null) {
+        return !value || dayjs(value).isAfter(dayjs());
+      },
+      message: '有效期必须晚于当前时间',
+      trigger: ['blur', 'change']
     }
   ]
 });
@@ -171,6 +182,27 @@ const columns = computed<DataTableColumns<Api.InviteCode.Item>>(() => [
     render: row => Math.max(0, row.maxUses - row.usedCount)
   },
   {
+    key: 'expiresAt',
+    title: '有效期',
+    width: 180,
+    render: row => {
+      if (!row.expiresAt) {
+        return <span class="text-3.5">永久有效</span>;
+      }
+      const expired = dayjs(row.expiresAt).isBefore(dayjs());
+      return (
+        <div class="flex flex-col gap-2">
+          <span class="text-3.5 leading-5">{dayjs(row.expiresAt).format('YYYY-MM-DD HH:mm')}</span>
+          {expired ? (
+            <NTag bordered={false} type="error" size="small">
+              已过期
+            </NTag>
+          ) : null}
+        </div>
+      );
+    }
+  },
+  {
     key: 'enabled',
     title: '状态',
     width: 84,
@@ -189,6 +221,12 @@ const columns = computed<DataTableColumns<Api.InviteCode.Item>>(() => [
         return (
           <NTag bordered={false} type="default">
             不可用
+          </NTag>
+        );
+      if (row.expiresAt && dayjs(row.expiresAt).isBefore(dayjs()))
+        return (
+          <NTag bordered={false} type="error">
+            已过期
           </NTag>
         );
       if (row.usedCount >= row.maxUses)
@@ -239,9 +277,9 @@ const columns = computed<DataTableColumns<Api.InviteCode.Item>>(() => [
             }}
           </NPopconfirm>
         ) : (
-          <NTag bordered={false} type="default">
-            已停用
-          </NTag>
+          <NButton type="success" quaternary size="small" onClick={() => handleEnable(row.id)}>
+            启用
+          </NButton>
         )}
         <NPopconfirm onPositiveClick={() => handleDelete(row.id)}>
           {{
@@ -262,7 +300,8 @@ function createDefaultModel(): InviteCodeFormModel {
   return {
     code: '',
     count: 1,
-    maxUses: 1
+    maxUses: 1,
+    expiresAt: null
   };
 }
 
@@ -319,7 +358,8 @@ function openEditDialog(row: Api.InviteCode.Item) {
   model.value = {
     code: row.code,
     count: 1,
-    maxUses: row.maxUses
+    maxUses: row.maxUses,
+    expiresAt: row.expiresAt ?? null
   };
   visible.value = true;
   nextTick(() => {
@@ -339,7 +379,7 @@ async function handleCreate() {
   const payload = {
     code: model.value.code.trim(),
     maxUses: Number(model.value.maxUses),
-    expiresAt: null
+    expiresAt: model.value.expiresAt || null
   };
   const { error } = isEditing.value
     ? await fetchUpdateInviteCode(editingId.value!, payload)
@@ -363,6 +403,15 @@ async function handleDisable(id: number) {
 
   if (!error) {
     window.$message?.success('邀请码已禁用');
+    await getData();
+  }
+}
+
+async function handleEnable(id: number) {
+  const { error } = await fetchEnableInviteCode(id);
+
+  if (!error) {
+    window.$message?.success('邀请码已启用');
     await getData();
   }
 }
@@ -451,7 +500,7 @@ onMounted(() => {
           :data="data"
           size="small"
           :flex-height="!appStore.isMobile"
-          :scroll-x="1100"
+          :scroll-x="1280"
           :loading="loading"
           remote
           :row-key="row => row.id"
@@ -510,6 +559,20 @@ onMounted(() => {
         </NFormItem>
         <NFormItem label="最大使用次数" path="maxUses">
           <NInputNumber v-model:value="model.maxUses" class="w-full" :min="1" :precision="0" placeholder="请输入次数" />
+        </NFormItem>
+        <NFormItem label="有效期" path="expiresAt">
+          <div class="w-full">
+            <NDatePicker
+              v-model:formatted-value="model.expiresAt"
+              type="datetime"
+              clearable
+              placeholder="留空则永久有效"
+              value-format="yyyy-MM-dd'T'HH:mm:ss"
+              :is-date-disabled="(ts: number) => ts < Date.now()"
+              class="w-full"
+            />
+            <div class="text-muted mt-2 text-xs">可选。到期后邀请码自动失效，创建后可在列表中查看</div>
+          </div>
         </NFormItem>
       </NForm>
 

@@ -5,12 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mindbase.config.HybridSearchProperties;
 import com.mindbase.service.ModelProviderConfigService;
 import com.mindbase.utils.RequestDeadline;
+import com.mindbase.utils.SecretCryptoService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -31,13 +33,99 @@ public class RerankClient {
     private final HybridSearchProperties properties;
     private final ModelProviderConfigService modelProviderConfigService;
     private final ObjectMapper objectMapper;
+    private final SecretCryptoService secretCryptoService;
 
     public RerankClient(HybridSearchProperties properties,
                         ModelProviderConfigService modelProviderConfigService,
-                        ObjectMapper objectMapper) {
+                        ObjectMapper objectMapper,
+                        SecretCryptoService secretCryptoService) {
         this.properties = properties;
         this.modelProviderConfigService = modelProviderConfigService;
         this.objectMapper = objectMapper;
+        this.secretCryptoService = secretCryptoService;
+    }
+
+    /**
+     * 管理端只读状态：当前生效的 rerank 配置与 API Key 来源（不回传明文密钥）
+     */
+    public ModelProviderConfigService.RerankStatusView status() {
+        HybridSearchProperties.Rerank cfg = properties.getRerank();
+        String apiKey = resolveApiKey();
+        String keySource;
+        if (hasValue(cfg.getApiKey())) {
+            keySource = "dedicated";
+        } else if (hasValue(apiKey)) {
+            keySource = "embedding-aliyun";
+        } else {
+            keySource = "none";
+        }
+        return new ModelProviderConfigService.RerankStatusView(
+                cfg.isEnabled(),
+                cfg.getUrl(),
+                cfg.getModel(),
+                hasValue(apiKey),
+                secretCryptoService.mask(apiKey),
+                keySource,
+                cfg.getTimeoutSeconds(),
+                cfg.getScoreThreshold(),
+                cfg.getMaxCandidates());
+    }
+
+    /**
+     * 管理端连通性测试：一条候选的最小 rerank 调用，不走检索链，也不影响问答请求
+     */
+    public ModelProviderConfigService.ConnectivityTestView testConnection() {
+        HybridSearchProperties.Rerank cfg = properties.getRerank();
+        long startAt = System.currentTimeMillis();
+        try {
+            String apiKey = resolveApiKey();
+            if (!hasValue(apiKey)) {
+                return new ModelProviderConfigService.ConnectivityTestView(false,
+                        "未配置 rerank API Key（SEARCH_RERANK_API_KEY），且激活的 embedding provider 不是阿里云",
+                        System.currentTimeMillis() - startAt);
+            }
+            Map<String, Object> body = Map.of(
+                    "model", cfg.getModel(),
+                    "input", Map.of("query", "ping", "documents", List.of("ping")),
+                    "parameters", Map.of("return_documents", false, "top_n", 1));
+            String response = WebClient.builder()
+                    .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                    .build()
+                    .post()
+                    .uri(cfg.getUrl())
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block(RequestDeadline.cap(Duration.ofSeconds(Math.min(Math.max(cfg.getTimeoutSeconds(), 1), 8))));
+            parseResponse(response, 1);
+            return new ModelProviderConfigService.ConnectivityTestView(true, "连接成功", System.currentTimeMillis() - startAt);
+        } catch (Exception exception) {
+            return new ModelProviderConfigService.ConnectivityTestView(
+                    false, formatTestFailure(exception), System.currentTimeMillis() - startAt);
+        }
+    }
+
+    private String formatTestFailure(Exception exception) {
+        Throwable current = exception;
+        while (current != null) {
+            if (current instanceof WebClientResponseException responseException) {
+                int statusCode = responseException.getStatusCode().value();
+                if (statusCode == 401 || statusCode == 403) {
+                    return "Rerank API Key 无效或未填写，请检查 SEARCH_RERANK_API_KEY 或阿里云 Embedding 供应商密钥";
+                }
+                if (statusCode == 404) {
+                    return "Rerank API 地址不可用，请检查 SEARCH_RERANK_URL";
+                }
+                return "Rerank 服务返回 HTTP " + statusCode + "，请检查模型名与接口地址";
+            }
+            current = current.getCause();
+        }
+        return exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
+    }
+
+    private boolean hasValue(String value) {
+        return value != null && !value.isBlank();
     }
 
     /**

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FormRules } from 'naive-ui';
+import { fetchGetOrgTagTree } from '@/service/api/org-tag';
 import type { FlatResponseData } from '~/packages/axios/src';
 
 defineOptions({
@@ -9,7 +10,6 @@ defineOptions({
 const props = defineProps<{
   operateType: NaiveUI.TableOperateType;
   rowData: Api.OrgTag.Item;
-  data: Api.OrgTag.Item[];
 }>();
 
 const emit = defineEmits<{ submitted: [] }>();
@@ -19,6 +19,17 @@ const loading = ref(false);
 const editingTagId = ref('');
 const { formRef, validate, restoreValidation } = useNaiveForm();
 const { defaultRequiredRule } = useFormRules();
+
+// pm-026：父级级联用全量组织标签树（标签量级小），不再绑定列表当前页数据；
+// 每次打开弹窗时重新拉取，保证新建标签立即可选
+const treeOptions = ref<Api.OrgTag.Item[]>([]);
+
+async function loadTreeOptions() {
+  const { error, data } = await fetchGetOrgTagTree();
+  if (!error && Array.isArray(data)) {
+    treeOptions.value = data;
+  }
+}
 
 const title = computed(() => {
   const titles: Record<NaiveUI.TableOperateType, string> = {
@@ -88,6 +99,7 @@ watch(visible, () => {
   if (visible.value) {
     handleUpdateModelWhenEdit();
     restoreValidation();
+    loadTreeOptions();
   }
 });
 </script>
@@ -113,7 +125,7 @@ watch(visible, () => {
         <NInput v-model:value="model.name" placeholder="请输入标签名称" maxlength="60" />
       </NFormItem>
       <NFormItem label="所属标签" path="parentTag">
-        <OrgTagCascader v-model:value="model.parentTag" :options="data" />
+        <OrgTagCascader v-model:value="model.parentTag" :options="treeOptions" />
       </NFormItem>
       <NFormItem label="标签描述" path="description">
         <NInput

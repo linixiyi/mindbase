@@ -1,5 +1,5 @@
 <script setup lang="tsx">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import type { DataTableColumns, FormRules, PaginationProps } from 'naive-ui';
 import {
   NButton,
@@ -11,12 +11,18 @@ import {
   NInputNumber,
   NModal,
   NPopconfirm,
+  NSelect,
   NSwitch,
   NTag
 } from 'naive-ui';
+import { fetchAdminRechargeOrders } from '@/service/api';
 import { request } from '@/service/request';
 
 const TOKEN_UNIT = 10000;
+
+// pm-027：进行中订单轮询间隔（5-10s 区间内取 8s），页面离开即停
+const ORDER_POLL_INTERVAL = 8000;
+const IN_PROGRESS_STATUSES = ['NOT_PAY', 'PAYING'];
 
 interface RechargePackage {
   id: number;
@@ -166,6 +172,192 @@ function autofillPackageCopy() {
 }
 
 const isEditing = computed(() => editingId.value !== null);
+
+// ==================== 充值订单列表（pm-027） ====================
+interface AdminRechargeOrder {
+  id: number;
+  tradeNo: string;
+  userId: string;
+  username: string | null;
+  amount: number;
+  llmToken: number;
+  embeddingToken: number;
+  status: string;
+  description: string | null;
+  payTime: string | null;
+  createdAt: string;
+}
+
+const orderStatusOptions = [
+  { label: '全部状态', value: 'all' },
+  { label: '待支付', value: 'NOT_PAY' },
+  { label: '支付中', value: 'PAYING' },
+  { label: '支付成功', value: 'SUCCEED' },
+  { label: '支付失败', value: 'FAIL' },
+  { label: '已取消', value: 'CANCELLED' }
+];
+
+const orderStatusMap: Record<string, { text: string; type: 'default' | 'warning' | 'success' | 'error' }> = {
+  NOT_PAY: { text: '待支付', type: 'default' },
+  PAYING: { text: '支付中', type: 'warning' },
+  SUCCEED: { text: '支付成功', type: 'success' },
+  FAIL: { text: '支付失败', type: 'error' },
+  CANCELLED: { text: '已取消', type: 'default' }
+};
+
+const ordersLoading = ref(false);
+const ordersError = ref(false);
+const orderData = ref<AdminRechargeOrder[]>([]);
+const orderStatusFilter = ref('all');
+const appliedOrderStatus = ref('all');
+let orderPollTimer: ReturnType<typeof setInterval> | null = null;
+
+const orderPagination = reactive<PaginationProps>({
+  page: 1,
+  pageSize: 10,
+  itemCount: 0,
+  showSizePicker: true,
+  pageSizes: [10, 15, 20, 25, 30],
+  onUpdatePage: async (page: number) => {
+    orderPagination.page = page;
+    await getOrders();
+  },
+  onUpdatePageSize: async (pageSize: number) => {
+    orderPagination.pageSize = pageSize;
+    orderPagination.page = 1;
+    await getOrders();
+  }
+});
+
+const orderColumns = computed<DataTableColumns<AdminRechargeOrder>>(() => [
+  {
+    key: 'tradeNo',
+    title: '订单号',
+    width: 210,
+    ellipsis: { tooltip: true },
+    render: row => <span class="text-3.5 font-mono">{row.tradeNo}</span>
+  },
+  {
+    key: 'username',
+    title: '用户',
+    width: 130,
+    render: row => row.username || row.userId || '-'
+  },
+  {
+    key: 'description',
+    title: '充值说明',
+    minWidth: 180,
+    ellipsis: { tooltip: true },
+    render: row => <NEllipsis line-clamp={1}>{row.description || '-'}</NEllipsis>
+  },
+  {
+    key: 'amount',
+    title: '金额',
+    width: 100,
+    render: row => `¥${(row.amount / 100).toFixed(2)}`
+  },
+  {
+    key: 'llmToken',
+    title: 'LLM Token（万）',
+    width: 130,
+    render: row => formatTokenWan(row.llmToken)
+  },
+  {
+    key: 'embeddingToken',
+    title: 'Embedding Token（万）',
+    width: 150,
+    render: row => formatTokenWan(row.embeddingToken)
+  },
+  {
+    key: 'status',
+    title: '状态',
+    width: 96,
+    render: row => {
+      const status = orderStatusMap[row.status] || { text: '未知', type: 'default' as const };
+      return (
+        <NTag bordered={false} type={status.type}>
+          {status.text}
+        </NTag>
+      );
+    }
+  },
+  {
+    key: 'payTime',
+    title: '支付时间',
+    width: 170,
+    render: row => (row.payTime ? dayjs(row.payTime).format('YYYY-MM-DD HH:mm:ss') : '-')
+  },
+  {
+    key: 'createdAt',
+    title: '创建时间',
+    width: 170,
+    render: row => dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss')
+  }
+]);
+
+async function getOrders(silent = false) {
+  // 轮询触发的静默刷新不闪 loading，避免表格反复抖动
+  if (!silent) ordersLoading.value = true;
+  try {
+    const { error, data: resData } = await fetchAdminRechargeOrders({
+      page: Number(orderPagination.page),
+      size: Number(orderPagination.pageSize),
+      status: appliedOrderStatus.value === 'all' ? undefined : appliedOrderStatus.value
+    });
+
+    if (!error && resData) {
+      orderData.value = resData.records || [];
+      orderPagination.itemCount = resData.total || 0;
+      ordersError.value = false;
+      syncOrderPolling();
+    } else {
+      ordersError.value = true;
+      stopOrderPolling();
+    }
+  } finally {
+    if (!silent) ordersLoading.value = false;
+  }
+}
+
+async function searchOrders() {
+  appliedOrderStatus.value = orderStatusFilter.value;
+  orderPagination.page = 1;
+  await getOrders();
+}
+
+async function resetOrderFilters() {
+  orderStatusFilter.value = 'all';
+  await searchOrders();
+}
+
+function hasInProgressOrder() {
+  return orderData.value.some(row => IN_PROGRESS_STATUSES.includes(row.status));
+}
+
+/** 依据当前页数据启停轮询：仅当本页存在待支付/支付中订单时保持 8s 刷新 */
+function syncOrderPolling() {
+  if (hasInProgressOrder()) {
+    if (!orderPollTimer) {
+      orderPollTimer = setInterval(() => {
+        if (document.hidden) return;
+        getOrders(true);
+      }, ORDER_POLL_INTERVAL);
+    }
+  } else {
+    stopOrderPolling();
+  }
+}
+
+function stopOrderPolling() {
+  if (orderPollTimer) {
+    clearInterval(orderPollTimer);
+    orderPollTimer = null;
+  }
+}
+
+onBeforeUnmount(() => {
+  stopOrderPolling();
+});
 
 const columns = computed<DataTableColumns<RechargePackage>>(() => [
   {
@@ -376,6 +568,7 @@ async function handleDelete(id: number) {
 
 onMounted(() => {
   getData();
+  getOrders();
 });
 </script>
 
@@ -416,6 +609,62 @@ onMounted(() => {
             </div>
             <p class="page-state__title">暂无充值套餐</p>
             <p class="page-state__desc">点击右上角「新增套餐」创建第一个套餐</p>
+          </div>
+        </template>
+      </NDataTable>
+    </NCard>
+
+    <!-- 充值订单列表（pm-027 对账视图） -->
+    <NCard title="充值订单" :bordered="false" size="small" class="page-section">
+      <NForm class="page-filters" label-placement="left" :show-feedback="false" inline @submit.prevent="searchOrders">
+        <NFormItem label="支付状态">
+          <NSelect v-model:value="orderStatusFilter" :options="orderStatusOptions" class="w-200px!" />
+        </NFormItem>
+        <div class="filter-actions">
+          <NButton type="primary" attr-type="submit" :loading="ordersLoading">查询</NButton>
+          <NButton :disabled="ordersLoading" @click="resetOrderFilters">重置</NButton>
+        </div>
+      </NForm>
+
+      <div v-if="ordersError" class="page-state">
+        <div class="app-state-badge app-state-badge--error">
+          <icon-lucide:circle-alert class="text-icon-large" />
+        </div>
+        <p class="page-state__title">充值订单加载失败</p>
+        <p class="page-state__desc">网络异常导致订单没有加载，请检查连接后重试</p>
+        <NButton size="small" :disabled="ordersLoading" @click="getOrders()">
+          <template #icon>
+            <icon-lucide:rotate-cw />
+          </template>
+          重试
+        </NButton>
+      </div>
+      <NDataTable
+        v-else
+        :bordered="false"
+        :columns="orderColumns"
+        :data="orderData"
+        :loading="ordersLoading"
+        remote
+        :row-key="(row: AdminRechargeOrder) => row.id"
+        :pagination="orderPagination"
+        :scroll-x="1360"
+        class="mt-4"
+      >
+        <template #empty>
+          <div class="page-state page-state--table">
+            <div class="app-state-badge">
+              <icon-lucide:receipt-text class="text-icon-large" />
+            </div>
+            <template v-if="appliedOrderStatus !== 'all'">
+              <p class="page-state__title">没有符合筛选条件的订单</p>
+              <p class="page-state__desc">调整支付状态筛选，或清除筛选查看全部订单</p>
+              <NButton size="small" :disabled="ordersLoading" @click="resetOrderFilters">清除筛选</NButton>
+            </template>
+            <template v-else>
+              <p class="page-state__title">暂无充值订单</p>
+              <p class="page-state__desc">用户发起充值后订单会汇总到这里，用于对账与状态跟踪</p>
+            </template>
           </div>
         </template>
       </NDataTable>
