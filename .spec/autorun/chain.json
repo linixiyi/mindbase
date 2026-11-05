@@ -43,6 +43,14 @@
         "H5"
       ],
       "slug": "2026-11-04-register-ux",
+      "status": "done (两项全过 18/18)"
+    },
+    {
+      "round": 6,
+      "features": [
+        "H6"
+      ],
+      "slug": "2026-11-04-debt-pack",
       "status": "active"
     }
   ],

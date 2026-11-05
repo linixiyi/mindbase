@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive } from 'vue';
-import { loginModuleRecord } from '@/constants/app';
+import { REGISTER_USERNAME_PREFILL_KEY, loginModuleRecord } from '@/constants/app';
 import { isRequestRateLimited, requestRateLimitRemainingSeconds } from '@/service/request/rate-limit';
 import { useAuthStore } from '@/store/modules/auth';
 import { useRouterPush } from '@/hooks/common/router';
@@ -32,8 +32,14 @@ if (rememberedLogin && 'password' in rememberedLogin) {
   localStg.set('rememberedLogin', { userName: rememberedLogin.userName });
 }
 
+// pm-032 注册成功跳转回填：一次性消费（读后即删），优先于「记住我」的回填
+const registeredPrefill = sessionStorage.getItem(REGISTER_USERNAME_PREFILL_KEY);
+if (registeredPrefill) {
+  sessionStorage.removeItem(REGISTER_USERNAME_PREFILL_KEY);
+}
+
 const model: FormModel = reactive({
-  userName: rememberedLogin?.userName || '',
+  userName: registeredPrefill || rememberedLogin?.userName || '',
   password: '',
   rememberMe: Boolean(rememberedLogin)
 });
@@ -47,6 +53,10 @@ const rules = computed<Record<keyof FormRuleModel, App.Global.FormRule[]>>(() =>
     password: formRules.pwd
   };
 });
+
+// pm-032 忘记密码：本站无邮件/自助重置基础设施，不做假重置表单（reset-pwd 模块为静态占位），
+// 只做诚实引导——提示联系管理员重置，管理员可在「用户管理」查看账号
+const showForgotPassword = ref(false);
 
 async function handleSubmit() {
   // 登录限流倒计时（pm-022）：冷却期内禁止提交，按钮展示剩余秒数
@@ -99,6 +109,9 @@ async function handleSubmit() {
       <NCheckbox v-model:checked="model.rememberMe">
         {{ $t('page.login.pwdLogin.rememberMe') }}
       </NCheckbox>
+      <NButton text type="primary" class="text-13px" @click="showForgotPassword = true">
+        {{ $t('page.login.pwdLogin.forgetPassword') }}
+      </NButton>
     </div>
     <div class="flex-col gap-6">
       <NButton
@@ -122,7 +135,32 @@ async function handleSubmit() {
         <NButton text type="primary">隐私政策</NButton>
       </span>
     </div>
+
+    <!-- pm-032 忘记密码引导层：诚实提示联系管理员，不提供假的重置表单 -->
+    <NModal
+      v-model:show="showForgotPassword"
+      preset="card"
+      :title="$t('page.login.pwdLogin.forgotPasswordTitle')"
+      class="w-380px"
+      :bordered="false"
+    >
+      <div class="forgot-password-tip flex-col gap-8px text-14px leading-relaxed">
+        <span>{{ $t('page.login.pwdLogin.forgotPasswordTipLead') }}</span>
+        <span>{{ $t('page.login.pwdLogin.forgotPasswordTipBody') }}</span>
+      </div>
+      <template #footer>
+        <NButton type="primary" block @click="showForgotPassword = false">
+          {{ $t('page.login.pwdLogin.forgotPasswordConfirm') }}
+        </NButton>
+      </template>
+    </NModal>
   </NForm>
 </template>
+
+<style scoped>
+.forgot-password-tip {
+  color: var(--app-text-secondary);
+}
+</style>
 
 <style scoped></style>

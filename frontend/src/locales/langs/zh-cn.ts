@@ -206,6 +206,10 @@ const local: App.I18n.Schema = {
         title: '密码登录',
         rememberMe: '记住用户名和密码',
         forgetPassword: '忘记密码？',
+        forgotPasswordTitle: '忘记密码',
+        forgotPasswordTipLead: '本站未开启自助找回密码。',
+        forgotPasswordTipBody: '请联系管理员重置密码，管理员可在「用户管理」中查看账号信息。',
+        forgotPasswordConfirm: '我知道了',
         register: '注册账号',
         otherAccountLogin: '其他账号登录',
         otherLoginMode: '其他登录方式',
@@ -226,7 +230,9 @@ const local: App.I18n.Schema = {
         protocol: '《用户协议》',
         and: '和',
         policy: '《隐私权政策》',
-        inviteCodeTip: '当前站点采用邀请码注册。还没有邀请码时，请联系管理员领取。'
+        inviteCodeTip: '当前站点采用邀请码注册。还没有邀请码时，请联系管理员领取。',
+        openRegistrationTip: '当前站点开放注册，无需邀请码，填写表单即可加入。',
+        closedRegistrationTip: '当前站点注册暂未开放，请联系管理员开通账号。'
       },
       resetPwd: {
         title: '重置密码'

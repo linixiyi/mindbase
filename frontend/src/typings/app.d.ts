@@ -441,6 +441,10 @@ declare namespace App {
             title: string;
             rememberMe: string;
             forgetPassword: string;
+            forgotPasswordTitle: string;
+            forgotPasswordTipLead: string;
+            forgotPasswordTipBody: string;
+            forgotPasswordConfirm: string;
             register: string;
             otherAccountLogin: string;
             otherLoginMode: string;
@@ -462,6 +466,8 @@ declare namespace App {
             and: string;
             policy: string;
             inviteCodeTip: string;
+            openRegistrationTip: string;
+            closedRegistrationTip: string;
           };
           resetPwd: {
             title: string;

@@ -4,6 +4,9 @@ export const GLOBAL_HEADER_MENU_ID = '__GLOBAL_HEADER_MENU__';
 
 export const GLOBAL_SIDER_MENU_ID = '__GLOBAL_SIDER_MENU__';
 
+/** pm-032 注册成功跳登录时的一次性用户名回填（sessionStorage 标签页级，读后即删，优先于「记住我」） */
+export const REGISTER_USERNAME_PREFILL_KEY = 'mindbase:register:prefill-username';
+
 export const themeSchemaRecord: Record<UnionKey.ThemeScheme, App.I18n.I18nKey> = {
   light: 'theme.themeSchema.light',
   dark: 'theme.themeSchema.dark',
