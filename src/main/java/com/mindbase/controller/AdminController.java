@@ -2,6 +2,7 @@ package com.mindbase.controller;
 
 import com.mindbase.exception.CustomException;
 import com.mindbase.model.Conversation;
+import com.mindbase.model.InviteCode;
 import com.mindbase.model.OrganizationTag;
 import com.mindbase.model.RechargeOrder;
 import com.mindbase.model.RechargeOrder.OrderStatus;
@@ -465,7 +466,8 @@ public class AdminController {
                     request.expiresAt(),
                     request.count()
             );
-            return ResponseEntity.ok(Map.of("code", 200, "message", "邀请码创建成功", "data", created));
+            return ResponseEntity.ok(Map.of("code", 200, "message", "邀请码创建成功",
+                    "data", created.stream().map(AdminController::toInviteCodeView).toList()));
         } catch (CustomException e) {
             return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));
         } catch (Exception e) {
@@ -484,7 +486,16 @@ public class AdminController {
             @RequestParam(defaultValue = "20") int size) {
         String adminUsername = jwtUtils.extractUsernameFromToken(token.replace("Bearer ", ""));
         validateAdmin(adminUsername);
-        return ResponseEntity.ok(Map.of("code", 200, "message", "获取邀请码成功", "data", inviteCodeService.list(enabled, page, size)));
+        Map<String, Object> inviteCodePage = inviteCodeService.list(enabled, page, size);
+        @SuppressWarnings("unchecked")
+        List<InviteCode> inviteCodeRecords = (List<InviteCode>) inviteCodePage.get("records");
+        Map<String, Object> inviteCodeData = Map.of(
+                "records", inviteCodeRecords.stream().map(AdminController::toInviteCodeView).toList(),
+                "total", inviteCodePage.get("total"),
+                "pages", inviteCodePage.get("pages"),
+                "current", inviteCodePage.get("current"),
+                "size", inviteCodePage.get("size"));
+        return ResponseEntity.ok(Map.of("code", 200, "message", "获取邀请码成功", "data", inviteCodeData));
     }
 
     /**
@@ -560,7 +571,7 @@ public class AdminController {
 
         try {
             var updated = inviteCodeService.update(id, adminUsername, request.code(), request.maxUses(), request.expiresAt());
-            return ResponseEntity.ok(Map.of("code", 200, "message", "邀请码已更新", "data", updated));
+            return ResponseEntity.ok(Map.of("code", 200, "message", "邀请码已更新", "data", toInviteCodeView(updated)));
         } catch (CustomException e) {
             return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));
         } catch (Exception e) {
@@ -588,7 +599,7 @@ public class AdminController {
                 request.uploadMaxSizeMb(),
                 adminUsername
             );
-            return ResponseEntity.ok(Map.of("code", 200, "message", "组织标签创建成功", "data", tag));
+            return ResponseEntity.ok(Map.of("code", 200, "message", "组织标签创建成功", "data", toOrgTagView(tag)));
         } catch (CustomException e) {
             LogUtils.logBusinessError("ADMIN_CREATE_ORG_TAG", adminUsername, "创建组织标签失败: %s", e, e.getMessage());
             return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));
@@ -609,7 +620,8 @@ public class AdminController {
         
         try {
             List<OrganizationTag> tags = organizationTagRepository.findAll();
-            return ResponseEntity.ok(Map.of("code", 200, "message", "获取组织标签成功", "data", tags));
+            return ResponseEntity.ok(Map.of("code", 200, "message", "获取组织标签成功",
+                    "data", tags.stream().map(AdminController::toOrgTagView).toList()));
         } catch (Exception e) {
             LogUtils.logBusinessError("ADMIN_GET_ORG_TAGS", adminUsername, "获取组织标签失败", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -707,9 +719,9 @@ public class AdminController {
                 adminUsername
             );
             return ResponseEntity.ok(Map.of(
-                "code", 200, 
-                "message", "组织标签更新成功", 
-                "data", updatedTag
+                "code", 200,
+                "message", "组织标签更新成功",
+                "data", toOrgTagView(updatedTag)
             ));
         } catch (CustomException e) {
             LogUtils.logBusinessError("ADMIN_UPDATE_ORG_TAG", adminUsername, "更新组织标签失败: %s", e, e.getMessage());
@@ -1505,6 +1517,25 @@ public class AdminController {
                     .body(Map.of("code", 500, "message", "删除充值套餐失败：" + e.getMessage()));
         }
     }
+
+    /**
+     * 安全投影：响应中的创建者只保留 id 与用户名，避免内嵌完整 User（含 bcrypt 哈希）序列化出去
+     */
+    private static CreatorView toCreatorView(User creator) {
+        return creator == null ? null : new CreatorView(creator.getId(), creator.getUsername());
+    }
+
+    private static InviteCodeView toInviteCodeView(InviteCode inviteCode) {
+        return new InviteCodeView(inviteCode.getId(), inviteCode.getCode(), inviteCode.getMaxUses(),
+                inviteCode.getUsedCount(), inviteCode.getExpiresAt(), inviteCode.getEnabled(),
+                toCreatorView(inviteCode.getCreatedBy()), inviteCode.getCreatedAt(), inviteCode.getUpdatedAt());
+    }
+
+    private static OrgTagView toOrgTagView(OrganizationTag tag) {
+        return new OrgTagView(tag.getTagId(), tag.getName(), tag.getDescription(), tag.getParentTag(),
+                tag.getUploadMaxSizeBytes(), toCreatorView(tag.getCreatedBy()),
+                tag.getCreatedAt(), tag.getUpdatedAt());
+    }
 }
 
 /**
@@ -1532,6 +1563,23 @@ record OrgTagUpdateRequest(String name, String description, String parentTag, Lo
 record CreateInviteCodeRequest(String code, Integer maxUses, Integer count, LocalDateTime expiresAt) {}
 
 record UpdateInviteCodeRequest(String code, Integer maxUses, LocalDateTime expiresAt) {}
+
+/**
+ * 响应投影：创建者只保留 id 与用户名（对应前端 Creator 契约），不携带完整 User
+ */
+record CreatorView(Long id, String username) {}
+
+/**
+ * 响应投影：字段与 InviteCode 实体一致，仅 createdBy 换为 CreatorView
+ */
+record InviteCodeView(Long id, String code, Integer maxUses, Integer usedCount, LocalDateTime expiresAt,
+                      Boolean enabled, CreatorView createdBy, LocalDateTime createdAt, LocalDateTime updatedAt) {}
+
+/**
+ * 响应投影：字段与 OrganizationTag 实体一致，仅 createdBy 换为 CreatorView
+ */
+record OrgTagView(String tagId, String name, String description, String parentTag, Long uploadMaxSizeBytes,
+                  CreatorView createdBy, LocalDateTime createdAt, LocalDateTime updatedAt) {}
 
 /**
  * 充值套餐请求体

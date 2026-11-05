@@ -64,6 +64,9 @@ a:hover{text-decoration:underline}
 }
 .nav-links a.nav-gh:hover{background:#000;color:#fff;text-decoration:none}
 
+/* ── 移动端页内锚点：仅 ≤720px 显示（桌面端由顶栏 nav-links 提供），纯锚点零 JS ── */
+.mobile-anchors{display:none}
+
 /* ── Hero：晴空玻璃，极简渐变 ── */
 .hero{
   background:
@@ -148,7 +151,8 @@ section{padding:88px 0}
   border:1px solid var(--hairline);border-radius:var(--r-card);
   padding:26px;
 }
-.pipe-label{font-size:13px;font-weight:600;color:var(--text-secondary);letter-spacing:.06em}
+/* 双语标签含中文：中文场景字距 0 律，不加 letter-spacing */
+.pipe-label{font-size:13px;font-weight:600;color:var(--text-secondary)}
 .pipe-flow{margin-top:16px;display:flex;align-items:stretch;flex-wrap:wrap;gap:8px}
 .pipe-step{
   background:var(--bg-container);
@@ -212,6 +216,9 @@ section{padding:88px 0}
   .pipe-step{flex:1 1 100%}
   .pipe-arrow{display:none}
   .pipe-step + .pipe-step{margin-top:2px}
+  .mobile-anchors{display:flex;justify-content:center;flex-wrap:wrap;gap:10px 24px;padding:16px 20px 0}
+  .mobile-anchors a{font-size:14px;font-weight:500;color:var(--text-secondary)}
+  .mobile-anchors a:hover{color:var(--text-primary);text-decoration:none}
 }
 </style>
 </head>
@@ -252,6 +259,12 @@ section{padding:88px 0}
       <p class="hero-quote">回答强制基于检索片段，句末携带引用标注：<b>(来源#1: 产品白皮书.pdf | 第3页)</b></p>
     </div>
   </section>
+
+  <nav class="mobile-anchors" aria-label="页内导航">
+    <a href="#capabilities">核心能力</a>
+    <a href="#architecture">架构</a>
+    <a href="#stack">技术栈</a>
+  </nav>
 
   <section id="capabilities">
     <div class="container">

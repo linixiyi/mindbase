@@ -531,50 +531,6 @@ public class ChatHandler {
         sendResponseChunk(userId, generationId, conversationId, chunk);
     }
 
-    private void submitCompletionMonitor(String userId, String userMessage, String conversationId, String generationId,
-                                         CompletableFuture<String> responseFuture) {
-        try {
-            chatMonitorExecutor.execute(() -> {
-                try {
-                    if (finishCancelledGeneration(generationId, responseFuture, responseBuilders.get(generationId))) {
-                        return;
-                    }
-
-                    responseFuture.get(GENERATION_COMPLETION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                } catch (TimeoutException e) {
-                    if (finishCancelledGeneration(generationId, responseFuture, responseBuilders.get(generationId))) {
-                        return;
-                    }
-                    RuntimeException exception = new RuntimeException(failureUserMessage(ChatFailureCategory.TIMEOUT));
-                    if (responseFuture.completeExceptionally(exception)) {
-                        handleError(userId, generationId, ChatFailureCategory.TIMEOUT, exception);
-                        sendCompletionNotification(userId, generationId, conversationId, true, false);
-                        chatGenerationStateService.markFailed(generationId,
-                                ChatFailureCategory.TIMEOUT.name(), failureUserMessage(ChatFailureCategory.TIMEOUT));
-                        cleanupGenerationState(generationId, exception);
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                } catch (ExecutionException ignored) {
-                    // 上游错误分支已经处理并完成了当前 future，这里只负责等待兜底。
-                } catch (Exception e) {
-                    logger.error("检查响应完成时出错: {}", e.getMessage(), e);
-                    if (responseFuture.completeExceptionally(e)) {
-                        ChatFailureCategory category = resolveFailureCategory(e);
-                        chatGenerationStateService.markFailed(generationId, category.name(), failureUserMessage(category));
-                        cleanupGenerationState(generationId, e);
-                    }
-                }
-            });
-        } catch (RejectedExecutionException ex) {
-            logger.warn("聊天监控线程池已满，generationId: {}", generationId);
-            handleError(userId, generationId, ChatFailureCategory.BUSY, ex);
-            chatGenerationStateService.markFailed(generationId,
-                    ChatFailureCategory.BUSY.name(), failureUserMessage(ChatFailureCategory.BUSY));
-            cleanupGenerationState(generationId, ex);
-        }
-    }
-
     private void finalizeResponse(String userId, String userMessage, String conversationId, String generationId,
                                   CompletableFuture<String> responseFuture,
                                   StringBuilder responseBuilder,
@@ -1066,16 +1022,6 @@ public class ChatHandler {
         } catch (Exception e) {
             logger.error("持久化失败回合出错: userId={}, conversationId={}, category={}", userId, conversationId, category, e);
         }
-    }
-
-    private void sendRateLimitMessage(String userId, String generationId, RateLimitExceededException exception) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("type", "error");
-        payload.put("generationId", generationId);
-        payload.put("code", 429);
-        payload.put("message", exception.getMessage());
-        payload.put("retryAfterSeconds", exception.getRetryAfterSeconds());
-        chatSessionRegistry.sendJsonToUser(userId, payload);
     }
 
     /**
