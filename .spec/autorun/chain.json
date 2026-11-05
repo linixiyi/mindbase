@@ -51,6 +51,14 @@
         "H6"
       ],
       "slug": "2026-11-04-debt-pack",
+      "status": "done (五项全过，DLQ E2E 走通)"
+    },
+    {
+      "round": 7,
+      "features": [
+        "H7"
+      ],
+      "slug": "2026-11-04-polish-closeout",
       "status": "active"
     }
   ],

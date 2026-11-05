@@ -5,7 +5,7 @@ import { isRequestRateLimited, requestRateLimitRemainingSeconds } from '@/servic
 import { useAuthStore } from '@/store/modules/auth';
 import { useRouterPush } from '@/hooks/common/router';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
-import { localStg } from '@/utils/storage';
+import { localStg, migrateRememberedLogin } from '@/utils/storage';
 import { $t } from '@/locales';
 
 defineOptions({
@@ -24,13 +24,8 @@ interface FormModel {
 
 type FormRuleModel = Pick<FormModel, 'userName' | 'password'>;
 
-const rememberedLogin = localStg.get('rememberedLogin');
-
-// One-time migration: legacy rememberedLogin may contain a plaintext password;
-// strip it and rewrite in place so old users don't keep plaintext in localStorage.
-if (rememberedLogin && 'password' in rememberedLogin) {
-  localStg.set('rememberedLogin', { userName: rememberedLogin.userName });
-}
+// 旧版 rememberedLogin 的明文密码迁移（pm-002）：逻辑单源于 utils/storage.ts，应用启动时也会执行
+const rememberedLogin = migrateRememberedLogin();
 
 // pm-032 注册成功跳转回填：一次性消费（读后即删），优先于「记住我」的回填
 const registeredPrefill = sessionStorage.getItem(REGISTER_USERNAME_PREFILL_KEY);
