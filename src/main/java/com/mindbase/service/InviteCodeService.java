@@ -119,6 +119,20 @@ public class InviteCodeService {
         inviteCodeRepository.save(inviteCode);
     }
 
+    /**
+     * 重新启用已禁用的邀请码（与 disable 对称）。已过期的码也允许启用，
+     * 但 consume 时仍会因 expiresAt 校验拒绝使用，避免静默放大风险。
+     */
+    @Transactional
+    public void enable(Long id, String adminUsername) {
+        validateAdmin(adminUsername, "enable");
+
+        InviteCode inviteCode = inviteCodeRepository.findById(id)
+                .orElseThrow(() -> new CustomException("Invite code not found", HttpStatus.NOT_FOUND));
+        inviteCode.setEnabled(true);
+        inviteCodeRepository.save(inviteCode);
+    }
+
     @Transactional
     public void delete(Long id, String adminUsername) {
         validateAdmin(adminUsername, "delete");

@@ -24,6 +24,13 @@ export function fetchDisableInviteCode(id: number) {
   });
 }
 
+export function fetchEnableInviteCode(id: number) {
+  return request({
+    url: `/admin/invite-codes/${id}/enable`,
+    method: 'patch'
+  });
+}
+
 export function fetchDeleteInviteCode(id: number) {
   return request({
     url: `/admin/invite-codes/${id}`,

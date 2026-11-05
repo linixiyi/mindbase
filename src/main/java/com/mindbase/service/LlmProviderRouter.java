@@ -312,6 +312,75 @@ public class LlmProviderRouter {
     }
 
     /**
+     * 管理端「主备与转移」视图：解析后的调用链（主供应商在前、备用按生效顺序在后），
+     * 每家的熔断器运行时状态，以及未进入链路的供应商与原因。链的解析与 {@link #providerChain()} 完全一致。
+     */
+    public LlmFailoverStatusView failoverStatus() {
+        ModelCallProperties.Failover failover = modelCallProperties.getFailover();
+        List<ModelProviderConfigService.ActiveProviderView> chain = providerChain();
+        Map<String, ModelProviderConfigService.ActiveProviderView> chained = new LinkedHashMap<>();
+        List<LlmFailoverProviderView> providers = new ArrayList<>();
+        for (int i = 0; i < chain.size(); i++) {
+            ModelProviderConfigService.ActiveProviderView provider = chain.get(i);
+            chained.put(provider.provider(), provider);
+            providers.add(new LlmFailoverProviderView(
+                    provider.provider(), provider.displayName(), provider.model(), provider.apiBaseUrl(),
+                    true, i == 0, i + 1,
+                    modelCallGuard.circuitState(ModelProviderConfigService.SCOPE_LLM, provider.provider()).name(), null));
+        }
+        for (ModelProviderConfigService.ProviderConfigView provider : modelProviderConfigService.getCurrentSettings().llm().providers()) {
+            if (chained.containsKey(provider.provider())) {
+                continue;
+            }
+            providers.add(new LlmFailoverProviderView(
+                    provider.provider(), provider.displayName(), provider.model(), provider.apiBaseUrl(),
+                    false, false, 0, null, excludedReason(provider, failover)));
+        }
+        return new LlmFailoverStatusView(
+                failover.isLlmEnabled(),
+                List.copyOf(failover.getLlmBackupProviders()),
+                List.copyOf(providers));
+    }
+
+    /**
+     * 未进入调用链的原因，按 getLlmFailoverChain 的过滤条件给出：未启用 → 未配置 API Key →
+     * 配置了备用顺序但没列入 → 故障转移关闭（enabled 且有 Key 的备用供应商此时也不会被使用）
+     */
+    private String excludedReason(ModelProviderConfigService.ProviderConfigView provider, ModelCallProperties.Failover failover) {
+        if (!provider.enabled()) {
+            return "未启用";
+        }
+        if (!provider.hasApiKey()) {
+            return "未配置 API Key";
+        }
+        if (failover.isLlmEnabled() && !failover.getLlmBackupProviders().isEmpty()
+                && !failover.getLlmBackupProviders().contains(provider.provider())) {
+            return "未列入 model-call.failover.llm-backup-providers 备用顺序";
+        }
+        return "故障转移已关闭，仅使用主供应商";
+    }
+
+    public record LlmFailoverStatusView(
+            boolean failoverEnabled,
+            List<String> configuredBackupProviders,
+            List<LlmFailoverProviderView> providers
+    ) {
+    }
+
+    public record LlmFailoverProviderView(
+            String provider,
+            String displayName,
+            String model,
+            String apiBaseUrl,
+            boolean inChain,
+            boolean primary,
+            int position,
+            String circuitState,
+            String excludedReason
+    ) {
+    }
+
+    /**
      * 按调用链依次尝试：当前供应商熔断打开、舱壁已满、限流排队超时或重试耗尽，且还没有收到任何内容时，切到下一个供应商。
      * 已经开始输出后失败直接把错误交给调用方，避免同一回答拼接两个模型的内容
      */

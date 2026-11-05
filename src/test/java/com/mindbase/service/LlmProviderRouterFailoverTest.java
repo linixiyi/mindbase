@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -37,6 +38,7 @@ class LlmProviderRouterFailoverTest {
     private HttpServer backup;
     private final AtomicInteger primaryCalls = new AtomicInteger();
     private final AtomicReference<String> backupRequestBody = new AtomicReference<>();
+    private ModelProviderConfigService providerConfig;
     private LlmProviderRouter router;
 
     @BeforeEach
@@ -66,7 +68,7 @@ class LlmProviderRouterFailoverTest {
         properties.getRetry().setInitialBackoffMs(1);
         properties.getRetry().setMaxBackoffMs(2);
 
-        ModelProviderConfigService providerConfig = mock(ModelProviderConfigService.class);
+        providerConfig = mock(ModelProviderConfigService.class);
         when(providerConfig.getLlmFailoverChain(any())).thenReturn(List.of(
                 provider("deepseek", "deepseek-chat", primary),
                 provider("qwen", "qwen-flash", backup)));
@@ -111,6 +113,50 @@ class LlmProviderRouterFailoverTest {
         assertNull(error.get());
         assertEquals("备用回答", content.toString());
         assertEquals(3, primaryCalls.get());
+    }
+
+    @Test
+    void failoverStatusListsResolvedChainWithCircuitStateAndExcludedReasons() {
+        when(providerConfig.getCurrentSettings()).thenReturn(new ModelProviderConfigService.ModelProviderSettingsView(
+                new ModelProviderConfigService.ScopeSettingsView("llm", "deepseek", List.of(
+                        new ModelProviderConfigService.ProviderConfigView("deepseek", "DeepSeek", "openai-compatible",
+                                "http://primary.local/v1", "deepseek-chat", null, true, true, true, "sk-a****0001"),
+                        new ModelProviderConfigService.ProviderConfigView("qwen", "Qwen", "openai-compatible",
+                                "http://backup.local/v1", "qwen-flash", null, true, false, true, "sk-b****0002"),
+                        new ModelProviderConfigService.ProviderConfigView("zhipu", "ZhipuAI", "openai-compatible",
+                                "http://zhipu.local/v1", "glm-4.5-air", null, true, false, false, ""),
+                        new ModelProviderConfigService.ProviderConfigView("openrouter", "OpenRouter", "openai-compatible",
+                                "http://openrouter.local/v1", "or-model", null, false, false, false, ""))),
+                new ModelProviderConfigService.ScopeSettingsView("embedding", "aliyun", List.of())));
+
+        LlmProviderRouter.LlmFailoverStatusView status = router.failoverStatus();
+
+        assertTrue(status.failoverEnabled());
+        assertEquals(4, status.providers().size());
+
+        LlmProviderRouter.LlmFailoverProviderView primaryView = status.providers().get(0);
+        assertEquals("deepseek", primaryView.provider());
+        assertTrue(primaryView.inChain());
+        assertTrue(primaryView.primary());
+        assertEquals(1, primaryView.position());
+        assertEquals("CLOSED", primaryView.circuitState());
+        assertNull(primaryView.excludedReason());
+
+        LlmProviderRouter.LlmFailoverProviderView backupView = status.providers().get(1);
+        assertEquals("qwen", backupView.provider());
+        assertTrue(backupView.inChain());
+        assertFalse(backupView.primary());
+        assertEquals(2, backupView.position());
+
+        LlmProviderRouter.LlmFailoverProviderView noKey = status.providers().get(2);
+        assertEquals("zhipu", noKey.provider());
+        assertFalse(noKey.inChain());
+        assertEquals("未配置 API Key", noKey.excludedReason());
+
+        LlmProviderRouter.LlmFailoverProviderView disabled = status.providers().get(3);
+        assertEquals("openrouter", disabled.provider());
+        assertFalse(disabled.inChain());
+        assertEquals("未启用", disabled.excludedReason());
     }
 
     private static ModelProviderConfigService.ActiveProviderView provider(String code, String model, HttpServer server) {

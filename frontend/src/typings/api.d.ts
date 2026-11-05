@@ -218,6 +218,20 @@ declare namespace Api {
       createdAt: string;
       updatedAt: string;
     }
+
+    /** 管理端充值订单（含用户名补齐） */
+    interface AdminOrder extends Order {
+      username: string | null;
+    }
+
+    /** 管理端充值订单分页载荷 */
+    interface AdminOrderList {
+      records: AdminOrder[];
+      total: number;
+      pages: number;
+      current: number;
+      size: number;
+    }
   }
 
   namespace Admin {
@@ -277,6 +291,36 @@ declare namespace Api {
       success: boolean;
       message: string;
       latencyMs: number;
+    }
+
+    interface RerankProviderStatus {
+      enabled: boolean;
+      url: string;
+      model: string;
+      hasApiKey: boolean;
+      maskedApiKey: string;
+      keySource: 'dedicated' | 'embedding-aliyun' | 'none';
+      timeoutSeconds: number;
+      scoreThreshold: number;
+      maxCandidates: number;
+    }
+
+    interface FailoverProviderStatus {
+      provider: string;
+      displayName: string;
+      model: string;
+      apiBaseUrl: string;
+      inChain: boolean;
+      primary: boolean;
+      position: number;
+      circuitState: string | null;
+      excludedReason: string | null;
+    }
+
+    interface LlmFailoverStatus {
+      failoverEnabled: boolean;
+      configuredBackupProviders: string[];
+      providers: FailoverProviderStatus[];
     }
 
     interface UsageTrendPoint {

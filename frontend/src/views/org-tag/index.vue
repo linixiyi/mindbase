@@ -85,6 +85,28 @@ async function handleDelete(tagId: string) {
     onDeleted();
   }
 }
+
+// pm-026：后端 /org-tags/tree 返回嵌套 children，交给 NDataTable 原生树形渲染，
+// 默认展开全部含子级的节点，让层级缩进直接可见
+const expandedRowKeys = ref<string[]>([]);
+
+function collectParentKeys(rows: Api.OrgTag.Item[]): string[] {
+  const keys: string[] = [];
+  const walk = (list: Api.OrgTag.Item[]) => {
+    list.forEach(item => {
+      if (item.children?.length) {
+        keys.push(item.tagId);
+        walk(item.children);
+      }
+    });
+  };
+  walk(rows);
+  return keys;
+}
+
+watch(data, rows => {
+  expandedRowKeys.value = collectParentKeys(rows as Api.OrgTag.Item[]);
+});
 </script>
 
 <template>
@@ -108,6 +130,7 @@ async function handleDelete(tagId: string) {
         :loading="loading"
         :pagination="mobilePagination"
         :row-key="item => item.tagId"
+        :expanded-row-keys="expandedRowKeys"
         class="sm:h-full"
       >
         <template #empty>
@@ -125,7 +148,6 @@ async function handleDelete(tagId: string) {
         v-model:visible="dialogVisible"
         :operate-type="operateType"
         :row-data="editingData!"
-        :data="data"
         @submitted="getData"
       />
     </NCard>

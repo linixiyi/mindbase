@@ -638,6 +638,22 @@ public class ModelProviderConfigService {
     ) {
     }
 
+    /**
+     * rerank 供应商只读状态（配置来源 search.hybrid.rerank.*，环境变量驱动，不在 model_provider_configs 表）
+     */
+    public record RerankStatusView(
+            boolean enabled,
+            String url,
+            String model,
+            boolean hasApiKey,
+            String maskedApiKey,
+            String keySource,
+            int timeoutSeconds,
+            double scoreThreshold,
+            int maxCandidates
+    ) {
+    }
+
     public record ActiveProviderView(
             String provider,
             String displayName,

@@ -35,6 +35,14 @@
         "H4"
       ],
       "slug": "2026-11-04_admin-visibility",
+      "status": "done (四项全过，339/339)"
+    },
+    {
+      "round": 5,
+      "features": [
+        "H5"
+      ],
+      "slug": "2026-11-04-register-ux",
       "status": "active"
     }
   ],

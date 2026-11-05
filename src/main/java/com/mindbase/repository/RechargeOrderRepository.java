@@ -3,6 +3,7 @@ package com.mindbase.repository;
 import com.mindbase.model.RechargeOrder;
 import com.mindbase.model.RechargeOrder.OrderStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -14,7 +15,7 @@ import java.util.Optional;
  * @date 2026/3/18
  */
 @Repository
-public interface RechargeOrderRepository extends JpaRepository<RechargeOrder, Long> {
+public interface RechargeOrderRepository extends JpaRepository<RechargeOrder, Long>, JpaSpecificationExecutor<RechargeOrder> {
     
     /**
      * 根据业务单号查询订单

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onMounted, ref } from 'vue';
+import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { DataTableColumns } from 'naive-ui';
 import { NButton, NCard, NDataTable, NInputNumber, NModal, NSpace, NSpin, NTabPane, NTabs, NTag } from 'naive-ui';
 import QRCode from 'qrcode.vue';
@@ -148,14 +148,15 @@ const createOrder = async () => {
   }
 };
 
-// 检查支付状态
-const checkPayStatus = async () => {
+// 检查支付状态；silent=true 时为自动轮询：未支付不弹提示、瞬时错误不打扰，终态才提示一次
+const checkPayStatus = async (silent = false) => {
   if (!currentTradeNo.value) return;
 
   try {
     const { error, data } = await fetchRechargeOrderDetail(currentTradeNo.value);
     if (!error && data) {
       if (data.status === 'SUCCEED') {
+        stopPayPolling();
         window.$message?.success('充值成功！');
         showPayModal.value = false;
         // 刷新用户信息
@@ -163,15 +164,49 @@ const checkPayStatus = async () => {
         // 刷新订单列表
         getOrders();
       } else if (data.status === 'NOT_PAY' || data.status === 'PAYING') {
-        window.$message?.info('尚未支付，请继续扫码支付');
+        if (!silent) window.$message?.info('尚未支付，请继续扫码支付');
       } else {
+        stopPayPolling();
         window.$message?.error('支付失败，请重试');
       }
+    } else if (!silent) {
+      window.$message?.error('查询支付状态失败');
     }
   } catch {
-    window.$message?.error('查询支付状态失败');
+    if (!silent) window.$message?.error('查询支付状态失败');
   }
 };
+
+// pm-027：弹窗打开期间自动轮询支付状态（5s），终态或关闭后停止
+const PAY_POLL_INTERVAL = 5000;
+let payPollTimer: ReturnType<typeof setInterval> | null = null;
+
+function stopPayPolling() {
+  if (payPollTimer) {
+    clearInterval(payPollTimer);
+    payPollTimer = null;
+  }
+}
+
+function startPayPolling() {
+  stopPayPolling();
+  payPollTimer = setInterval(() => {
+    if (document.hidden) return;
+    checkPayStatus(true);
+  }, PAY_POLL_INTERVAL);
+}
+
+watch(showPayModal, show => {
+  if (show) {
+    startPayPolling();
+  } else {
+    stopPayPolling();
+  }
+});
+
+onUnmounted(() => {
+  stopPayPolling();
+});
 
 // 定义订单表格列
 const orderColumns = computed<DataTableColumns<Api.Recharge.Order>>(() => [
@@ -479,7 +514,7 @@ onMounted(() => {
         </div>
 
         <NSpace vertical class="w-full px-8">
-          <NButton type="primary" size="large" block @click="checkPayStatus">我已完成支付</NButton>
+          <NButton type="primary" size="large" block @click="checkPayStatus()">我已完成支付</NButton>
         </NSpace>
       </div>
     </NModal>

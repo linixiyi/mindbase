@@ -3,9 +3,12 @@ package com.mindbase.controller;
 import com.mindbase.exception.CustomException;
 import com.mindbase.model.Conversation;
 import com.mindbase.model.OrganizationTag;
+import com.mindbase.model.RechargeOrder;
+import com.mindbase.model.RechargeOrder.OrderStatus;
 import com.mindbase.model.RechargePackage;
 import com.mindbase.model.User;
 import com.mindbase.repository.OrganizationTagRepository;
+import com.mindbase.repository.RechargeOrderRepository;
 import com.mindbase.repository.RechargePackageRepository;
 import com.mindbase.repository.UserRepository;
 import com.mindbase.service.ConversationService;
@@ -19,8 +22,12 @@ import com.mindbase.service.UserTokenService;
 import com.mindbase.utils.JwtUtils;
 import com.mindbase.utils.LogUtils;
 import com.mindbase.utils.MinioMigrationUtil;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -72,7 +79,16 @@ public class AdminController {
     private ModelProviderConfigService modelProviderConfigService;
 
     @Autowired
+    private com.mindbase.client.RerankClient rerankClient;
+
+    @Autowired
+    private com.mindbase.service.LlmProviderRouter llmProviderRouter;
+
+    @Autowired
     private RechargePackageRepository rechargePackageRepository;
+
+    @Autowired
+    private RechargeOrderRepository rechargeOrderRepository;
 
     @Autowired
     private ConversationService conversationService;
@@ -352,6 +368,60 @@ public class AdminController {
                     .body(Map.of("code", 500, "message", "模型连接测试失败: " + e.getMessage()));
         }
     }
+
+    @GetMapping("/model-providers/rerank")
+    public ResponseEntity<?> getRerankStatus(@RequestHeader("Authorization") String token) {
+        String adminUsername = jwtUtils.extractUsernameFromToken(token.replace("Bearer ", ""));
+        validateAdmin(adminUsername);
+
+        try {
+            return ResponseEntity.ok(Map.of(
+                    "code", 200,
+                    "message", "获取 Rerank 供应商状态成功",
+                    "data", rerankClient.status()
+            ));
+        } catch (Exception e) {
+            LogUtils.logBusinessError("ADMIN_GET_RERANK_STATUS", adminUsername, "获取 Rerank 供应商状态失败", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("code", 500, "message", "获取 Rerank 供应商状态失败: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/model-providers/rerank/test")
+    public ResponseEntity<?> testRerankConnection(@RequestHeader("Authorization") String token) {
+        String adminUsername = jwtUtils.extractUsernameFromToken(token.replace("Bearer ", ""));
+        validateAdmin(adminUsername);
+
+        try {
+            return ResponseEntity.ok(Map.of(
+                    "code", 200,
+                    "message", "Rerank 连接测试完成",
+                    "data", rerankClient.testConnection()
+            ));
+        } catch (Exception e) {
+            LogUtils.logBusinessError("ADMIN_TEST_RERANK_CONNECTION", adminUsername, "Rerank 连接测试失败", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("code", 500, "message", "Rerank 连接测试失败: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/model-providers/llm/failover")
+    public ResponseEntity<?> getLlmFailoverStatus(@RequestHeader("Authorization") String token) {
+        String adminUsername = jwtUtils.extractUsernameFromToken(token.replace("Bearer ", ""));
+        validateAdmin(adminUsername);
+
+        try {
+            return ResponseEntity.ok(Map.of(
+                    "code", 200,
+                    "message", "获取 LLM 主备转移链成功",
+                    "data", llmProviderRouter.failoverStatus()
+            ));
+        } catch (Exception e) {
+            LogUtils.logBusinessError("ADMIN_GET_LLM_FAILOVER", adminUsername, "获取 LLM 主备转移链失败", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("code", 500, "message", "获取 LLM 主备转移链失败: " + e.getMessage()));
+        }
+    }
     
     /**
      * 创建管理员用户
@@ -392,7 +462,7 @@ public class AdminController {
                     adminUsername,
                     request.code(),
                     request.maxUses(),
-                    null,
+                    request.expiresAt(),
                     request.count()
             );
             return ResponseEntity.ok(Map.of("code", 200, "message", "邀请码创建成功", "data", created));
@@ -438,6 +508,26 @@ public class AdminController {
     }
 
     /**
+     * 重新启用邀请码（与禁用对称）
+     */
+    @PatchMapping("/invite-codes/{id}/enable")
+    public ResponseEntity<?> enableInviteCode(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long id) {
+        String adminUsername = jwtUtils.extractUsernameFromToken(token.replace("Bearer ", ""));
+        validateAdmin(adminUsername);
+
+        try {
+            inviteCodeService.enable(id, adminUsername);
+            return ResponseEntity.ok(Map.of("code", 200, "message", "邀请码已启用"));
+        } catch (CustomException e) {
+            return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("code", 500, "message", "启用邀请码失败: " + e.getMessage()));
+        }
+    }
+
+    /**
      * 删除邀请码
      */
     @DeleteMapping("/invite-codes/{id}")
@@ -469,7 +559,7 @@ public class AdminController {
         validateAdmin(adminUsername);
 
         try {
-            var updated = inviteCodeService.update(id, adminUsername, request.code(), request.maxUses(), null);
+            var updated = inviteCodeService.update(id, adminUsername, request.code(), request.maxUses(), request.expiresAt());
             return ResponseEntity.ok(Map.of("code", 200, "message", "邀请码已更新", "data", updated));
         } catch (CustomException e) {
             return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));
@@ -1113,6 +1203,119 @@ public class AdminController {
         }
     }
 
+    // ==================== 充值订单管理相关接口 ====================
+
+    /**
+     * 全量充值订单分页列表（pm-027 管理端对账视图）。
+     * 支持状态与用户 ID 筛选；订单金额单位为分。
+     */
+    @GetMapping("/recharge/orders")
+    public ResponseEntity<?> listRechargeOrders(
+            @RequestHeader("Authorization") String token,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String userId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        String adminUsername = jwtUtils.extractUsernameFromToken(token.replace("Bearer ", ""));
+        validateAdmin(adminUsername);
+
+        try {
+            LogUtils.logBusiness("ADMIN_LIST_RECHARGE_ORDERS", adminUsername,
+                    "管理员查询充值订单列表，page=%d, size=%d", page, size);
+
+            OrderStatus orderStatus = null;
+            if (status != null && !status.isBlank()) {
+                try {
+                    orderStatus = OrderStatus.valueOf(status.trim().toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    return ResponseEntity.badRequest()
+                            .body(Map.of("code", 400, "message", "无效的订单状态: " + status));
+                }
+            }
+
+            final OrderStatus filterStatus = orderStatus;
+            final String filterUserId = (userId != null && !userId.isBlank()) ? userId.trim() : null;
+
+            Specification<RechargeOrder> spec = (root, query, cb) -> {
+                List<Predicate> predicates = new ArrayList<>();
+                if (filterStatus != null) {
+                    predicates.add(cb.equal(root.get("status"), filterStatus));
+                }
+                if (filterUserId != null) {
+                    predicates.add(cb.equal(root.get("userId"), filterUserId));
+                }
+                return cb.and(predicates.toArray(new Predicate[0]));
+            };
+
+            PageRequest pageRequest = PageRequest.of(Math.max(0, page - 1), Math.max(1, size),
+                    Sort.by(Sort.Direction.DESC, "createdAt"));
+            Page<RechargeOrder> orderPage = rechargeOrderRepository.findAll(spec, pageRequest);
+
+            // 批量补齐用户名（单次 in 查询，避免每行一查）
+            Map<String, String> usernames = new HashMap<>();
+            List<String> pageUserIds = orderPage.getContent().stream()
+                    .map(RechargeOrder::getUserId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toList());
+            if (!pageUserIds.isEmpty()) {
+                List<Long> numericIds = pageUserIds.stream()
+                        .map(idStr -> {
+                            try {
+                                return Long.parseLong(idStr);
+                            } catch (NumberFormatException e) {
+                                return null;
+                            }
+                        })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+                if (!numericIds.isEmpty()) {
+                    userRepository.findAllById(numericIds).forEach(u -> usernames.put(String.valueOf(u.getId()), u.getUsername()));
+                }
+            }
+
+            final Map<String, String> usernameMap = usernames;
+            List<Map<String, Object>> records = orderPage.getContent().stream()
+                    .map(order -> {
+                        Map<String, Object> item = new HashMap<>();
+                        item.put("id", order.getId());
+                        item.put("tradeNo", order.getTradeNo());
+                        item.put("userId", order.getUserId());
+                        item.put("username", usernameMap.get(order.getUserId()));
+                        item.put("packageId", order.getPackageId());
+                        item.put("amount", order.getAmount());
+                        item.put("llmToken", order.getLlmToken());
+                        item.put("embeddingToken", order.getEmbeddingToken());
+                        item.put("status", order.getStatus() != null ? order.getStatus().name() : null);
+                        item.put("description", order.getDescription());
+                        item.put("payTime", order.getPayTime());
+                        item.put("createdAt", order.getCreatedAt());
+                        item.put("updatedAt", order.getUpdatedAt());
+                        return item;
+                    })
+                    .collect(Collectors.toList());
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("records", records);
+            data.put("total", orderPage.getTotalElements());
+            data.put("pages", orderPage.getTotalPages());
+            data.put("current", page);
+            data.put("size", size);
+
+            return ResponseEntity.ok(Map.of(
+                    "code", 200,
+                    "message", "获取充值订单列表成功",
+                    "data", data
+            ));
+        } catch (CustomException e) {
+            return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));
+        } catch (Exception e) {
+            LogUtils.logBusinessError("ADMIN_LIST_RECHARGE_ORDERS", adminUsername, "获取充值订单列表失败", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("code", 500, "message", "获取充值订单列表失败：" + e.getMessage()));
+        }
+    }
+
     // ==================== 充值套餐管理相关接口 ====================
 
     /**
@@ -1326,9 +1529,9 @@ record UpdateUserStatusRequest(Boolean enabled) {}
 // 添加组织标签更新请求记录类
 record OrgTagUpdateRequest(String name, String description, String parentTag, Long uploadMaxSizeMb) {}
 
-record CreateInviteCodeRequest(String code, Integer maxUses, Integer count) {}
+record CreateInviteCodeRequest(String code, Integer maxUses, Integer count, LocalDateTime expiresAt) {}
 
-record UpdateInviteCodeRequest(String code, Integer maxUses) {}
+record UpdateInviteCodeRequest(String code, Integer maxUses, LocalDateTime expiresAt) {}
 
 /**
  * 充值套餐请求体
