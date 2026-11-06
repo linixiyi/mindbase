@@ -1,10 +1,228 @@
-name: CI-min2
+# MindBase CI —— P1b 流水线
+#
+# 设计取舍（先读后改）：
+# - 后端测试实际依赖面：全仓 68 个测试类 / 351 个 @Test 中，只有 3 个类启动 Spring 上下文
+#   （MindBaseApplicationTests / ParseServiceTest 为 @SpringBootTest，
+#   FileUploadRepositoryReliabilityTest 为 @DataJpaTest），其余均为 Mockito 纯单元测试。
+#   test profile（src/test/resources/application-test.yml）关闭了 ES 索引初始化
+#   （elasticsearch.init.enabled=false）与 admin/knowledge bootstrap，
+#   spring-kafka 监听容器连不上 broker 只会异步重试、不阻断上下文启动，
+#   ES/MinIO 客户端均为懒连接 —— 因此 CI 只需 mysql + redis 两个 service，
+#   不需要 ES/Kafka/MinIO 服务，也无需 -Dtest 排除或 continue-on-error 占位 job。
+#   已于 2026-11-07 在本机按 CI 同款环境（mysql:8.4.11 + redis:7 容器，
+#   ES/Kafka/MinIO 不可达）实跑验证：351 全绿。
+# - Maven：仓库原本无 mvnw，本方案选择提交 Maven Wrapper（maven-wrapper-plugin 3.3.4
+#   生成，发行版钉在 3.9.11），本机与 CI 跑同一条 ./mvnw 命令；不用 apt maven（版本漂移）、
+#   不用第三方 setup-maven action。
+# - Redis：compose 里 redis 带 requirepass，但 application-test.yml 的 redis 密码为空，
+#   CI service 按测试配置起无密码 redis:7（对齐的是测试配置，不是 compose 的运行参数）。
+# - 健康检查命令与 docs/docker-compose.yaml 对齐（mysqladmin ping / redis-cli ping）；
+#   start-period 与 retries 比 compose 更宽松，吸收 runner 冷启动首次初始化的耗时。
+# - 前端 frontend/.env 被 gitignore，vite.config 装配 UnoCSS 插件时在配置加载期就要读
+#   VITE_ICON_PREFIX / VITE_ICON_LOCAL_PREFIX（frontend/build/plugins/unocss.ts:13），
+#   缺失直接构建失败，因此 build 步骤用 env 注入这三个值（与本地 .env 一致，非机密）。
+# - 前端 frontend/.npmrc 钉了 npmmirror（国内源），GitHub runner 在境外：安装步骤用
+#   pnpm install --registry 覆盖为 npmjs（pnpm 12 忽略 npm_config_registry env，必须用 flag）；
+#   lockfile v9 钉版本与 integrity，不受源切换影响。
+# - 触发：push main + 全部 pull_request；并发组按 ref 取消旧 run；单 job 超时均 ≤25min。
+# - 无任何自定义 secret：依赖 actions/checkout 的默认 GITHUB_TOKEN（permissions 收敛为只读）。
 
-on: push
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  smoke:
+  backend:
+    name: backend (mvnw test, mysql+redis services)
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: mindbase_test
+        ports:
+          - "3306:3306"
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+          --health-start-period=30s
+      redis:
+        image: redis:7
+        ports:
+          - "6379:6379"
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      # 激活 test profile（application-test.yml：bootstrap 全关、.env 不加载）
+      SPRING_PROFILES_ACTIVE: test
+      # 覆盖 H2 数据源为 service 容器（application-test.yml 显式钉了
+      # driver-class-name: org.h2.Driver，URL 之外连 driver 也要一起覆盖，
+      # 否则报 “Driver org.h2.Driver claims to not accept jdbcUrl”）
+      SPRING_DATASOURCE_URL: "jdbc:mysql://127.0.0.1:3306/mindbase_test?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MySQLDialect
+      # Redis：application-test.yml 默认就是 localhost:6379/无密码，与 service 对齐，
+      # 显式写出以便追查
+      SPRING_DATA_REDIS_HOST: 127.0.0.1
+      SPRING_DATA_REDIS_PORT: "6379"
     steps:
-      - name: Ping
-        run: echo ok
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21 (temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Compile (skip tests)
+        run: ./mvnw -B -q -DskipTests compile
+
+      - name: Test
+        run: ./mvnw -B test
+
+      - name: Upload surefire reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          retention-days: 7
+
+  frontend:
+    name: frontend (typecheck + eslint 0 warning + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # 与本地 pnpm 版本一致（lockfileVersion 9.0）
+          version: 12.5.1
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile --registry=https://registry.npmjs.org
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint (0 error 0 warning)
+        run: pnpm exec eslint . --max-warnings 0
+
+      - name: Build (prod)
+        run: pnpm build
+        env:
+          # frontend/.env 被 gitignore，这三项在 vite 配置加载期即被读取（非机密，
+          # 值与本地 .env 相同）；缺失时 UnoCSS 插件装配直接抛 NPE
+          VITE_BASE_URL: /
+          VITE_ICON_PREFIX: icon
+          VITE_ICON_LOCAL_PREFIX: icon-local
+
+  repo-gates:
+    name: repo gates (旧色 / 杂牌图标 / .bak)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Gate 1 —— 旧主题色残留应为零
+        run: |
+          # 5856D6 / 5B5BE8 / 646cff：旧版主题色，frontend/src 与 frontend/public 均不允许出现
+          if grep -rniE "5856D6|5B5BE8|646cff" frontend/src frontend/public; then
+            echo "::error::旧主题色残留，见上方命中行"
+            exit 1
+          fi
+
+      - name: Gate 2 —— 杂牌图标库引用应为零
+        run: |
+          # mdi/ant-design/ic-round/uil/ph/heroicons/gridicons 图标集合引用。
+          # 前缀要求词边界（前面不能是字母数字），否则会把 --theme-morph-x 之类误杀；
+          # components.d.ts 为自动生成文件，剔除
+          if grep -rnE "(^|[^a-zA-Z0-9])(mdi|ant-design|ic-round|uil|ph|heroicons|gridicons)[-:][a-zA-Z0-9]" \
+              frontend/src --exclude=components.d.ts; then
+            echo "::error::杂牌图标引用，见上方命中行"
+            exit 1
+          fi
+
+      - name: Gate 3 —— .bak 文件不允许被跟踪
+        run: |
+          if git ls-files | grep -E "\.bak$"; then
+            echo "::error::.bak 文件被 git 跟踪，见上方列表"
+            exit 1
+          fi
+
+  secret-scan:
+    name: secret scan (pem / private key / root@IP / sk-)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan tracked files
+        run: |
+          fail=0
+
+          # 1) 跟踪的 .pem/.ppk 文件
+          if git ls-files | grep -iE "\.(pem|ppk)$"; then
+            echo "::error::跟踪了私钥文件"
+            fail=1
+          fi
+
+          # 2) PEM 私钥块：BEGIN 与 END 同时出现才算真实钥块；
+          #    代码里引用 “-----BEGIN PRIVATE KEY” 字符串（如 WxPayConfig 的格式判断）不算
+          while IFS= read -r f; do
+            if grep -qE -- "-----BEGIN [A-Z ]*PRIVATE KEY-----" "$f" && \
+               grep -qE -- "-----END [A-Z ]*PRIVATE KEY-----" "$f"; then
+              echo "::error file=$f::PEM 私钥块出现在跟踪文件中"
+              fail=1
+            fi
+          done < <(git grep -lE -- "-----BEGIN [A-Z ]*PRIVATE KEY-----" 2>/dev/null || true)
+
+          # 3) root@<IP>（AGENTS.md 生产红线：部署脚本只允许 DEPLOY_SERVER_HOST 等环境变量）
+          if git grep -nE "root@([0-9]{1,3}\.){3}[0-9]{1,3}"; then
+            echo "::error::出现 root@<IP> 形态的登录信息"
+            fail=1
+          fi
+
+          # 4) sk- 开头的长 token（OpenAI/DeepSeek 类 API key）
+          if git grep -nE "sk-[A-Za-z0-9_-]{20,}"; then
+            echo "::error::出现 sk- 开头的疑似 API key"
+            fail=1
+          fi
+
+          exit $fail
+
+# note: registry 覆盖必须用 pnpm flag（pnpm 12 忽略 npm_config_registry env）
