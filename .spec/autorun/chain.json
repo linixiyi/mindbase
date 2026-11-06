@@ -19,6 +19,14 @@
         "P1b"
       ],
       "slug": "2026-11-07_p1b-ci-pipeline",
+      "status": "done (复审容器级 351/351)"
+    },
+    {
+      "round": 3,
+      "features": [
+        "P1c"
+      ],
+      "slug": "2026-11-07_p1c-observability",
       "status": "active"
     }
   ],
