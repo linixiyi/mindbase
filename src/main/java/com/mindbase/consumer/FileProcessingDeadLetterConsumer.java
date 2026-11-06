@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mindbase.model.FileProcessingDeadLetter;
 import com.mindbase.model.FileProcessingTask;
 import com.mindbase.repository.FileProcessingDeadLetterRepository;
+import com.mindbase.utils.TraceContext;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 import org.slf4j.Logger;
@@ -38,6 +39,16 @@ public class FileProcessingDeadLetterConsumer {
             groupId = "#{kafkaConfig.getDeadLetterGroupId()}",
             containerFactory = "deadLetterListenerContainerFactory")
     public void onDeadLetter(ConsumerRecord<String, Object> record) {
+        // traceId 贯穿（P1c）：死信仍是原消息，恢复生产侧头里的 traceId，日志与主链路同值；finally 清理
+        TraceContext.put(headerValue(record, TraceContext.KAFKA_HEADER));
+        try {
+            handleDeadLetter(record);
+        } finally {
+            TraceContext.clear();
+        }
+    }
+
+    private void handleDeadLetter(ConsumerRecord<String, Object> record) {
         if (deadLetterRepository.existsBySourceTopicAndSourcePartitionAndSourceOffset(
                 record.topic(), record.partition(), record.offset())) {
             return;

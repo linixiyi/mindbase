@@ -11,6 +11,7 @@ import com.mindbase.service.reliability.VectorizationLeaseLostException;
 import com.mindbase.service.reliability.VectorizationLeaseService;
 import io.minio.GetObjectResponse;
 import org.junit.jupiter.api.BeforeEach;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
@@ -51,7 +52,7 @@ class FileProcessingConsumerIdempotencyTest {
     void duplicateDeliveryOfCompletedFileIsSkippedWithoutParsing() {
         when(leaseService.claim(any())).thenReturn(Optional.empty());
 
-        consumer.processTask(task());
+        consumer.processTask(record(task()));
 
         verifyNoInteractions(parseService, vectorizationService, documentService, uploadService);
     }
@@ -64,7 +65,7 @@ class FileProcessingConsumerIdempotencyTest {
                 .thenReturn(result);
         when(leaseService.complete(lease, result)).thenReturn(true);
 
-        consumer.processTask(task());
+        consumer.processTask(record(task()));
 
         InOrder inOrder = inOrder(documentService, parseService, vectorizationService, leaseService);
         inOrder.verify(documentService).clearIndexedData("md5");
@@ -79,7 +80,7 @@ class FileProcessingConsumerIdempotencyTest {
         when(leaseService.claim(any())).thenReturn(Optional.of(lease));
         doThrow(new VectorizationLeaseLostException("md5")).when(leaseService).heartbeat(lease);
 
-        assertDoesNotThrow(() -> consumer.processTask(task()));
+        assertDoesNotThrow(() -> consumer.processTask(record(task())));
 
         verify(leaseService, never()).fail(any(), any());
         verify(vectorizationService, never()).vectorizeWithUsage(anyString(), anyString(), anyString(), anyBoolean(), anyString(), any(Runnable.class));
@@ -90,7 +91,7 @@ class FileProcessingConsumerIdempotencyTest {
         when(leaseService.claim(any())).thenReturn(Optional.of(lease));
         doThrow(new RuntimeException("es down")).when(documentService).clearIndexedData("md5");
 
-        assertThrows(RuntimeException.class, () -> consumer.processTask(task()));
+        assertThrows(RuntimeException.class, () -> consumer.processTask(record(task())));
 
         verify(leaseService).fail(eq(lease), any(RuntimeException.class));
         verifyNoInteractions(parseService);
@@ -104,12 +105,17 @@ class FileProcessingConsumerIdempotencyTest {
                         new InsufficientBalanceException("Embedding Token 余额不足"))));
 
         // 不抛异常：Kafka 不会重试，也不会进死信队列
-        assertDoesNotThrow(() -> consumer.processTask(task()));
+        assertDoesNotThrow(() -> consumer.processTask(record(task())));
         verify(leaseService).fail(eq(lease), any(RuntimeException.class));
     }
 
     private FileProcessingTask task() {
         return new FileProcessingTask("md5", "https://expired.example.com/merged/md5", "a.pdf", "1", "TEAM", false,
                 FileProcessingTask.TASK_TYPE_UPLOAD_PROCESS, "1");
+    }
+
+    /** 消费入口现在从 ConsumerRecord 里取任务（traceId 在消息头），测试用同样方式包装 */
+    private ConsumerRecord<String, FileProcessingTask> record(FileProcessingTask task) {
+        return new ConsumerRecord<>("file-processing-topic1", 0, 0L, task.getFileMd5(), task);
     }
 }

@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mindbase.service.ChatHandler;
 import com.mindbase.service.ChatSessionRegistry;
 import com.mindbase.utils.JwtUtils;
+import com.mindbase.utils.TraceContext;
 import java.util.Map;
 
 @Component
@@ -74,8 +75,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
-        String userId = extractUserId(extractToken(session));
+        String userId = null;
         try {
+            userId = extractUserId(extractToken(session));
             String payload = message.getPayload();
 
             // 心跳消息只用于保活连接，不进入聊天处理链路。
@@ -84,13 +86,17 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 return;
             }
 
-            logger.info("接收到消息，用户ID: {}，会话ID: {}，消息长度: {}", 
+            // traceId 贯穿（P1c）：默认生成 UUID；消息体携带 traceId 时复用前端值。
+            // finally 里清理，防止 WS 容器线程复用时残留
+            TraceContext.put(TraceContext.newTraceId());
+            logger.info("接收到消息，用户ID: {}，会话ID: {}，消息长度: {}",
                        userId, session.getId(), payload.length());
-            
+
             // 检查是否是JSON格式的系统指令
             if (payload.trim().startsWith("{")) {
                 try {
                     Map<String, Object> jsonMessage = objectMapper.readValue(payload, Map.class);
+                    reuseClientTraceId(jsonMessage);
                     String messageType = (String) jsonMessage.get("type");
                     String internalToken = (String) jsonMessage.get("_internal_cmd_token");
                     String generationId = (String) jsonMessage.get("generationId");
@@ -126,9 +132,22 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             chatHandler.processMessage(userId, payload, session);
             
         } catch (Exception e) {
-            logger.error("处理消息出错，用户ID: {}，会话ID: {}，错误: {}", 
+            logger.error("处理消息出错，用户ID: {}，会话ID: {}，错误: {}",
                         userId, session.getId(), e.getMessage(), e);
             sendErrorMessage(session, "消息处理失败：" + e.getMessage());
+        } finally {
+            // 处理结束即清理，防止线程池复用线程时残留上一请求的 traceId
+            TraceContext.clear();
+        }
+    }
+
+    /**
+     * 前端消息体里带了 traceId 就复用它（跨服务串联），没带就保持入口生成的 UUID
+     */
+    private void reuseClientTraceId(Map<String, Object> jsonMessage) {
+        Object clientTraceId = jsonMessage.get("traceId");
+        if (clientTraceId instanceof String traceId && !traceId.isBlank()) {
+            TraceContext.put(traceId);
         }
     }
 

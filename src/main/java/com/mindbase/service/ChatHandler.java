@@ -9,10 +9,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mindbase.entity.SearchResult;
 import com.mindbase.exception.RateLimitExceededException;
 import com.mindbase.utils.RequestDeadline;
+import com.mindbase.utils.TraceContext;
 import io.github.resilience4j.bulkhead.BulkheadFullException;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -163,9 +165,19 @@ public class ChatHandler {
 
             // 3. 异步执行 ReAct 决策循环：模型按需返回 tool_calls，避免在 WebSocket 处理线程上阻塞 90s+ 的工具流
             try {
-                chatMonitorExecutor.execute(() ->
-                        runReActLoopSafely(userId, userMessage, finalConversationId, finalGenerationId, history, responseFuture,
-                                deadlineNanos));
+                // traceId 跨线程传播（P1c）：入口线程的 MDC 快照在池线程恢复，处理结束清理防线程池污染
+                Map<String, String> traceContext = MDC.getCopyOfContextMap();
+                chatMonitorExecutor.execute(() -> {
+                    if (traceContext != null) {
+                        MDC.setContextMap(traceContext);
+                    }
+                    try {
+                        runReActLoopSafely(userId, userMessage, finalConversationId, finalGenerationId, history,
+                                responseFuture, deadlineNanos);
+                    } finally {
+                        TraceContext.clear();
+                    }
+                });
             } catch (RejectedExecutionException ex) {
                 logger.warn("聊天处理线程池已满，generationId: {}", finalGenerationId);
                 chatGenerationStateService.markFailed(finalGenerationId,
