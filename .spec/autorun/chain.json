@@ -1,65 +1,25 @@
 {
-  "chain": "pm-polish-round",
-  "plan": ".spec/plans/pm-polish-round.md",
-  "mode": "in-session (subagents/workflows on GLM-5.3-Flash; start-plan primary, individual fallback per user precedent)",
+  "chain": "p1-hardening-round",
+  "plan": ".spec/plans/p1-hardening-round.md",
+  "mode": "in-session (Flash workflows per user standing instruction)",
   "roundCap": "unbounded (iterative rounds per user standing instruction)",
   "pushPolicy": "push only on explicit user request",
   "rounds": [
     {
       "round": 1,
       "features": [
-        "H1"
+        "P1a"
       ],
-      "slug": "2026-11-04_polish-hygiene",
-      "status": "done (329/329 全量测试 + 五小修)"
+      "slug": "2026-11-07_p1a-security-tail",
+      "status": "done (351/351 + probe 17/17)"
     },
     {
       "round": 2,
       "features": [
-        "H2"
+        "P1b"
       ],
-      "slug": "2026-11-04_chat-ux",
-      "status": "done (五项 + 回归修复)"
-    },
-    {
-      "round": 3,
-      "features": [
-        "H3"
-      ],
-      "slug": "2026-11-04_kb-governance",
-      "status": "done (三项全过 30/30)"
-    },
-    {
-      "round": 4,
-      "features": [
-        "H4"
-      ],
-      "slug": "2026-11-04_admin-visibility",
-      "status": "done (四项全过，339/339)"
-    },
-    {
-      "round": 5,
-      "features": [
-        "H5"
-      ],
-      "slug": "2026-11-04-register-ux",
-      "status": "done (两项全过 18/18)"
-    },
-    {
-      "round": 6,
-      "features": [
-        "H6"
-      ],
-      "slug": "2026-11-04-debt-pack",
-      "status": "done (五项全过，DLQ E2E 走通)"
-    },
-    {
-      "round": 7,
-      "features": [
-        "H7"
-      ],
-      "slug": "2026-11-04-polish-closeout",
-      "status": "done (11/11 journey)"
+      "slug": "2026-11-07_p1b-ci-pipeline",
+      "status": "active"
     }
   ],
   "scopeUpdates": [

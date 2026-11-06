@@ -4,6 +4,7 @@ import com.mindbase.model.FileUpload;
 import com.mindbase.model.OrganizationTag;
 import com.mindbase.repository.FileUploadRepository;
 import com.mindbase.repository.OrganizationTagRepository;
+import com.mindbase.service.ChatGenerationStateService;
 import com.mindbase.service.ChatHandler;
 import com.mindbase.service.DocumentService;
 import com.mindbase.utils.LogUtils;
@@ -52,6 +53,9 @@ public class DocumentController {
 
     @Autowired
     private ChatHandler chatHandler;
+
+    @Autowired
+    private ChatGenerationStateService chatGenerationStateService;
 
     /**
      * 删除文档及其相关数据
@@ -849,6 +853,36 @@ public class DocumentController {
             LogUtils.logBusiness("GET_REFERENCE_DETAIL", "system",
                     "接收到获取引用详情请求: sessionId=%s, referenceNumber=%s", sessionId, referenceNumber);
 
+            // P1-2 会话属主防线（2026-11-07）：sessionId 即聊天生成任务 generationId。
+            // 先认证、再校验生成任务属主（对齐 ChatController.getGeneration 的 getGenerationForUser
+            // 与 ConversationService.validateConversationOwner 家族语义：不存在 404、非属主 403），
+            // 授权通过前不触碰引用映射，也不再出现 authContext.userId()==null 跳过文件级校验的 fail-open 分支。
+            RequestAuthContext authContext = resolveRequestAuthContext(authorization, null);
+            if (authContext.userId() == null || authContext.userId().isBlank()) {
+                monitor.end("获取引用详情失败：未认证");
+                Map<String, Object> response = new HashMap<>();
+                response.put("code", HttpStatus.UNAUTHORIZED.value());
+                response.put("message", "未认证，无法获取引用详情");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            }
+
+            ChatGenerationStateService.GenerationSnapshot generation =
+                    chatGenerationStateService.getGeneration(sessionId).orElse(null);
+            if (generation == null) {
+                monitor.end("获取引用详情失败：生成任务不存在或已过期");
+                Map<String, Object> response = new HashMap<>();
+                response.put("code", HttpStatus.NOT_FOUND.value());
+                response.put("message", "未找到对应的生成任务");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            if (!generation.userId().equals(authContext.userId())) {
+                monitor.end("获取引用详情失败：无权限访问他人会话引用");
+                Map<String, Object> response = new HashMap<>();
+                response.put("code", HttpStatus.FORBIDDEN.value());
+                response.put("message", "无权访问该会话的引用详情");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+
             ChatHandler.ReferenceInfo detail = chatHandler.getReferenceDetail(sessionId, referenceNumber);
             if (detail == null) {
                 monitor.end("未找到引用映射");
@@ -858,17 +892,15 @@ public class DocumentController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
             }
 
-            RequestAuthContext authContext = resolveRequestAuthContext(authorization, null);
-            if (authContext.userId() != null) {
-                boolean hasAccess = documentService.getAccessibleFiles(authContext.userId(), authContext.orgTags()).stream()
-                        .anyMatch(file -> file.getFileMd5().equals(detail.fileMd5()));
-                if (!hasAccess) {
-                    monitor.end("获取引用详情失败：无权限访问引用文件");
-                    Map<String, Object> response = new HashMap<>();
-                    response.put("code", HttpStatus.FORBIDDEN.value());
-                    response.put("message", "无权限访问该引用文件");
-                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
-                }
+            // 既有文件级防线保留：引用指向的文件仍必须落在请求者可访问集合内
+            boolean hasAccess = documentService.getAccessibleFiles(authContext.userId(), authContext.orgTags()).stream()
+                    .anyMatch(file -> file.getFileMd5().equals(detail.fileMd5()));
+            if (!hasAccess) {
+                monitor.end("获取引用详情失败：无权限访问引用文件");
+                Map<String, Object> response = new HashMap<>();
+                response.put("code", HttpStatus.FORBIDDEN.value());
+                response.put("message", "无权限访问该引用文件");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
             }
 
             Map<String, Object> data = new HashMap<>();
