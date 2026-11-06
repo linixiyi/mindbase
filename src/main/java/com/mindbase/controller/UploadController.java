@@ -207,11 +207,11 @@ public class UploadController {
     public ResponseEntity<Map<String, Object>> getUploadStatus(@RequestParam("file_md5") String fileMd5, @RequestAttribute("userId") String userId) {
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("GET_UPLOAD_STATUS");
         try {
-            // 获取文件信息
+            // 获取文件信息（P1a 收紧：仅查本人上传记录，避免按 MD5 探测他人文件名；与 merge/delete 同一属主口径）
             String fileName = "unknown";
             String fileType = "unknown";
             try {
-                Optional<FileUpload> fileUpload = fileUploadRepository.findFirstByFileMd5OrderByCreatedAtDesc(fileMd5);
+                Optional<FileUpload> fileUpload = fileUploadRepository.findFirstByFileMd5AndUserIdOrderByCreatedAtDesc(fileMd5, userId);
                 if (fileUpload.isPresent()) {
                     fileName = fileUpload.get().getFileName();
                     fileType = getFileType(fileName);

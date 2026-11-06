@@ -50,11 +50,10 @@ public class SecurityConfig {
                             // 允许登录注册接口（registration-policy：注册页匿名读取注册模式，pm-033）
                             .requestMatchers("/api/v1/users/register", "/api/v1/users/login",
                                     "/api/v1/users/registration-policy").permitAll()
-                            // 允许测试接口
-                            .requestMatchers("/api/v1/test/**").permitAll()
                             // LiteParse OCR 回调接口：仅回调子路径匿名可达，必须通过 aliyun.ocr.callback-token 校验（P0-3 修复）；
-                            // 其余 internal/ocr 子路径（如 /aliyun/health）回落到 anyRequest().authenticated()，不再匿名暴露
+                            // 其余 internal/ocr 子路径（如 /aliyun/health）仅管理员可达（P1a 收紧：健康信息不再暴露给普通用户）
                             .requestMatchers("/api/v1/internal/ocr/liteparse/**").permitAll()
+                            .requestMatchers("/api/v1/internal/ocr/aliyun/**").hasRole("ADMIN")
                             // 文件上传和下载相关接口 - 普通用户和管理员都可访问
                             .requestMatchers(
                                     "/api/v1/upload/**",
