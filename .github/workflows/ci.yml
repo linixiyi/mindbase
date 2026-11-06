@@ -1,13 +1,10 @@
-name: CI-min
+name: CI-min2
 
-on:
-  push:
-    branches: [main]
+on: push
 
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
       - name: Ping
         run: echo ok
