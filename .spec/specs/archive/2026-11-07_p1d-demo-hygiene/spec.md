@@ -17,6 +17,7 @@
 - Git integration branch：`spec/2026-11-07_p1d-demo-hygiene`
 ### 5.1 验证策略
 - 范围级别：package
+- 变更对象：README.md、scripts/**、docs/index.html
 - 快速检查：grep 断言（清理脚本存在且幂等、README 端口/链接与实现一致）
 - 集成检查：快速开始步骤逐条 dry-run 核对（不真装依赖，核对命令与端口与配置文件对齐）；一致性抽查脚本
 - 全项目检查：适用外
