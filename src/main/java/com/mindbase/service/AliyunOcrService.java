@@ -132,8 +132,15 @@ public class AliyunOcrService {
         return StringUtils.hasText(callbackToken);
     }
 
+    /**
+     * 回调 token 校验（P0-3 修复，fail-closed）：未配置 callback-token 时一律拒绝回调，
+     * 不再放行；持有 token 的内部调用方（ParseService 自调 / LiteParse 回调）不受影响。
+     */
     public void verifyCallbackToken(String token) {
-        if (StringUtils.hasText(callbackToken) && !Objects.equals(callbackToken, token)) {
+        if (!StringUtils.hasText(callbackToken)) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "OCR callback token is not configured; callback rejected");
+        }
+        if (!Objects.equals(callbackToken, token)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid OCR callback token");
         }
     }
