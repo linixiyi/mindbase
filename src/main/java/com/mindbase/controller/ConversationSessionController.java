@@ -85,7 +85,9 @@ public class ConversationSessionController {
                 throw new CustomException("无效的token", HttpStatus.UNAUTHORIZED);
             }
 
-            conversationService.archiveConversationSession(conversationId);
+            // 归档必须校验属主（P0-2 修复）：仅本人可归档自己的会话
+            Long userId = Long.parseLong(jwtUtils.extractUserIdFromToken(token.replace("Bearer ", "")));
+            conversationService.archiveConversationSession(userId, conversationId);
             return ResponseEntity.ok(Map.of("code", 200, "message", "归档成功"));
         } catch (CustomException e) {
             return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));
@@ -126,7 +128,9 @@ public class ConversationSessionController {
                 throw new CustomException("无效的token", HttpStatus.UNAUTHORIZED);
             }
 
-            conversationService.unarchiveConversationSession(conversationId);
+            // 取消归档必须校验属主（P0-2 修复）：仅本人可恢复自己的会话
+            Long userId = Long.parseLong(jwtUtils.extractUserIdFromToken(token.replace("Bearer ", "")));
+            conversationService.unarchiveConversationSession(userId, conversationId);
             return ResponseEntity.ok(Map.of("code", 200, "message", "取消归档成功"));
         } catch (CustomException e) {
             return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));

@@ -198,8 +198,12 @@ public class ConversationService {
     }
 
     public void switchCurrentConversation(Long userId, String conversationId) {
-        if (!sessionRepository.existsByConversationId(conversationId)) {
-            throw new CustomException("对话不存在", HttpStatus.NOT_FOUND);
+        // 与 archive/unarchive/rename/delete/read 同防线：switch 指针同样只能指向自己的会话
+        // （否则指针指向他人会话后，WS 无参消息会经 getOrCreateConversationId 直信任指针，污染他人历史）
+        ConversationSession session = sessionRepository.findByConversationId(conversationId)
+                .orElseThrow(() -> new CustomException("对话不存在", HttpStatus.NOT_FOUND));
+        if (!userId.equals(session.getUser().getId())) {
+            throw new CustomException("无权访问此对话", HttpStatus.FORBIDDEN);
         }
         String redisKey = "user:" + userId + ":current_conversation";
         redisTemplate.opsForValue().set(redisKey, conversationId, Duration.ofDays(7));
@@ -214,14 +218,18 @@ public class ConversationService {
         });
     }
 
-    public void archiveConversationSession(String conversationId) {
+    /** 归档会话：仅会话属主可操作（与 rename/delete 同一属主校验口径，P0-2 修复） */
+    public void archiveConversationSession(Long userId, String conversationId) {
+        validateConversationOwner(userId, conversationId);
         ConversationSession session = sessionRepository.findByConversationId(conversationId)
                 .orElseThrow(() -> new CustomException("对话不存在", HttpStatus.NOT_FOUND));
         session.setStatus(ConversationSession.SessionStatus.ARCHIVED);
         sessionRepository.save(session);
     }
 
-    public void unarchiveConversationSession(String conversationId) {
+    /** 取消归档会话：仅会话属主可操作（与 rename/delete 同一属主校验口径，P0-2 修复） */
+    public void unarchiveConversationSession(Long userId, String conversationId) {
+        validateConversationOwner(userId, conversationId);
         ConversationSession session = sessionRepository.findByConversationId(conversationId)
                 .orElseThrow(() -> new CustomException("对话不存在", HttpStatus.NOT_FOUND));
         session.setStatus(ConversationSession.SessionStatus.ACTIVE);
@@ -288,7 +296,9 @@ public class ConversationService {
 
     // ---- Message queries ----
 
-    public List<Map<String, Object>> getMessagesByConversationId(String conversationId) {
+    /** 按 conversationId 读历史消息：仅会话属主可读（与 rename/delete 同一属主校验口径） */
+    public List<Map<String, Object>> getMessagesByConversationId(Long userId, String conversationId) {
+        validateConversationOwner(userId, conversationId);
         List<Conversation> conversations = conversationRepository.findByConversationIdOrderByTimestampAsc(conversationId);
         return toMessageHistory(conversations, false);
     }

@@ -52,7 +52,9 @@ public class ConversationController {
             List<Map<String, Object>> messages;
 
             if (conversationId != null && !conversationId.isBlank()) {
-                messages = conversationService.getMessagesByConversationId(conversationId);
+                // 按会话 ID 读取时必须校验属主（P0-1 修复）：仅本人可读自己的会话历史
+                Long userId = Long.parseLong(jwtUtils.extractUserIdFromToken(token.replace("Bearer ", "")));
+                messages = conversationService.getMessagesByConversationId(userId, conversationId);
             } else {
                 LocalDateTime startDateTime = parseStartDate(start_date);
                 LocalDateTime endDateTime = parseEndDate(end_date);

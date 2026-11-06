@@ -52,8 +52,9 @@ public class SecurityConfig {
                                     "/api/v1/users/registration-policy").permitAll()
                             // 允许测试接口
                             .requestMatchers("/api/v1/test/**").permitAll()
-                            // LiteParse OCR 回调接口：可通过 aliyun.ocr.callback-token 进行轻量校验
-                            .requestMatchers("/api/v1/internal/ocr/**").permitAll()
+                            // LiteParse OCR 回调接口：仅回调子路径匿名可达，必须通过 aliyun.ocr.callback-token 校验（P0-3 修复）；
+                            // 其余 internal/ocr 子路径（如 /aliyun/health）回落到 anyRequest().authenticated()，不再匿名暴露
+                            .requestMatchers("/api/v1/internal/ocr/liteparse/**").permitAll()
                             // 文件上传和下载相关接口 - 普通用户和管理员都可访问
                             .requestMatchers(
                                     "/api/v1/upload/**",
