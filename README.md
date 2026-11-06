@@ -4,7 +4,7 @@ MindBase 是一个企业级的 AI 知识库管理系统，围绕检索增强生�
 
 项目介绍页（GitHub Pages）：https://linixiyi.github.io/mindbase/
 
-核心技术栈：Spring Boot 3.4 / Vue 3 / MySQL / Redis / Elasticsearch / Kafka / MinIO（或 RustFS）/ WebSocket。
+核心技术栈：Spring Boot 3.4 / Vue 3 / MySQL / Redis / Elasticsearch / Kafka / MinIO / WebSocket。
 
 ## 核心功能
 
@@ -35,7 +35,7 @@ MindBase 是一个企业级的 AI 知识库管理系统，围绕检索增强生�
 - Redis 令牌桶限流（登录、注册、聊天、LLM、Embedding 接口）
 - 模型调用治理：按供应商熔断、舱壁隔离、指数退避重试、LLM 主备切换
 - Token 配额与用量统计，支持按总量或按日重置两种策略，可接微信支付充值（可选）
-- 管理后台：文档冲突裁决、死信队列人工重放、知识索引重建/回滚、离线评测、用户启停、充值订单全量视图、rerank 连通性测试与主备转移链可视化
+- 管理后台：文档冲突裁决、死信队列人工重放、知识索引重建/回滚、离线评测（含人工复核与评委一致率）、用户启停与 Token 配额调整、邀请码 / 组织标签 / 模型供应商主备配置管理、充值订单与套餐全量视图、rerank 连通性测试与主备转移链可视化
 
 ### 文档冲突检测
 
@@ -53,9 +53,9 @@ MindBase 是一个企业级的 AI 知识库管理系统，围绕检索增强生�
 - 框架：Spring Boot 3.4.2（Java 17）
 - 数据库：MySQL 8.0 + Spring Data JPA
 - 缓存：Redis
-- 搜索：Elasticsearch 8.10.0
+- 搜索：Elasticsearch 8.10.x（本地容器镜像 8.10.4）
 - 消息队列：Apache Kafka
-- 文件存储：MinIO / RustFS
+- 文件存储：MinIO（S3 兼容）
 - 文档解析：Apache Tika + LiteParse（PDF，可选 Tesseract / 阿里云 OCR）
 - 安全：Spring Security + JWT
 - AI：OpenAI 兼容 LLM API（DeepSeek / 智谱等）+ Embedding API + 重排 API
@@ -99,22 +99,71 @@ frontend/
 
 ## 快速开始
 
+本地端口总览：
+
+| 组件 | 端口 |
+| --- | --- |
+| 前端 Vite dev | 9527 |
+| 后端 Spring Boot | 8081 |
+| MySQL | 3306 |
+| Redis / Kafka / Elasticsearch | 6379 / 9092 / 9200 |
+| MinIO | 19000（docker compose）/ 9000（`infra.sh`） |
+
 ### 1. 前置环境
 
-- JDK 17、Maven
+- JDK 17、Maven（仓库自带 `./mvnw`，内置 Maven 3.9.11，无全局 Maven 时可用）
 - Node.js >= 18.20、pnpm >= 8.7
-- MySQL 8、Redis、Kafka、Elasticsearch 8.10、MinIO（本地可用 `infra.sh` 或 `docs/docker-compose.yaml` 启动）
+- MySQL 8（推荐本机安装；也可走第 3 步的容器全量变体）
+- Redis、Kafka、Elasticsearch 8.10.x、MinIO（推荐用 `docs/docker-compose.yaml` 启动）
 
 ### 2. 配置环境变量
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填写 MySQL / Redis / ES / MinIO / JWT / 模型 API Key 等配置
+# 编辑 .env，填写模型 API Key 等配置
 ```
 
-应用启动时会由 `DotenvEnvironmentPostProcessor` 自动加载根目录 `.env`，适用于 IDE 直接跑主类和 `mvn spring-boot:run`。
+应用启动时由 `DotenvEnvironmentPostProcessor` 自动加载**启动目录**下的 `.env`（读取的是进程工作目录而非 classpath，因此 `mvn spring-boot:run` 必须在仓库根目录执行，IDE 跑主类时把 Working directory 设为仓库根）。`SPRING_PROFILES_ACTIVE` 也由它注入，无需手动指定 profile。
+
+本地最小必填变量（对应 docker compose 路径，模板缺失时按此核对）：
+
+| 变量 | 说明 |
+| --- | --- |
+| `SPRING_PROFILES_ACTIVE=dev` | 必填。缺失时走基础配置、Elasticsearch 默认 https，连本地 http 的 ES 容器启动即失败 |
+| `SPRING_DATASOURCE_URL` / `SPRING_DATASOURCE_USERNAME` / `SPRING_DATASOURCE_PASSWORD` | MySQL 连接；不填默认 `localhost:3306/PaiSmart`、root、空密码 |
+| `SPRING_DATA_REDIS_PASSWORD` | compose Redis 带密码，需与 compose 配置一致 |
+| `ELASTICSEARCH_PASSWORD` | compose ES 需要认证 |
+| `MINIO_ENDPOINT` | compose 的 MinIO 在 **19000**（`http://localhost:19000`）；`infra.sh` 路径才是 9000 |
+| `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | 与 MinIO 实例一致 |
+| `JWT_SECRET_KEY` | Base64 字符串（`openssl rand -base64 32` 生成）；缺失时登录签发 token 直接失败 |
+| `DEEPSEEK_API_KEY` / `EMBEDDING_API_KEY` | 问答与向量化必需 |
+| `ADMIN_BOOTSTRAP_ENABLED` / `_USERNAME` / `_PASSWORD` | 首次启动建 admin 时临时置 `true`，密码 ≥ 12 位，建完改回 `false` |
+
+完整变量清单与默认值见 `.env.example`。
 
 ### 3. 启动本地基础服务
+
+**路径 A（推荐）：Docker Compose（`docs/docker-compose.yaml`）**
+
+```bash
+cd docs
+docker compose up -d redis kafka es minio      # MySQL 也可容器化：docker compose up -d
+cd ..
+```
+
+- ES 容器启动时会自动安装 analysis-ik 分词器——索引 mapping 依赖 IK，这条路径开箱即用。
+- MinIO 映射在 **19000**（控制台 19001），记得在 `.env` 设 `MINIO_ENDPOINT=http://localhost:19000`；bucket `uploads` 不会自动创建，首次上传前按 `docs/runbook.md`「MinIO 镜像说明」手动建一次。
+- MySQL 若也走容器：容器 MySQL 首次启动后需手动建库 `CREATE DATABASE PaiSmart CHARACTER SET utf8mb4;`（本机 3306 已被占用时先停掉其一）。
+
+**MySQL 本机安装（Homebrew，与仓库日常开发一致）：**
+
+```bash
+brew install mysql@8.0
+brew services start mysql@8.0
+mysql -uroot -e "CREATE DATABASE PaiSmart CHARACTER SET utf8mb4;"
+```
+
+**路径 B：`./infra.sh`（只管 minio / kafka / elasticsearch，MySQL、Redis 需自行安装）**
 
 ```bash
 ./infra.sh start          # 启动全部（minio / kafka / elasticsearch）
@@ -122,15 +171,25 @@ cp .env.example .env
 ./infra.sh urls           # 查看访问地址
 ```
 
-服务安装目录通过 `MINIO_DIR` / `KAFKA_DIR` / `ELASTICSEARCH_DIR` 环境变量指定，默认在 `~/Downloads` 下。
+- 该脚本假设二进制已下载解压到 `~/Downloads`（`minio1/`、`kafka/kafka_2.13-3.9.0`、`elasticsearch-8.10.0`），可用 `MINIO_DIR` / `KAFKA_DIR` / `ELASTICSEARCH_DIR` 环境变量改路径。
+- **此路径的 ES 不带 IK 分词器**：后端首次启动建索引会失败（报错会提示安装 `analysis-ik`，插件版本需与 ES 小版本一致）。不想手动装插件就用路径 A。
+- 此路径的 MinIO API 在 9000（`.env` 默认值即 9000）。
+
+**PDF 解析（上传 PDF 前安装一次即可）：**
+
+```bash
+./infra.sh install liteparse      # 即 npm install -g @llamaindex/liteparse
+```
 
 ### 4. 启动后端
 
 ```bash
-mvn spring-boot:run
+mvn spring-boot:run       # 或 ./mvnw spring-boot:run；IDE 直接运行 MindBaseApplication 亦可
 ```
 
-或从 IDE 直接运行 `MindBaseApplication`，默认端口 `8081`。首次启动会自动初始化 ES 索引、Kafka topic 和数据库结构。
+- 必须在**仓库根目录**执行（IDE 的 Working directory 指向仓库根），否则读不到 `.env`。
+- 默认端口 `8081`。首次启动会自动初始化 ES 索引、Kafka topic 和数据库表结构（`ddl-auto=update`）。
+- 就绪检查：`curl http://localhost:8081/actuator/health` 返回 `{"status":"UP",...}`。
 
 ### 5. 启动前端
 
@@ -140,13 +199,14 @@ pnpm install
 pnpm dev                  # http://localhost:9527
 ```
 
-开发模式下前端通过 Vite 代理访问后端 `http://localhost:8081/api/v1`。
+开发模式下前端通过 Vite 代理访问后端 `http://localhost:8081/api/v1`（代理目标见 `frontend/.env.test`）。
 
 ## 部署
 
 - 前端部署：`./deploy-front.sh`（读取 `.env` 中的 `DEPLOY_SERVER_HOST` / `DEPLOY_SERVER_USER` / `DEPLOY_SERVER_KEY`）
 - 后端发布流程：见 `scripts/DEPLOY.md`
-- Docker Compose 全套基础设施：`docs/docker-compose.yaml`
+- Docker Compose 全套基础设施：`cd docs && docker compose up -d`（`docs/docker-compose.yaml`）
+- 测试数据清理（历轮验证留下的测试账号 / 邀请码 / 组织标签）：`./scripts/cleanup-test-data.sh`（默认 dry-run，`--yes` 才执行）
 
 ## 环境变量
 
