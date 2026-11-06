@@ -224,3 +224,5 @@ jobs:
           fi
 
           exit $fail
+
+# note: registry 覆盖必须用 pnpm flag（pnpm 12 忽略 npm_config_registry env）
