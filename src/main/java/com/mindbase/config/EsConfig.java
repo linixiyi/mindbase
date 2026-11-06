@@ -41,8 +41,13 @@ public class EsConfig {
     @Value("${elasticsearch.insecure-trust-all-certificates:true}")
     private boolean insecureTrustAllCertificates;
 
+    /**
+     * 低级 RestClient 暴露为 bean（P1c）：actuator 的 elasticsearch 健康指标会使用它做 /_cluster/health 探活，
+     * 自建凭证回调保证健康检查与应用检索用同一个带认证的连接；否则 Boot 自动配置一个无凭证的默认客户端，
+     * 健康指标 401 假报 DOWN
+     */
     @Bean
-    public ElasticsearchClient elasticsearchClient() {
+    public RestClient elasticsearchRestClient() {
         // 创建低级客户端
         RestClientBuilder builder = RestClient.builder(new HttpHost(host, port, scheme));
 
@@ -67,8 +72,11 @@ public class EsConfig {
             });
         }
 
-        RestClient restClient = builder.build();
+        return builder.build();
+    }
 
+    @Bean
+    public ElasticsearchClient elasticsearchClient(RestClient restClient) {
         // 创建传输层
         ElasticsearchTransport transport = new RestClientTransport(
                 restClient, new JacksonJsonpMapper()

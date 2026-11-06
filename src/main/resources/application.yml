@@ -379,6 +379,22 @@ security:
   # WebSocket 与浏览器跨域白名单，支持 Origin pattern，多个来源用逗号分隔
   allowed-origins: ${SECURITY_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        # 暴露面最小化：只开 health，其余 actuator 端点（env/beans/loggers 等）一律不暴露
+        include: health
+  endpoint:
+    health:
+      # 组件细节（MySQL/Redis/ES/Kafka 指标）只对认证 ADMIN 展开；匿名与普通用户只见 UP/DOWN
+      show-details: when-authorized
+      show-components: when-authorized
+      roles: ADMIN
+      probes:
+        # k8s 风格探针分组，本地同样可用 /actuator/health/liveness 与 /actuator/health/readiness
+        enabled: true
+
 logging:
   level:
     org.springframework.web: ${LOG_LEVEL_WEB:DEBUG}

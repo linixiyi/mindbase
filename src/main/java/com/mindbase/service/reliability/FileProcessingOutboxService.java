@@ -8,8 +8,10 @@ import com.mindbase.model.FileProcessingTask;
 import com.mindbase.model.FileUpload;
 import com.mindbase.repository.FileProcessingOutboxRepository;
 import com.mindbase.repository.FileUploadRepository;
+import com.mindbase.utils.TraceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -143,21 +146,33 @@ public class FileProcessingOutboxService {
         try {
             FileProcessingTask task = objectMapper.readValue(outbox.getPayload(), FileProcessingTask.class);
             long timeoutSeconds = Math.max(properties.getOutbox().getSendTimeoutSeconds(), 1L);
-            // 以 fileMd5 作为消息 key：同一个文件的任务落在同一分区，按投递顺序处理
-            kafkaTemplate.executeInTransaction(operations -> {
-                try {
-                    return operations.send(kafkaConfig.getFileProcessingTopic(), task.getFileMd5(), task)
-                            .get(timeoutSeconds, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException("等待 Kafka 确认被中断", e);
-                } catch (Exception e) {
-                    throw new IllegalStateException("Kafka 发送失败: " + e.getMessage(), e);
-                }
-            });
-            outboxRepository.markSent(outbox.getId(), now());
-            logger.info("文件处理任务已投递: outboxId={}, fileMd5={}, taskType={}", outbox.getId(), outbox.getFileMd5(), outbox.getTaskType());
-            return true;
+            // traceId 跨进程传播（P1c）：outbox 补发线程通常没有请求上下文，缺失时为本次投递生成；
+            // 值写入 Kafka 消息头，消费侧取同一值贯穿日志。finally 清理，防止调度线程池污染
+            String traceId = TraceContext.currentOrNew();
+            TraceContext.put(traceId);
+            try {
+                // 以 fileMd5 作为消息 key：同一个文件的任务落在同一分区，按投递顺序处理
+                kafkaTemplate.executeInTransaction(operations -> {
+                    try {
+                        ProducerRecord<String, Object> record =
+                                new ProducerRecord<>(kafkaConfig.getFileProcessingTopic(), task.getFileMd5(), task);
+                        record.headers().add(TraceContext.KAFKA_HEADER, traceId.getBytes(StandardCharsets.UTF_8));
+                        return operations.send(record)
+                                .get(timeoutSeconds, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("等待 Kafka 确认被中断", e);
+                    } catch (Exception e) {
+                        throw new IllegalStateException("Kafka 发送失败: " + e.getMessage(), e);
+                    }
+                });
+                outboxRepository.markSent(outbox.getId(), now());
+                logger.info("文件处理任务已投递: outboxId={}, fileMd5={}, taskType={}, traceId={}",
+                        outbox.getId(), outbox.getFileMd5(), outbox.getTaskType(), traceId);
+                return true;
+            } finally {
+                TraceContext.clear();
+            }
         } catch (Exception e) {
             int attempts = outbox.getAttempts() + 1;
             LocalDateTime nextAttemptAt = now().plusSeconds(backoffSeconds(attempts));

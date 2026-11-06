@@ -11,6 +11,8 @@ import com.mindbase.model.FileUpload;
 import com.mindbase.repository.FileUploadRepository;
 import com.mindbase.service.index.KnowledgeIndexNames;
 import com.mindbase.service.search.ParentContextExpander;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +28,8 @@ import java.util.function.Consumer;
 
 @Service
 public class AgentToolRegistry {
+
+    private static final Logger logger = LoggerFactory.getLogger(AgentToolRegistry.class);
 
     private static final String KNOWLEDGE_INDEX = KnowledgeIndexNames.ALIAS;
     private static final int DEFAULT_TOP_K = 5;
@@ -100,6 +104,9 @@ public class AgentToolRegistry {
 
         // 小分块检索、父块交给模型：引用和证据片段仍指向命中的小分块
         List<SearchResult> results = expandParents(hybridSearchService.searchWithPermission(query, userId, topK));
+        // 下游 service 观测点（P1c traceId）：该行在聊天处理线程上执行，MDC pattern 会带上与 ChatHandler 相同的 traceId
+        logger.info("知识检索完成: userId={}, queryChars={}, topK={}, results={}",
+                userId, query.length(), topK, results.size());
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("query", query);
         data.put("topK", topK);

@@ -57,6 +57,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
+        <!-- actuator（P1c 可观测性）：仅暴露 health 主端点与 liveness/readiness 探针分组，健康详情仅 ADMIN 可见 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
         <!-- Alibaba Cloud OCR SDK -->
         <dependency>
             <groupId>com.aliyun</groupId>

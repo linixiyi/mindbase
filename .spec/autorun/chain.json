@@ -27,6 +27,14 @@
         "P1c"
       ],
       "slug": "2026-11-07_p1c-observability",
+      "status": "done (含 CWE-117 修复)"
+    },
+    {
+      "round": 4,
+      "features": [
+        "P1d"
+      ],
+      "slug": "2026-11-07_p1d-demo-hygiene",
       "status": "active"
     }
   ],

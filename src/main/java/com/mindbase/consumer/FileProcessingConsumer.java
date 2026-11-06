@@ -11,8 +11,10 @@ import com.mindbase.service.conflict.DocumentVectorizedEvent;
 import com.mindbase.service.reliability.VectorizationLease;
 import com.mindbase.service.reliability.VectorizationLeaseLostException;
 import com.mindbase.service.reliability.VectorizationLeaseService;
+import com.mindbase.utils.TraceContext;
 import io.minio.errors.*;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -21,6 +23,7 @@ import org.springframework.stereotype.Service;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Optional;
@@ -58,9 +61,22 @@ public class FileProcessingConsumer {
     @KafkaListener(id = FileProcessingListenerGate.LISTENER_ID,
             topics = "#{kafkaConfig.getFileProcessingTopic()}",
             groupId = "#{kafkaConfig.getFileProcessingGroupId()}")
-    public void processTask(FileProcessingTask task) {
+    public void processTask(ConsumerRecord<String, FileProcessingTask> record) {
+        FileProcessingTask task = record.value();
+        // traceId 跨进程贯穿（P1c）：取生产侧写入的消息头，老消息无头时兜底生成；finally 清理防线程污染
+        TraceContext.put(headerValue(record, TraceContext.KAFKA_HEADER) != null
+                ? headerValue(record, TraceContext.KAFKA_HEADER)
+                : TraceContext.newTraceId());
+        try {
+            processClaimedTask(task);
+        } finally {
+            TraceContext.clear();
+        }
+    }
+
+    private void processClaimedTask(FileProcessingTask task) {
         log.info("Received task: {}", task);
-        log.info("文件权限信息: userId={}, orgTag={}, isPublic={}", 
+        log.info("文件权限信息: userId={}, orgTag={}, isPublic={}",
                 task.getUserId(), task.getOrgTag(), task.isPublic());
 
         // 认领：上传任务已完成直接跳过（Kafka 重复投递），已有消费者在处理且心跳未超时也跳过
@@ -110,6 +126,11 @@ public class FileProcessingConsumer {
             // 抛出异常让 Kafka 的 DefaultErrorHandler 捕获并触发重试 / 死信
             throw new RuntimeException("Error processing task", e);
         }
+    }
+
+    private static String headerValue(ConsumerRecord<String, FileProcessingTask> record, String name) {
+        org.apache.kafka.common.header.Header header = record.headers().lastHeader(name);
+        return header == null || header.value() == null ? null : new String(header.value(), StandardCharsets.UTF_8);
     }
 
     private static boolean isInsufficientBalance(Throwable error) {
