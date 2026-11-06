@@ -26,6 +26,6 @@
 - route: build
 - 执行段：动态工作流：单路 → 门禁 → 复审
 ## 6. 成功标准与验证方式
-- [x] 三项 -> verify: task-p1d-all
+- [x] 三项 -> verify: `test -s /Users/linyixi/PaiSmart/scripts/cleanup-test-data.sql && test -x /Users/linyixi/PaiSmart/scripts/cleanup-test-data.sh && ! grep -q "待补充" /Users/linyixi/PaiSmart/README.md`
 ## 7. 风险与约束
 - 清理脚本必须幂等且带确认（--yes 才执行），防误删真实数据
