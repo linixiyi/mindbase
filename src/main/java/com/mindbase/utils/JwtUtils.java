@@ -326,7 +326,9 @@ public class JwtUtils {
         
         // 缓存refresh token信息到Redis
         tokenCacheService.cacheRefreshToken(refreshTokenId, user.getId().toString(), null, expireTime);
-        
+        // 记入该用户的 refresh family（jwt:refresh:family:{userId}），供 logout-all 吊销（task_0003）
+        tokenCacheService.addRefreshTokenToFamily(user.getId().toString(), refreshTokenId, expireTime);
+
         logger.info("Refresh token generated and cached for user: {}, refreshTokenId: {}", username, refreshTokenId);
         return refreshToken;
     }

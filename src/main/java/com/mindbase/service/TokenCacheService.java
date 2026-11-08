@@ -28,6 +28,7 @@ public class TokenCacheService {
     private static final String TOKEN_PREFIX = "jwt:valid:";
     private static final String USER_TOKENS_PREFIX = "jwt:user:";
     private static final String REFRESH_PREFIX = "jwt:refresh:";
+    private static final String REFRESH_FAMILY_PREFIX = "jwt:refresh:family:";
     private static final String BLACKLIST_PREFIX = "jwt:blacklist:";
     
     /**
@@ -109,6 +110,70 @@ public class TokenCacheService {
         }
     }
     
+    /**
+     * 将 refresh token 记入用户 refresh family（key: jwt:refresh:family:{userId}），
+     * 供 logout-all 按用户吊销全部 refresh token；TTL 与 refresh token 有效期一致
+     * （task_0003）
+     */
+    public void addRefreshTokenToFamily(String userId, String refreshTokenId, long expireTimeMs) {
+        try {
+            String familyKey = REFRESH_FAMILY_PREFIX + userId;
+            redisTemplate.opsForSet().add(familyKey, refreshTokenId);
+
+            long ttlSeconds = (expireTimeMs - System.currentTimeMillis()) / 1000;
+            if (ttlSeconds > 0) {
+                redisTemplate.expire(familyKey, Duration.ofSeconds(ttlSeconds));
+            }
+
+            logger.debug("Refresh token added to family: {} for user: {}", refreshTokenId, userId);
+        } catch (Exception e) {
+            logger.error("Failed to add refresh token to family: {} - {}", userId, refreshTokenId, e);
+        }
+    }
+
+    /**
+     * 吊销单个 refresh token（换发成功后旧 token 立即失效，防重放），
+     * 同时从用户 refresh family 集合中移除（userId 可为 null，仅删 token 键）
+     * （task_0003）
+     */
+    public void revokeRefreshToken(String userId, String refreshTokenId) {
+        try {
+            if (refreshTokenId == null) {
+                return;
+            }
+            redisTemplate.delete(REFRESH_PREFIX + refreshTokenId);
+            if (userId != null) {
+                redisTemplate.opsForSet().remove(REFRESH_FAMILY_PREFIX + userId, refreshTokenId);
+            }
+            logger.info("Refresh token revoked: {}", refreshTokenId);
+        } catch (Exception e) {
+            logger.error("Failed to revoke refresh token: {}", refreshTokenId, e);
+        }
+    }
+
+    /**
+     * 吊销用户整个 refresh family（logout-all）：
+     * 集合内所有 refresh token 键一并删除，并删除 jwt:refresh:family:{userId}
+     * （task_0003）
+     */
+    public void revokeRefreshFamily(String userId) {
+        try {
+            String familyKey = REFRESH_FAMILY_PREFIX + userId;
+            Set<Object> refreshTokenIds = redisTemplate.opsForSet().members(familyKey);
+
+            if (refreshTokenIds != null && !refreshTokenIds.isEmpty()) {
+                for (Object refreshTokenId : refreshTokenIds) {
+                    redisTemplate.delete(REFRESH_PREFIX + refreshTokenId.toString());
+                }
+            }
+
+            redisTemplate.delete(familyKey);
+            logger.info("Refresh token family revoked for user: {}", userId);
+        } catch (Exception e) {
+            logger.error("Failed to revoke refresh token family: {}", userId, e);
+        }
+    }
+
     /**
      * 验证refresh token是否有效
      */

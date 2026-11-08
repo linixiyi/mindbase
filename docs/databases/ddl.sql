@@ -72,7 +72,7 @@ CREATE TABLE document_vectors (
                                   user_id VARCHAR(64) NOT NULL COMMENT '上传用户ID',
                                   org_tag VARCHAR(50) COMMENT '文件所属组织标签',
                                   is_public BOOLEAN NOT NULL DEFAULT FALSE COMMENT '文件是否公开',
-                                  UNIQUE KEY uk_document_vectors_md5_chunk (file_md5, chunk_id)
+                                  UNIQUE KEY uk_document_vectors_user_md5_chunk (user_id, file_md5, chunk_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档向量存储表';
 
 CREATE TABLE file_processing_outbox (

@@ -157,7 +157,7 @@ class UploadControllerTest {
 
         when(fileUploadRepository.findFirstByFileMd5AndUserIdOrderByCreatedAtDesc("md5", "1"))
                 .thenReturn(Optional.of(fileUpload));
-        when(uploadService.generateMergedObjectUrl("md5")).thenReturn("https://example.com/merged/md5");
+        when(uploadService.generateMergedObjectUrl("1", "md5")).thenReturn("https://example.com/merged/md5");
 
         var response = uploadController.mergeFile(new UploadController.MergeRequest("md5", "test.pdf"), "1");
 

@@ -8,6 +8,7 @@ import com.mindbase.service.citation.CitationVerificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mindbase.entity.SearchResult;
 import com.mindbase.exception.RateLimitExceededException;
+import com.mindbase.model.SearchOutcome;
 import com.mindbase.utils.RequestDeadline;
 import com.mindbase.utils.TraceContext;
 import io.github.resilience4j.bulkhead.BulkheadFullException;
@@ -461,7 +462,24 @@ public class ChatHandler {
         logger.info("ReAct search_knowledge 引用映射已追加: generationId={}, count={}", generationId, mapping.size());
         List<SearchResult> results = rawList.stream().filter(SearchResult.class::isInstance)
                 .map(SearchResult.class::cast).toList();
-        return AgentToolRegistry.formatSearchResults(results, firstReferenceNumber);
+        // task_0005 调用适配：把 search_knowledge 工具数据里的检索分类传给格式化，
+        // 引用编号与映射构建逻辑不变；未带 outcome 的旧数据按 HIT 处理，输出与改造前一致
+        return AgentToolRegistry.formatSearchResults(results, resolveSearchOutcome(toolResult), firstReferenceNumber);
+    }
+
+    /**
+     * 从工具结果数据里读检索分类；缺失或非法时按 HIT 处理（兼容旧数据），保证引用格式化输出不变
+     */
+    private static SearchOutcome resolveSearchOutcome(AgentToolRegistry.ToolExecutionResult toolResult) {
+        Object outcome = toolResult.data().get("outcome");
+        if (outcome instanceof String name && !name.isBlank()) {
+            try {
+                return SearchOutcome.valueOf(name);
+            } catch (IllegalArgumentException ignored) {
+                return SearchOutcome.HIT;
+            }
+        }
+        return SearchOutcome.HIT;
     }
 
     private record ExecutedToolResult(String content, boolean streamedToUser) {

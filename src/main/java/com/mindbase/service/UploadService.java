@@ -573,9 +573,10 @@ public class UploadService {
             }
             logger.info("分片检查完成，所有分片都存在 => fileMd5: {}, fileName: {}, fileType: {}", fileMd5, fileName, fileType);
             
-            // 使用 MD5 作为 MinIO 对象路径，确保同名不同内容的文件不会互相覆盖
-            String mergedPath = "merged/" + fileMd5;
-            logger.info("开始合并分片 => fileMd5: {}, fileName: {}, fileType: {}, 合并后路径: {}", fileMd5, fileName, fileType, mergedPath);
+            // 合并对象键带上传者维度：同一 MD5（字节相同的文件）被多个用户上传时各写各的对象，不会互相覆盖
+            String mergedPath = buildMergedObjectKey(userId, fileMd5);
+            logger.info("开始合并分片 => fileMd5: {}, fileName: {}, fileType: {}, userId: {}, 合并后路径: {}",
+                    fileMd5, fileName, fileType, userId, mergedPath);
             
             try {
                 // 合并分片
@@ -610,7 +611,7 @@ public class UploadService {
 
                 // 生成预签名 URL（有效期为 1 小时）
                 logger.info("开始生成预签名URL => fileMd5: {}, fileName: {}, path: {}", fileMd5, fileName, mergedPath);
-                String presignedUrl = generateMergedObjectUrl(fileMd5);
+                String presignedUrl = generateMergedObjectUrl(userId, fileMd5);
                 logger.info("预签名URL已生成 => fileMd5: {}, fileName: {}, fileType: {}, URL: {}", fileMd5, fileName, fileType, presignedUrl);
                 
                 return presignedUrl;
@@ -630,21 +631,63 @@ public class UploadService {
         }
     }
 
-    public GetObjectResponse getMergedFileStream(String fileMd5) throws Exception {
-        return minioClient.getObject(
-                GetObjectArgs.builder()
-                        .bucket("uploads")
-                        .object("merged/" + fileMd5)
-                        .build()
-        );
+    /** 合并对象键：带上传者维度，多用户上传相同字节文件时各持各的对象 */
+    public static String buildMergedObjectKey(String userId, String fileMd5) {
+        return "merged/" + userId + "/" + fileMd5;
     }
 
-    public String generateMergedObjectUrl(String fileMd5) throws Exception {
+    /** 本轮租户化之前的旧合并对象键（无上传者维度），存量数据仍按它读取 */
+    private static String legacyMergedObjectKey(String fileMd5) {
+        return "merged/" + fileMd5;
+    }
+
+    /**
+     * 读取合并对象：优先按当前键 merged/{userId}/{fileMd5}，读不到再退回旧键 merged/{fileMd5}
+     * （存量对象与启动知识库文档仍在旧键下；同 MD5 字节内容相同，旧对象内容等价）
+     */
+    public GetObjectResponse getMergedFileStream(String userId, String fileMd5) throws Exception {
+        try {
+            return minioClient.getObject(
+                    GetObjectArgs.builder()
+                            .bucket("uploads")
+                            .object(buildMergedObjectKey(userId, fileMd5))
+                            .build()
+            );
+        } catch (Exception e) {
+            logger.warn("按上传者路径读取合并对象失败，退回旧路径 => fileMd5: {}, userId: {}, error: {}",
+                    fileMd5, userId, e.getMessage());
+            return minioClient.getObject(
+                    GetObjectArgs.builder()
+                            .bucket("uploads")
+                            .object(legacyMergedObjectKey(fileMd5))
+                            .build()
+            );
+        }
+    }
+
+    /**
+     * 生成合并对象的预签名 URL（1 小时有效）。预签名不访问存储，先用 stat 确认对象位置：
+     * 当前键存在按当前键签名，否则退回旧键（存量数据）。
+     */
+    public String generateMergedObjectUrl(String userId, String fileMd5) throws Exception {
+        String objectName = buildMergedObjectKey(userId, fileMd5);
+        try {
+            minioClient.statObject(
+                    StatObjectArgs.builder()
+                            .bucket("uploads")
+                            .object(objectName)
+                            .build()
+            );
+        } catch (Exception e) {
+            logger.warn("合并对象不在上传者路径下，按旧路径签名 => fileMd5: {}, userId: {}, error: {}",
+                    fileMd5, userId, e.getMessage());
+            objectName = legacyMergedObjectKey(fileMd5);
+        }
         return minioClient.getPresignedObjectUrl(
                 GetPresignedObjectUrlArgs.builder()
                         .method(Method.GET)
                         .bucket("uploads")
-                        .object("merged/" + fileMd5)
+                        .object(objectName)
                         .expiry(1, TimeUnit.HOURS)
                         .build()
         );

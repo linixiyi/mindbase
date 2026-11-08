@@ -3,7 +3,6 @@ package com.mindbase.service;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchRequest;
-import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import com.mindbase.client.EmbeddingClient;
 import com.mindbase.client.RerankClient;
@@ -13,6 +12,7 @@ import com.mindbase.entity.EsDocument;
 import com.mindbase.entity.SearchResult;
 import com.mindbase.exception.CustomException;
 import com.mindbase.model.FileUpload;
+import com.mindbase.model.SearchResponse;
 import com.mindbase.model.User;
 import com.mindbase.repository.FileUploadRepository;
 import com.mindbase.repository.UserRepository;
@@ -85,9 +85,24 @@ public class HybridSearchService {
     }
 
     /**
-     * 带权限过滤的混合搜索（自己的文档、公开文档、所属组织及其上级组织的文档）
+     * 带权限过滤的混合搜索，返回结果列表视图（兼容保留，task_0005）。
+     * 内部走 {@link #searchWithPermissionDetailed}；权限解析失败、召回完全失败时返回空列表，
+     * 与改造前行为一致。需要区分失败分类的调用方请改用 {@link #searchWithPermissionDetailed}。
      */
     public List<SearchResult> searchWithPermission(String query, String userId, int topK) {
+        return searchWithPermissionDetailed(query, userId, topK).results();
+    }
+
+    /**
+     * 带权限过滤的混合搜索，带失败三分类（task_0005）：
+     * <ul>
+     * <li>权限解析异常 → {@link SearchOutcome#NO_PERMISSION_MATCH}，不执行检索，结果为空</li>
+     * <li>混合检索与纯文本兜底均抛异常 → {@link SearchOutcome#RECALL_FAILED}，结果为空</li>
+     * <li>rerank 后全部候选低于阈值 → {@link SearchOutcome#BELOW_THRESHOLD}，按 RRF 融合排序返回前 N 条兜底（结果非空）</li>
+     * <li>其余（含降级后仍有结果、索引确实无匹配的空结果）→ {@link SearchOutcome#HIT}</li>
+     * </ul>
+     */
+    public SearchResponse searchWithPermissionDetailed(String query, String userId, int topK) {
         logger.debug("开始带权限搜索，查询: {}, 用户ID: {}", query, userId);
         Query permissionFilter;
         try {
@@ -97,14 +112,24 @@ public class HybridSearchService {
             permissionFilter = buildPermissionFilter(userDbId, userEffectiveTags);
         } catch (Exception e) {
             logger.error("解析用户权限失败，拒绝搜索: userId={}", userId, e);
-            return Collections.emptyList();
+            return SearchResponse.noPermissionMatch("解析用户权限失败: " + e.getMessage());
         }
 
         try {
-            return hybridSearch(query, userId, topK, permissionFilter);
+            return hybridSearchDetailed(query, userId, topK, permissionFilter);
         } catch (Exception e) {
             logger.error("带权限的混合搜索失败，降级为纯文本搜索", e);
-            return safeTextOnlySearch(query, permissionFilter, topK, TEXT_ONLY_MIN_SCORE);
+            try {
+                List<SearchResult> fallback = textOnlySearch(query, permissionFilter, topK, TEXT_ONLY_MIN_SCORE);
+                if (fallback.isEmpty()) {
+                    return SearchResponse.hit(fallback, "混合检索失败，纯文本兜底无匹配");
+                }
+                return SearchResponse.hit(fallback, "混合检索失败，已降级为纯文本召回");
+            } catch (Exception fallbackError) {
+                logger.error("纯文本兜底搜索也失败", fallbackError);
+                return SearchResponse.recallFailed(
+                        "混合检索与纯文本兜底均失败: " + e.getMessage() + "；兜底失败: " + fallbackError.getMessage());
+            }
         }
     }
 
@@ -127,12 +152,22 @@ public class HybridSearchService {
     }
 
     private List<SearchResult> hybridSearch(String query, String requesterId, int topK, Query filter) throws Exception {
+        return hybridSearchDetailed(query, requesterId, topK, filter).results();
+    }
+
+    /**
+     * 混合检索主流程，带失败分类（task_0005）。召回查询失败仍向上抛出，由调用方决定降级路径；
+     * rerank 阈值全滤在内部用 RRF 前 N 兜底并以 BELOW_THRESHOLD 返回，不再返回空列表。
+     */
+    private SearchResponse hybridSearchDetailed(String query, String requesterId, int topK, Query filter) throws Exception {
         List<Float> queryVector = embedToVectorList(query, requesterId);
         if (queryVector == null) {
             logger.warn("向量生成失败，仅使用文本匹配进行搜索");
-            return filter == null
-                    ? textOnlySearch(query, null, topK, null)
-                    : safeTextOnlySearch(query, filter, topK, TEXT_ONLY_MIN_SCORE);
+            if (filter == null) {
+                return SearchResponse.hit(textOnlySearch(query, null, topK, null), "向量生成失败，已降级为纯文本召回");
+            }
+            return SearchResponse.hit(safeTextOnlySearch(query, filter, topK, TEXT_ONLY_MIN_SCORE),
+                    "向量生成失败，已降级为纯文本召回");
         }
 
         int window = recallWindow(topK);
@@ -150,9 +185,14 @@ public class HybridSearchService {
                 RrfFusion.fuse(properties.getRrfK(), Hit::id, bm25Hits, knnHits);
         logger.debug("双路召回完成: window={}, bm25={}, knn={}, fused={}", window, bm25Hits.size(), knnHits.size(), fused.size());
 
-        List<SearchResult> results = rerankAndTruncate(query, fused, topK);
-        attachFileNames(results);
-        return results;
+        RankedResults ranked = rerankAndTruncate(query, fused, topK);
+        attachFileNames(ranked.results());
+        if (ranked.allBelowThreshold()) {
+            return SearchResponse.belowThreshold(ranked.results(),
+                    "rerank 后无候选达到阈值 " + properties.getRerank().getScoreThreshold()
+                            + "，已按 RRF 融合排序返回前 " + ranked.results().size() + " 条兜底");
+        }
+        return SearchResponse.hit(ranked.results());
     }
 
     int recallWindow(int topK) {
@@ -160,18 +200,25 @@ public class HybridSearchService {
         return (int) Math.max(topK, Math.min(window, properties.getMaxRecallWindow()));
     }
 
-    private List<SearchResult> rerankAndTruncate(String query, List<RrfFusion.Fused<Hit<EsDocument>>> fused, int topK) {
+    /**
+     * rerank 截断结果：allBelowThreshold 表示 rerank 正常返回但无候选达到分数阈值
+     * （此时 results 已是按 RRF 排名兜底的前 N 条，供上层标记 BELOW_THRESHOLD）
+     */
+    private record RankedResults(List<SearchResult> results, boolean allBelowThreshold) {
+    }
+
+    private RankedResults rerankAndTruncate(String query, List<RrfFusion.Fused<Hit<EsDocument>>> fused, int topK) {
         HybridSearchProperties.Rerank cfg = properties.getRerank();
         List<RrfFusion.Fused<Hit<EsDocument>>> candidates = fused.subList(0, Math.min(fused.size(), Math.max(cfg.getMaxCandidates(), topK)));
         if (candidates.isEmpty()) {
-            return new ArrayList<>();
+            return new RankedResults(new ArrayList<>(), false);
         }
         if (!cfg.isEnabled()) {
-            return rrfTopK(candidates, topK);
+            return new RankedResults(rrfTopK(candidates, topK), false);
         }
         if (!RequestDeadline.hasAtLeast(Duration.ofMillis(cfg.getSkipBelowMillis()))) {
             logger.info("问答请求剩余时间不足 {}ms，跳过 rerank，按 RRF 顺序返回", cfg.getSkipBelowMillis());
-            return rrfTopK(candidates, topK);
+            return new RankedResults(rrfTopK(candidates, topK), false);
         }
 
         try {
@@ -187,10 +234,14 @@ public class HybridSearchService {
                     .collect(Collectors.toCollection(ArrayList::new));
             logger.debug("rerank 截断: candidates={}, 过阈值({})={}, 返回={}", candidates.size(), cfg.getScoreThreshold(),
                     ranked.stream().filter(hit -> hit.score() >= cfg.getScoreThreshold()).count(), results.size());
-            return results;
+            if (results.isEmpty()) {
+                // 阈值全滤（task_0005）：不再返回空列表，按 RRF 融合排名兜底返回前 N 条，上层标记 BELOW_THRESHOLD
+                return new RankedResults(rrfTopK(candidates, topK), true);
+            }
+            return new RankedResults(results, false);
         } catch (Exception e) {
             logger.warn("rerank 调用失败，按 RRF 排名截取 topK: {}", e.getMessage());
-            return rrfTopK(candidates, topK);
+            return new RankedResults(rrfTopK(candidates, topK), false);
         }
     }
 
@@ -203,7 +254,9 @@ public class HybridSearchService {
 
     private List<Hit<EsDocument>> recall(SearchRequest request) {
         try {
-            SearchResponse<EsDocument> response = esClient.search(request, EsDocument.class);
+            // com.mindbase.model.SearchResponse 已占用简单名，ES 客户端响应类型此处用全限定名
+            co.elastic.clients.elasticsearch.core.SearchResponse<EsDocument> response =
+                    esClient.search(request, EsDocument.class);
             return response.hits().hits().stream()
                     .filter(hit -> hit.source() != null)
                     .toList();

@@ -252,7 +252,11 @@ public class EmbeddingReindexService {
             return true;
         }
 
-        elasticsearchService.deleteByFileMd5(progress.targetIndex, fileMd5);
+        // 删除查询带上传者维度：同一 fileMd5 的分块可能属于多个上传者，按各分块归属者逐个清理，
+        // 避免重建时把其他用户在目标索引中的文档连带删掉
+        for (String ownerUserId : chunks.stream().map(DocumentVector::getUserId).distinct().toList()) {
+            elasticsearchService.deleteByFileMd5(progress.targetIndex, ownerUserId, fileMd5);
+        }
         // 上下文说明只和分块内容有关、与 embedding 模型无关，重建时复用 MySQL 里已生成的说明，不重新调用 LLM；
         // 拼法与入库链路一致（ContextualChunkText），功能关闭时两边都按原文建索引
         boolean contextual = contextualProperties != null && contextualProperties.isEnabled();

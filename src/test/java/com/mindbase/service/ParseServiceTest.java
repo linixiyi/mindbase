@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Method;
@@ -17,8 +16,12 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * ParseService 的测试类
  * 主要测试 splitLongSentence 方法的功能
+ *
+ * 说明：本测试只通过 Mockito 构造被测对象并用反射调用私有方法，不注入任何
+ * Spring Bean，因此不挂 @SpringBootTest——完整上下文会强连本机 Redis/Kafka
+ * （documentStatusListenerContainer 等监听容器），Redis 未启动时 6 个用例全部
+ * 报 ApplicationContext 加载失败；上下文启动已由 MindBaseApplicationTests 覆盖。
  */
-@SpringBootTest
 class ParseServiceTest {
 
     @Mock

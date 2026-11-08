@@ -61,7 +61,8 @@ public class VectorizationService {
 
     /**
      * 按批向量化并写入 Elasticsearch。
-     * 文档 ID 为 fileMd5_chunkId：中途失败后 Kafka 重试会覆盖已写入的批次，不会产生重复文档。
+     * 文档 ID 为 userId_fileMd5_chunkId：带上传者维度，两个用户上传相同字节文件（同 fileMd5）时
+     * 各写各的文档互不覆盖；同一任务中途失败后 Kafka 重试会覆盖已写入的批次，不会产生重复文档。
      */
     public VectorizationUsageResult vectorizeWithUsage(String fileMd5, String userId, String orgTag, boolean isPublic, String requesterId) {
         return vectorizeWithUsage(fileMd5, userId, orgTag, isPublic, requesterId, () -> { });
@@ -87,7 +88,11 @@ public class VectorizationService {
             Pageable page = PageRequest.of(0, Math.max(batchSize, 1));
             while (true) {
                 Slice<DocumentVector> slice = documentVectorRepository.findByFileMd5OrderByChunkIdAsc(fileMd5, page);
-                List<DocumentVector> chunks = slice.getContent();
+                // 唯一键放开后同一 fileMd5 下可能共存多个上传者的分块（各自一行），向量化只处理本任务上传者的分块，
+                // 避免把其他用户解析出的分块写成自己的 ES 文档；过滤不影响分页推进（hasNext 由 Slice 决定）
+                List<DocumentVector> chunks = slice.getContent().stream()
+                        .filter(chunk -> userId != null && userId.equals(chunk.getUserId()))
+                        .toList();
                 if (!chunks.isEmpty()) {
                     totalTokens += embedAndIndexBatch(fileMd5, chunks, userId, orgTag, isPublic, requesterId, provider,
                             modelVersion, contextual);
@@ -161,7 +166,7 @@ public class VectorizationService {
         for (int i = 0; i < chunks.size(); i++) {
             DocumentVector chunk = chunks.get(i);
             esDocuments.add(new EsDocument(
-                    fileMd5 + "_" + chunk.getChunkId(),
+                    userId + "_" + fileMd5 + "_" + chunk.getChunkId(),
                     fileMd5,
                     chunk.getChunkId(),
                     chunk.getTextContent(),

@@ -69,22 +69,33 @@ public class ElasticsearchService {
     }
 
     /**
-     * 根据file_md5删除文档。
+     * 根据上传者 + file_md5 删除文档。
      * 同时清理所有版本索引（线上、重建中、保留用于回滚的旧索引），避免回滚后已删除的文档"复活"。
+     * 查询带 userId term：同一 file_md5 可能被多个用户各自上传（字节相同），清理只能命中目标上传者的文档。
      *
+     * @param userId  上传用户ID
      * @param fileMd5 文件指纹
      */
-    public void deleteByFileMd5(String fileMd5) {
-        deleteByFileMd5(KnowledgeIndexNames.ALL_INDICES_PATTERN, fileMd5);
+    public void deleteByFileMd5(String userId, String fileMd5) {
+        deleteByFileMd5(KnowledgeIndexNames.ALL_INDICES_PATTERN, userId, fileMd5);
     }
 
-    public void deleteByFileMd5(String index, String fileMd5) {
+    /**
+     * 根据上传者 + file_md5 删除指定索引中的文档，查询 DSL 含 fileMd5 与 userId 两个 term。
+     *
+     * @param index   索引名或索引模式
+     * @param userId  上传用户ID
+     * @param fileMd5 文件指纹
+     */
+    public void deleteByFileMd5(String index, String userId, String fileMd5) {
         try {
             DeleteByQueryRequest request = DeleteByQueryRequest.of(d -> d
                     .index(index)
                     .allowNoIndices(true)
                     .ignoreUnavailable(true)
-                    .query(q -> q.term(t -> t.field("fileMd5").value(fileMd5)))
+                    .query(q -> q.bool(b -> b
+                            .filter(f -> f.term(t -> t.field("fileMd5").value(fileMd5)))
+                            .filter(f -> f.term(t -> t.field("userId").value(userId)))))
             );
             esClient.deleteByQuery(request);
         } catch (Exception e) {

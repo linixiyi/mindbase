@@ -45,7 +45,7 @@ class FileProcessingConsumerIdempotencyTest {
     @BeforeEach
     void setUp() throws Exception {
         consumer = new FileProcessingConsumer(parseService, vectorizationService, documentService, leaseService, uploadService);
-        when(uploadService.getMergedFileStream("md5")).thenReturn(mock(GetObjectResponse.class));
+        when(uploadService.getMergedFileStream("1", "md5")).thenReturn(mock(GetObjectResponse.class));
     }
 
     @Test
@@ -68,7 +68,7 @@ class FileProcessingConsumerIdempotencyTest {
         consumer.processTask(record(task()));
 
         InOrder inOrder = inOrder(documentService, parseService, vectorizationService, leaseService);
-        inOrder.verify(documentService).clearIndexedData("md5");
+        inOrder.verify(documentService).clearIndexedData("1", "md5");
         inOrder.verify(parseService).parseAndSave(eq("md5"), any(), eq("1"), eq("TEAM"), eq(false));
         inOrder.verify(leaseService).heartbeat(lease);
         inOrder.verify(vectorizationService).vectorizeWithUsage(eq("md5"), eq("1"), eq("TEAM"), eq(false), eq("1"), any(Runnable.class));
@@ -89,7 +89,7 @@ class FileProcessingConsumerIdempotencyTest {
     @Test
     void processingFailureMarksFailedAndRethrowsForKafkaRetry() throws Exception {
         when(leaseService.claim(any())).thenReturn(Optional.of(lease));
-        doThrow(new RuntimeException("es down")).when(documentService).clearIndexedData("md5");
+        doThrow(new RuntimeException("es down")).when(documentService).clearIndexedData("1", "md5");
 
         assertThrows(RuntimeException.class, () -> consumer.processTask(record(task())));
 

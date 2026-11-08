@@ -87,8 +87,9 @@ public class FileProcessingConsumer {
         VectorizationLease lease = claimed.get();
 
         try (InputStream fileStream = openSourceStream(task)) {
-            // 先清理上一次处理留下的分块和索引，重复投递、中途失败重试都从干净状态重新解析，不会插入重复分块
-            documentService.clearIndexedData(task.getFileMd5());
+            // 先清理本任务上传者上次处理留下的分块和索引（按 (userId, fileMd5) 收口，不能碰同 MD5 其他用户的数据），
+            // 重复投递、中途失败重试都从干净状态重新解析，不会插入重复分块
+            documentService.clearIndexedData(task.getUserId(), task.getFileMd5());
 
             parseService.parseAndSave(task.getFileMd5(), fileStream,
                     task.getUserId(), task.getOrgTag(), task.isPublic());
@@ -162,7 +163,8 @@ public class FileProcessingConsumer {
      */
     private InputStream openSourceStream(FileProcessingTask task) throws Exception {
         try {
-            return uploadService.getMergedFileStream(task.getFileMd5());
+            // 合并对象键带上传者维度，按任务里的 userId 读取；旧键回退在 getMergedFileStream 内部处理
+            return uploadService.getMergedFileStream(task.getUserId(), task.getFileMd5());
         } catch (Exception e) {
             if (task.getFilePath() == null || task.getFilePath().isBlank()) {
                 throw e;

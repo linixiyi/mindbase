@@ -1,6 +1,7 @@
 package com.mindbase.controller;
 
 import com.mindbase.exception.CustomException;
+import com.mindbase.service.TokenCacheService;
 import com.mindbase.utils.JwtUtils;
 import com.mindbase.utils.LogUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,9 +18,13 @@ public class AuthController {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired
+    private TokenCacheService tokenCacheService;
+
     /**
      * 刷新Token接口
      * 用于前端主动刷新token机制的后备方案
+     * 校验失败统一返回401；换发成功后旧refresh token立即失效（轮换防重放，task_0003）
      */
     @PostMapping("/refreshToken")
     public ResponseEntity<?> refreshToken(@RequestBody RefreshTokenRequest request) {
@@ -29,7 +34,7 @@ public class AuthController {
             if (request.refreshToken() == null || request.refreshToken().isEmpty()) {
                 LogUtils.logUserOperation("anonymous", "REFRESH_TOKEN", "validation", "FAILED_EMPTY_REFRESH_TOKEN");
                 monitor.end("刷新token失败：refreshToken为空");
-                return ResponseEntity.badRequest().body(Map.of("code", 400, "message", "Refresh token cannot be empty"));
+                return ResponseEntity.status(401).body(Map.of("code", 401, "message", "Invalid refresh token"));
             }
 
             // 验证refreshToken是否有效（这里我们用相同的验证逻辑）
@@ -50,6 +55,11 @@ public class AuthController {
             // 生成新的token和refreshToken
             String newToken = jwtUtils.generateToken(username);
             String newRefreshToken = jwtUtils.generateRefreshToken(username);
+
+            // 换发成功后立即吊销旧refresh token：同一refresh只能换发一次，第二次使用返回401（task_0003）
+            String oldRefreshTokenId = jwtUtils.extractRefreshTokenIdFromToken(request.refreshToken());
+            String oldUserId = jwtUtils.extractUserIdFromToken(request.refreshToken());
+            tokenCacheService.revokeRefreshToken(oldUserId, oldRefreshTokenId);
 
             LogUtils.logUserOperation(username, "REFRESH_TOKEN", "token_generation", "SUCCESS");
             monitor.end("刷新token成功");

@@ -13,8 +13,9 @@ import java.sql.Blob;
 @Entity
 @Table(
         name = "document_vectors",
-        // 同一文件的同一分块只能有一行：Kafka 重复投递时即使清理遗漏，也会在插入时失败而不是悄悄重复
-        uniqueConstraints = @UniqueConstraint(name = "uk_document_vectors_md5_chunk", columnNames = {"file_md5", "chunk_id"})
+        // 同一用户上传的同一文件同一分块只能有一行：Kafka 重复投递时即使清理遗漏，也会在插入时失败而不是悄悄重复；
+        // 键带 user_id，两个用户上传相同字节文件（同 file_md5）时各自的向量互不冲突、互不覆盖
+        uniqueConstraints = @UniqueConstraint(name = "uk_document_vectors_user_md5_chunk", columnNames = {"user_id", "file_md5", "chunk_id"})
 )
 public class DocumentVector {
     @Id

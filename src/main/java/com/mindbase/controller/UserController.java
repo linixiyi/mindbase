@@ -7,6 +7,7 @@ import com.mindbase.model.RegistrationMode;
 import com.mindbase.model.User;
 import com.mindbase.repository.UserRepository;
 import com.mindbase.service.RateLimitService;
+import com.mindbase.service.TokenCacheService;
 import com.mindbase.service.UsageQuotaService;
 import com.mindbase.service.UserService;
 import com.mindbase.service.UserTokenService;
@@ -53,6 +54,9 @@ public class UserController {
 
     @Autowired
     private UserTokenService userTokenService;
+
+    @Autowired
+    private TokenCacheService tokenCacheService;
 
     // 用户注册接口
     // 接收用户请求体中的用户名和密码，并调用用户服务进行注册
@@ -430,7 +434,9 @@ public class UserController {
 
             // 使用户所有token失效
             jwtUtils.invalidateAllUserTokens(userId);
-            
+            // 同时吊销该用户全部 refresh token（task_0003：logout-all 必须覆盖 refresh family）
+            tokenCacheService.revokeRefreshFamily(userId);
+
             LogUtils.logUserOperation(username, "LOGOUT_ALL", "all_tokens_invalidation", "SUCCESS");
             monitor.end("批量登出成功");
 

@@ -8,6 +8,8 @@ import co.elastic.clients.elasticsearch.indices.stats.IndicesStats;
 import com.mindbase.client.DeepSeekClient;
 import com.mindbase.entity.SearchResult;
 import com.mindbase.model.FileUpload;
+import com.mindbase.model.SearchOutcome;
+import com.mindbase.model.SearchResponse;
 import com.mindbase.repository.FileUploadRepository;
 import com.mindbase.service.index.KnowledgeIndexNames;
 import com.mindbase.service.search.ParentContextExpander;
@@ -103,15 +105,19 @@ public class AgentToolRegistry {
         int topK = getInt(arguments, "topK", DEFAULT_TOP_K, 1, MAX_SEARCH_DOCS);
 
         // 小分块检索、父块交给模型：引用和证据片段仍指向命中的小分块
-        List<SearchResult> results = expandParents(hybridSearchService.searchWithPermission(query, userId, topK));
+        SearchResponse response = hybridSearchService.searchWithPermissionDetailed(query, userId, topK);
+        List<SearchResult> results = expandParents(response.results());
         // 下游 service 观测点（P1c traceId）：该行在聊天处理线程上执行，MDC pattern 会带上与 ChatHandler 相同的 traceId
-        logger.info("知识检索完成: userId={}, queryChars={}, topK={}, results={}",
-                userId, query.length(), topK, results.size());
+        logger.info("知识检索完成: userId={}, queryChars={}, topK={}, outcome={}, detail={}, results={}",
+                userId, query.length(), topK, response.outcome(), response.detail(), results.size());
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("query", query);
         data.put("topK", topK);
         data.put("results", results);
-        return new ToolExecutionResult("search_knowledge", true, formatSearchResults(results), data);
+        // task_0005：把检索分类带给下游（ChatHandler 引用格式化追加处置提示用），results 本身保持原样透传
+        data.put("outcome", response.outcome().name());
+        data.put("outcomeDetail", response.detail());
+        return new ToolExecutionResult("search_knowledge", true, outcomeText(response.outcome(), results), data);
     }
 
     private ToolExecutionResult executeGenerateSummary(Map<String, Object> arguments,
@@ -272,7 +278,6 @@ public class AgentToolRegistry {
         if (results == null || results.isEmpty()) {
             return "未检索到相关知识库片段。";
         }
-
         StringBuilder output = new StringBuilder("检索到 ").append(results.size()).append(" 个知识库片段。")
                 .append("请基于这些片段回答用户问题；不得声称知识库暂无相关信息。")
                 .append("如果片段信息不足，请说明“基于已检索片段只能确认……”并标注来源编号；")
@@ -312,6 +317,42 @@ public class AgentToolRegistry {
             }
         }
         return output.toString();
+    }
+
+    /**
+     * task_0005：按检索结果分类输出工具提示文本，不再把所有失败一律说成"未检索到"。
+     * HIT 沿用统一片段格式（索引确实无匹配的空结果仍是"未检索到相关知识库片段。"）；
+     * NO_PERMISSION_MATCH / RECALL_FAILED / BELOW_THRESHOLD 各自给模型明确的处置指引，
+     * 避免把"检索服务故障"或"权限不足"误当成"知识库没有相关资料"而编造回答。
+     */
+    public static String outcomeText(SearchOutcome outcome, List<SearchResult> results) {
+        return withOutcomeGuidance(formatSearchResults(results), outcome);
+    }
+
+    /**
+     * 带结果分类的引用编号格式化：引用列表与编号规则不变（引用标注数据流零改动），
+     * 仅在非 HIT 分类时调整提示文本（BELOW_THRESHOLD 追加兜底说明，失败分类替换为对应处置指引）。
+     */
+    public static String formatSearchResults(List<SearchResult> results, SearchOutcome outcome, int firstReferenceNumber) {
+        return withOutcomeGuidance(formatSearchResults(results, firstReferenceNumber), outcome);
+    }
+
+    private static String withOutcomeGuidance(String baseText, SearchOutcome outcome) {
+        if (outcome == null || outcome == SearchOutcome.HIT) {
+            return baseText;
+        }
+        return switch (outcome) {
+            case NO_PERMISSION_MATCH -> "未能完成知识库检索：当前账号没有可匹配的文档权限。"
+                    + "请直接告知用户暂时无法检索其权限范围内的知识库内容，建议检查账号权限或稍后重试；"
+                    + "不要编造内容，也不要声称知识库中没有相关资料。";
+            case RECALL_FAILED -> "知识库检索服务暂时不可用（召回失败）。"
+                    + "请告知用户检索服务出现故障、稍后重试；"
+                    + "不要编造内容，也不要声称知识库中没有相关资料。";
+            case BELOW_THRESHOLD -> baseText
+                    + "\n\n注意：以上片段的相关度均低于设定阈值，属于按融合排序兜底返回的参考内容。"
+                    + "回答时须说明这些片段与问题的匹配度有限，不要把它们当作确定性依据。";
+            case HIT -> baseText;
+        };
     }
 
     private static boolean hasParent(SearchResult result) {

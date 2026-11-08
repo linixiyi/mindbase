@@ -296,13 +296,13 @@ public class UploadController {
             if (fileUpload.getStatus() == FileUpload.STATUS_COMPLETED) {
                 LogUtils.logBusiness("MERGE_FILE", userId, "文件已完成合并，按幂等成功返回: fileMd5=%s, fileName=%s", request.fileMd5(), request.fileName());
                 monitor.end("文件已完成合并");
-                return buildAlreadyMergedResponse(request.fileMd5());
+                return buildAlreadyMergedResponse(userId, request.fileMd5());
             }
 
             if (fileUpload.getStatus() == FileUpload.STATUS_MERGING) {
                 throw new CustomException("文件正在合并中，请稍后重试", HttpStatus.CONFLICT);
             }
-            
+
             LogUtils.logBusiness("MERGE_FILE", userId, "权限验证通过，开始合并文件: fileMd5=%s, fileName=%s, fileType=%s", request.fileMd5(), request.fileName(), fileType);
             
             // 检查分片是否全部上传完成
@@ -332,7 +332,7 @@ public class UploadController {
                 if (latestFileUpload.getStatus() == FileUpload.STATUS_COMPLETED) {
                     LogUtils.logBusiness("MERGE_FILE", userId, "文件已被其他请求合并完成，按幂等成功返回: fileMd5=%s, fileName=%s", request.fileMd5(), request.fileName());
                     monitor.end("文件已完成合并");
-                    return buildAlreadyMergedResponse(request.fileMd5());
+                    return buildAlreadyMergedResponse(userId, request.fileMd5());
                 }
                 if (latestFileUpload.getStatus() == FileUpload.STATUS_MERGING) {
                     throw new CustomException("文件正在合并中，请稍后重试", HttpStatus.CONFLICT);
@@ -358,7 +358,7 @@ public class UploadController {
                     .orElseThrow(() -> new RuntimeException("文件记录不存在"));
 
             ParseService.EmbeddingEstimate embeddingEstimate = null;
-            try (io.minio.GetObjectResponse mergedFileStream = uploadService.getMergedFileStream(request.fileMd5())) {
+            try (io.minio.GetObjectResponse mergedFileStream = uploadService.getMergedFileStream(userId, request.fileMd5())) {
                 embeddingEstimate = parseService.estimateEmbeddingUsage(mergedFileStream);
                 fileUpload.setEstimatedEmbeddingTokens(embeddingEstimate.estimatedTokens());
                 fileUpload.setEstimatedChunkCount(embeddingEstimate.estimatedChunkCount());
@@ -440,9 +440,9 @@ public class UploadController {
         }
     }
 
-    private ResponseEntity<Map<String, Object>> buildAlreadyMergedResponse(String fileMd5) throws Exception {
+    private ResponseEntity<Map<String, Object>> buildAlreadyMergedResponse(String userId, String fileMd5) throws Exception {
         Map<String, Object> data = new HashMap<>();
-        data.put("object_url", uploadService.generateMergedObjectUrl(fileMd5));
+        data.put("object_url", uploadService.generateMergedObjectUrl(userId, fileMd5));
 
         Map<String, Object> response = new HashMap<>();
         response.put("code", 200);

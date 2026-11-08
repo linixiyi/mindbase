@@ -238,13 +238,15 @@ public class BootstrapKnowledgeInitializer implements CommandLineRunner {
         }
 
         try {
-            elasticsearchService.deleteByFileMd5(fileMd5);
+            // ES 删除查询带上传者维度（同一 MD5 可能被多个用户上传），只清理启动文档归属者的数据
+            elasticsearchService.deleteByFileMd5(ownerUserId, fileMd5);
         } catch (Exception e) {
             logger.warn("清理启动知识库 ES 数据失败: fileMd5={}, error={}", fileMd5, e.getMessage());
         }
 
         try {
-            documentVectorRepository.deleteByFileMd5(fileMd5);
+            // 向量记录按 (userId, fileMd5) 收口：同 MD5 被其他用户上传时，他们的向量不能被启动导入连带清掉
+            documentVectorRepository.deleteByUserIdAndFileMd5(ownerUserId, fileMd5);
         } catch (Exception e) {
             logger.warn("清理启动知识库分块数据失败: fileMd5={}, error={}", fileMd5, e.getMessage());
         }

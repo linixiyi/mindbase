@@ -15,6 +15,7 @@ import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.RemoveObjectArgs;
+import io.minio.StatObjectArgs;
 import io.minio.http.Method;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.tika.exception.TikaException;
@@ -178,12 +179,14 @@ public class DocumentService {
 
             if (!otherHolderExists) {
                 // 最后一个持有者：本次删除后该 MD5 归零，执行全局清理。
-                // 库内删除失败直接抛出，随事务一起回滚（含上面已删的记录），不留半删状态
+                // 库内删除失败直接抛出，随事务一起回滚（含上面已删的记录），不留半删状态。
+                // 向量记录与 ES 文档按上传者收口删除（向量表唯一键与 ES 文档 ID 均带 userId，
+                // 同 MD5 的其他用户数据各自独立，这里只需清掉最后持有者自己的那一份）
                 try {
-                    documentVectorRepository.deleteByFileMd5(fileMd5);
-                    logger.info("成功删除文档向量记录: {}", fileMd5);
+                    documentVectorRepository.deleteByUserIdAndFileMd5(targetUserId, fileMd5);
+                    logger.info("成功删除文档向量记录: userId={}, fileMd5={}", targetUserId, fileMd5);
                 } catch (Exception e) {
-                    logger.error("删除文档向量记录时出错: {}", fileMd5, e);
+                    logger.error("删除文档向量记录时出错: userId={}, fileMd5={}", targetUserId, fileMd5, e);
                     throw e;
                 }
 
@@ -196,42 +199,20 @@ public class DocumentService {
                     throw e;
                 }
 
-                // 删除Elasticsearch中的数据（外部资源，尽力清理）
+                // 删除Elasticsearch中的数据（查询带上传者维度，外部资源，尽力清理）
                 try {
-                    elasticsearchService.deleteByFileMd5(fileMd5);
-                    logger.info("成功从Elasticsearch删除文档: {}", fileMd5);
+                    elasticsearchService.deleteByFileMd5(targetUserId, fileMd5);
+                    logger.info("成功从Elasticsearch删除文档: userId={}, fileMd5={}", targetUserId, fileMd5);
                 } catch (Exception e) {
-                    logger.error("从Elasticsearch删除文档时出错: {}", fileMd5, e);
+                    logger.error("从Elasticsearch删除文档时出错: userId={}, fileMd5={}", targetUserId, fileMd5, e);
                     // 继续删除其他数据
                 }
 
-                // 删除MinIO中的文件（使用MD5作为对象路径，外部资源，尽力清理）
-                try {
-                    String objectName = "merged/" + fileUpload.getFileMd5();
-                    minioClient.removeObject(
-                            RemoveObjectArgs.builder()
-                                    .bucket("uploads")
-                                    .object(objectName)
-                                    .build()
-                    );
-                    logger.info("成功从MinIO删除文件: {}", objectName);
-                } catch (Exception e) {
-                    logger.warn("使用MD5路径删除文件失败，尝试使用文件名路径: {}", fileMd5);
-                    // 降级：尝试使用旧的文件名路径（兼容旧数据）
-                    try {
-                        String oldObjectName = "merged/" + fileUpload.getFileName();
-                        minioClient.removeObject(
-                                RemoveObjectArgs.builder()
-                                        .bucket("uploads")
-                                        .object(oldObjectName)
-                                        .build()
-                        );
-                        logger.info("使用旧路径成功从MinIO删除文件: {}", oldObjectName);
-                    } catch (Exception ex) {
-                        logger.error("从MinIO删除文件时出错（新旧路径都失败）: {}", fileMd5, ex);
-                        // 继续删除其他数据
-                    }
-                }
+                // 删除MinIO中的合并对象（上传者维度新键；旧数据可能仍在本轮租户化之前的
+                // 无上传者维度键或更早的文件名键下。删除是幂等操作，逐个尽力清理）
+                removeMergedObjectQuietly(UploadService.buildMergedObjectKey(targetUserId, fileUpload.getFileMd5()));
+                removeMergedObjectQuietly("merged/" + fileUpload.getFileMd5());
+                removeMergedObjectQuietly("merged/" + fileUpload.getFileName());
 
                 invalidatePdfSinglePagePreviewCache(fileMd5);
             } else {
@@ -239,10 +220,14 @@ public class DocumentService {
                 // 避免其后续重新上传同一文件时误判分片已经存在（库内删除，失败随事务回滚）
                 try {
                     int deletedChunkRows = chunkInfoRepository.deleteByFileMd5AndUserId(fileMd5, targetUserId);
-                    logger.info("同 MD5 仍有其他持有者，仅删除目标用户分片元数据: fileMd5={}, userId={}, deletedRows={}",
+                    // 向量与 ES 文档在租户键模型下已按 userId 独占：删除者自己的两份一并清理，
+                    // 否则「删除我的文件」后其内容仍可被自己检索（无 GC 路径）
+                    documentVectorRepository.deleteByUserIdAndFileMd5(targetUserId, fileMd5);
+                    elasticsearchService.deleteByFileMd5(targetUserId, fileMd5);
+                    logger.info("同 MD5 仍有其他持有者，删除目标用户分片元数据/向量/ES 文档: fileMd5={}, userId={}, deletedRows={}",
                             fileMd5, targetUserId, deletedChunkRows);
                 } catch (Exception e) {
-                    logger.error("删除目标用户分片元数据时出错: fileMd5={}, userId={}", fileMd5, targetUserId, e);
+                    logger.error("删除目标用户数据时出错: fileMd5={}, userId={}", fileMd5, targetUserId, e);
                     throw e;
                 }
             }
@@ -251,6 +236,21 @@ public class DocumentService {
         } catch (Exception e) {
             logger.error("删除文档过程中发生错误: fileMd5={}, userId={}, adminDelete={}", fileMd5, userId, adminDelete, e);
             throw new RuntimeException("删除文档失败: " + e.getMessage(), e);
+        }
+    }
+
+    /** 尽力删除 MinIO 对象：外部资源清理失败只记日志，不中断删除事务 */
+    private void removeMergedObjectQuietly(String objectName) {
+        try {
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket("uploads")
+                            .object(objectName)
+                            .build()
+            );
+            logger.info("已从MinIO删除合并对象: {}", objectName);
+        } catch (Exception e) {
+            logger.warn("从MinIO删除合并对象失败: {}, error: {}", objectName, e.getMessage());
         }
     }
 
@@ -263,16 +263,17 @@ public class DocumentService {
 
         markVectorizationProcessing(fileUpload, true);
 
-        try (InputStream fileStream = uploadService.getMergedFileStream(fileMd5)) {
+        try (InputStream fileStream = uploadService.getMergedFileStream(fileUpload.getUserId(), fileMd5)) {
             try {
-                // 只清理线上别名，保留旧版本索引中的数据用于回滚
-                elasticsearchService.deleteByFileMd5(KnowledgeIndexNames.ALIAS, fileMd5);
-                logger.info("重建前已清理 Elasticsearch 文档: {}", fileMd5);
+                // 只清理线上别名，保留旧版本索引中的数据用于回滚；按上传者收口，同 MD5 其他持有者的文档不受影响
+                elasticsearchService.deleteByFileMd5(KnowledgeIndexNames.ALIAS, fileUpload.getUserId(), fileMd5);
+                logger.info("重建前已清理 Elasticsearch 文档: userId={}, fileMd5={}", fileUpload.getUserId(), fileMd5);
             } catch (Exception e) {
                 logger.warn("重建前清理 Elasticsearch 失败: fileMd5={}, error={}", fileMd5, e.getMessage());
             }
 
-            documentVectorRepository.deleteByFileMd5(fileMd5);
+            // 只重建该记录归属者的分块与向量：同 MD5 其他持有者的向量各自独立，不能连带删除
+            documentVectorRepository.deleteByUserIdAndFileMd5(fileUpload.getUserId(), fileMd5);
             invalidatePdfSinglePagePreviewCache(fileMd5);
 
             parseService.parseAndSave(
@@ -326,19 +327,25 @@ public class DocumentService {
     }
 
     /**
-     * 清理文件已有的分块和索引，供重新解析前调用，保证重复处理不会产生重复分块。
+     * 清理指定上传者文件已有的分块和索引，供重新解析前调用，保证重复处理不会产生重复分块。
+     * 清理按 (userId, fileMd5) 收口：同一 MD5 可能被多个用户各自上传，只能清掉目标上传者自己的
+     * ES 文档与向量记录，不能碰其他用户的数据。
      * ES 只清理线上别名，保留旧版本索引中的数据用于回滚；ES 清理失败直接抛出，让任务重试而不是带着旧数据继续
      */
-    public void clearIndexedData(String fileMd5) {
-        elasticsearchService.deleteByFileMd5(KnowledgeIndexNames.ALIAS, fileMd5);
-        documentVectorRepository.deleteByFileMd5(fileMd5);
+    public void clearIndexedData(String userId, String fileMd5) {
+        elasticsearchService.deleteByFileMd5(KnowledgeIndexNames.ALIAS, userId, fileMd5);
+        documentVectorRepository.deleteByUserIdAndFileMd5(userId, fileMd5);
         invalidatePdfSinglePagePreviewCache(fileMd5);
-        logger.info("已清理文件旧分块和索引: fileMd5={}", fileMd5);
+        logger.info("已清理文件旧分块和索引: userId={}, fileMd5={}", userId, fileMd5);
     }
 
+    /**
+     * 提交异步向量化重试任务。按 (fileMd5, requesterId) 定位发起者自己的上传记录，
+     * 不再取全库第一条——同 MD5 被多个用户持有时，重试必须只重发发起者本人的那份
+     */
     @Transactional
     public FileUpload enqueueAsyncVectorizationRetry(String fileMd5, String requesterId) {
-        FileUpload fileUpload = fileUploadRepository.findFirstByFileMd5OrderByCreatedAtDesc(fileMd5)
+        FileUpload fileUpload = fileUploadRepository.findFirstByFileMd5AndUserIdOrderByCreatedAtDesc(fileMd5, requesterId)
                 .orElseThrow(() -> new RuntimeException("文件不存在"));
 
         FileProcessingTask task = new FileProcessingTask(
@@ -724,11 +731,9 @@ public class DocumentService {
             FileUpload fileUpload = fileUploadRepository.findFirstByFileMd5OrderByCreatedAtDesc(fileMd5)
                     .orElseThrow(() -> new RuntimeException("文件不存在: " + fileMd5));
 
-            // 优先使用新的MD5路径
-            String objectName = "merged/" + fileMd5;
-
             try {
-                // 尝试使用新路径（MD5）
+                // 优先使用上传者维度新键，存量数据按旧键回退
+                String objectName = resolveMergedObjectName(fileUpload.getUserId(), fileMd5, fileUpload.getFileName());
                 String presignedUrl = minioClient.getPresignedObjectUrl(
                         GetPresignedObjectUrlArgs.builder()
                                 .method(Method.GET)
@@ -737,14 +742,13 @@ public class DocumentService {
                                 .expiry(3600)
                                 .build()
                 );
-                logger.info("成功生成文件下载链接（新路径）: fileMd5={}, fileName={}, objectName={}",
+                logger.info("成功生成文件下载链接: fileMd5={}, fileName={}, objectName={}",
                         fileMd5, fileUpload.getFileName(), objectName);
 
                 // 使用 publicUrl 公开域名来替换原始域名
-                presignedUrl = uploadService.transToPublicUrl(presignedUrl);
-                return presignedUrl;
+                return uploadService.transToPublicUrl(presignedUrl);
             } catch (Exception e) {
-                logger.warn("使用新路径生成下载链接失败，尝试使用旧路径（文件名）: fileMd5={}", fileMd5);
+                logger.warn("生成下载链接失败，尝试使用旧的文件名路径（兼容旧数据）: fileMd5={}", fileMd5);
                 // 降级：尝试使用旧的文件名路径（兼容旧数据）
                 String oldObjectName = "merged/" + fileUpload.getFileName();
                 String presignedUrl = minioClient.getPresignedObjectUrl(
@@ -757,8 +761,7 @@ public class DocumentService {
                 );
                 logger.info("成功生成文件下载链接（旧路径）: fileMd5={}, fileName={}, objectName={}",
                         fileMd5, fileUpload.getFileName(), oldObjectName);
-                presignedUrl = uploadService.transToPublicUrl(presignedUrl);
-                return presignedUrl;
+                return uploadService.transToPublicUrl(presignedUrl);
             }
         } catch (Exception e) {
             logger.error("生成文件下载链接失败: fileMd5={}", fileMd5, e);
@@ -893,27 +896,48 @@ public class DocumentService {
     }
 
     private InputStream openFileStream(FileUpload fileUpload) throws Exception {
-        String objectName = "merged/" + fileUpload.getFileMd5();
+        String objectName = resolveMergedObjectName(fileUpload.getUserId(), fileUpload.getFileMd5(), fileUpload.getFileName());
+        InputStream inputStream = minioClient.getObject(
+                GetObjectArgs.builder()
+                        .bucket("uploads")
+                        .object(objectName)
+                        .build());
+        logger.info("获取文件流: fileMd5={}, objectName={}", fileUpload.getFileMd5(), objectName);
+        return inputStream;
+    }
 
+    /**
+     * 解析合并对象在 MinIO 中的实际键，供读路径与预签名使用：
+     * 优先上传者维度新键 merged/{userId}/{fileMd5}；对象不在时退回本轮租户化之前的旧键 merged/{fileMd5}
+     * （存量数据与启动知识库文档）；两者都不存在时返回最旧的文件名路径，让后续读取自然抛出缺失异常
+     */
+    private String resolveMergedObjectName(String userId, String fileMd5, String fileName) {
+        String scopedObjectName = UploadService.buildMergedObjectKey(userId, fileMd5);
+        if (mergedObjectExists(scopedObjectName)) {
+            return scopedObjectName;
+        }
+        String legacyObjectName = "merged/" + fileMd5;
+        if (mergedObjectExists(legacyObjectName)) {
+            logger.info("合并对象位于旧路径，按旧键读取: fileMd5={}, userId={}, objectName={}", fileMd5, userId, legacyObjectName);
+            return legacyObjectName;
+        }
+        String fileNameObjectName = "merged/" + fileName;
+        logger.warn("合并对象在新旧路径均不存在，按最旧的文件名路径回退: fileMd5={}, userId={}, objectName={}",
+                fileMd5, userId, fileNameObjectName);
+        return fileNameObjectName;
+    }
+
+    private boolean mergedObjectExists(String objectName) {
         try {
-            InputStream inputStream = minioClient.getObject(
-                    GetObjectArgs.builder()
+            minioClient.statObject(
+                    StatObjectArgs.builder()
                             .bucket("uploads")
                             .object(objectName)
-                            .build());
-            logger.info("使用新路径（MD5）获取文件流: fileMd5={}, objectName={}", fileUpload.getFileMd5(), objectName);
-            return inputStream;
+                            .build()
+            );
+            return true;
         } catch (Exception e) {
-            logger.warn("使用新路径获取文件失败，尝试使用旧路径（文件名）: fileMd5={}, error={}",
-                    fileUpload.getFileMd5(), e.getMessage());
-            String oldObjectName = "merged/" + fileUpload.getFileName();
-            InputStream inputStream = minioClient.getObject(
-                    GetObjectArgs.builder()
-                            .bucket("uploads")
-                            .object(oldObjectName)
-                            .build());
-            logger.info("使用旧路径（文件名）获取文件流: fileMd5={}, objectName={}", fileUpload.getFileMd5(), oldObjectName);
-            return inputStream;
+            return false;
         }
     }
 

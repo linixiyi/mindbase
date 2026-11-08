@@ -74,10 +74,10 @@ class VectorizationServiceTest {
         verify(elasticsearchService, times(3)).bulkIndex(batches.capture());
         assertEquals(List.of(10, 10, 5), batches.getAllValues().stream().map(List::size).toList());
         EsDocument first = batches.getAllValues().get(0).get(0);
-        assertEquals("md5_0", first.getId(), "固定 ID，重试时覆盖而不是重复写入");
+        assertEquals("u1_md5_0", first.getId(), "文档 ID 带上传者维度，重试时覆盖而不是重复写入");
         assertEquals(MODEL_VERSION, first.getModelVersion());
         assertEquals("org", first.getOrgTag());
-        assertEquals("md5_24", batches.getAllValues().get(2).get(4).getId());
+        assertEquals("u1_md5_24", batches.getAllValues().get(2).get(4).getId());
 
         // 每一批都是"读分块 → embedding → 写 ES"之后才读下一批
         InOrder order = inOrder(documentVectorRepository, embeddingClient, elasticsearchService);
@@ -183,6 +183,7 @@ class VectorizationServiceTest {
         DocumentVector vector = new DocumentVector();
         vector.setFileMd5("md5");
         vector.setChunkId(chunkId);
+        vector.setUserId("u1");
         vector.setTextContent("text-" + chunkId);
         return vector;
     }

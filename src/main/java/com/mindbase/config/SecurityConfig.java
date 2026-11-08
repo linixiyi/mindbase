@@ -50,6 +50,9 @@ public class SecurityConfig {
                             // 允许登录注册接口（registration-policy：注册页匿名读取注册模式，pm-033）
                             .requestMatchers("/api/v1/users/register", "/api/v1/users/login",
                                     "/api/v1/users/registration-policy").permitAll()
+                            // refresh token 轮换接口：凭请求体中的 refreshToken 换发，不要求 Authorization 头（task_0003）。
+                            // 只精确放开这一条路径，禁止整段 /api/v1/auth/**（如 /api/v1/auth/error 仍需认证）
+                            .requestMatchers("/api/v1/auth/refreshToken").permitAll()
                             // actuator 健康分层（P1c）：仅 health 主端点与 liveness/readiness 探针分组匿名可达，
                             // 组件细节由 show-details=when-authorized+roles=ADMIN 限制；其余 actuator 端点不暴露
                             .requestMatchers("/actuator/health", "/actuator/health/liveness",
