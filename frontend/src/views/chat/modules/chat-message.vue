@@ -5,6 +5,7 @@ import { getChatFailureCopy } from '@/constants/chat-failure';
 import { router } from '@/router';
 import { request } from '@/service/request';
 import { formatDate } from '@/utils/common';
+import { attachMarkdownSanitization, escapeHtml } from '@/utils/markdown';
 import { VueMarkdownIt } from '@/vendor/vue-markdown-shiki';
 defineOptions({ name: 'ChatMessage' });
 
@@ -15,6 +16,21 @@ const props = defineProps<{
 }>();
 
 const authStore = useAuthStore();
+
+// task_0004：渲染消毒——vendor 的 VueMarkdownIt 暴露 md 实例，这里在其首次渲染前
+// 同步挂上 DOMPurify 白名单消毒（幂等），LLM 产出的 <script>/<iframe>/onerror/
+// javascript: 等不可信 HTML 在进入 DOM 前被剥除；渲染管线与规则零改动
+type SanitizableMarkdownRenderer = Parameters<typeof attachMarkdownSanitization>[0];
+const markdownRef = ref<{ md?: SanitizableMarkdownRenderer | null } | null>(null);
+watch(
+  () => markdownRef.value?.md ?? null,
+  md => {
+    if (md) {
+      attachMarkdownSanitization(md);
+    }
+  },
+  { flush: 'sync' }
+);
 
 function handleCopy(content: string) {
   navigator.clipboard.writeText(content);
@@ -167,7 +183,10 @@ function createSourceLink(
     pageNumber: extras?.pageNumber
   });
 
-  const link = `来源#${sourceNum}: <span class="${linkClass}" data-file-id="${fileId}">${extras?.displayName || trimmedFileName}</span>`;
+  // task_0004：文件名来自 LLM 文本，拼接进 HTML 前显式转义，恶意文件名不再生成标签；
+  // sourceFiles 内保留原始文件名，引用标注数据流零改动
+  const safeDisplayName = escapeHtml(extras?.displayName || trimmedFileName);
+  const link = `来源#${sourceNum}: <span class="${linkClass}" data-file-id="${fileId}">${safeDisplayName}</span>`;
   // 引用校验判为不支撑的来源降低展示优先级，并提示用户自行核实
   return suspicious
     ? `${link}<span class="citation-suspicious-badge" title="引用校验：该片段可能无法支撑这句话">待核实</span>`
@@ -469,7 +488,7 @@ async function handleSourceFileClick(fileInfo: {
         </NButton>
       </div>
       <div v-else class="chat-answer" @click="handleContentClick">
-        <VueMarkdownIt :content="content" />
+        <VueMarkdownIt ref="markdownRef" :content="content" />
       </div>
     </template>
     <div class="chat-message__actions" :class="{ 'chat-message__actions--end': msg.role === 'user' }">
