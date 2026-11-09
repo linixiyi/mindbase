@@ -1,11 +1,18 @@
 package com.mindbase.service.eval;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mindbase.config.RagEvalProperties;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.Reader;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 评委模型与人工判定的一致性。只比较评委和人工都给出了 correct 的用例：
@@ -52,6 +59,86 @@ public record JudgeHumanAgreement(
      * 报告里单条用例的评委结论（评委调用失败或输出解析失败时 judgeCorrect 为 null）
      */
     public record JudgeLabel(String caseId, Boolean judgeCorrect, Integer judgeScore) {
+    }
+
+    /**
+     * 校准集单条样本：评委输入（question/referenceAnswer/candidateAnswer）与人工标注结论（humanCorrect/humanScore）。
+     * source 是样本在评测数据集里的原始条目 id，便于回溯；新建样本可缺省。
+     */
+    public record CalibrationCase(String id, String source, String question, String referenceAnswer,
+                                  String candidateAnswer, boolean humanCorrect, Integer humanScore) {
+
+        /** 转成一致率计算用的人工判定 */
+        public HumanVerdict toHumanVerdict() {
+            return new HumanVerdict(id, humanCorrect, humanScore, "calibration-v1", "calibration", null);
+        }
+    }
+
+    /**
+     * 加载校准集 JSONL：每行一个 {@link CalibrationCase}，空行与 # / // 开头的注释行跳过。
+     * 解析或字段校验失败直接抛 IllegalArgumentException（带行号）：校准门禁不允许静默丢样本。
+     */
+    public static List<CalibrationCase> loadCalibrationCases(Reader reader, ObjectMapper mapper) throws IOException {
+        List<CalibrationCase> cases = new ArrayList<>();
+        Set<String> seenIds = new HashSet<>();
+        try (BufferedReader buffered = new BufferedReader(reader)) {
+            String line;
+            int lineNo = 0;
+            while ((line = buffered.readLine()) != null) {
+                lineNo++;
+                String trimmed = line.strip();
+                if (trimmed.isEmpty() || trimmed.startsWith("#") || trimmed.startsWith("//")) {
+                    continue;
+                }
+                cases.add(parseCalibrationLine(trimmed, lineNo, mapper, seenIds));
+            }
+        }
+        return List.copyOf(cases);
+    }
+
+    private static CalibrationCase parseCalibrationLine(String line, int lineNo, ObjectMapper mapper,
+                                                        Set<String> seenIds) {
+        try {
+            JsonNode node = mapper.readTree(line);
+            String id = requiredText(node, "id", lineNo);
+            if (!seenIds.add(id)) {
+                throw new IllegalArgumentException("校准集 id 重复: " + id);
+            }
+            boolean humanCorrect = node.path("humanCorrect").isBoolean()
+                    ? node.path("humanCorrect").asBoolean()
+                    : fail(lineNo, "humanCorrect 必须是布尔值");
+            JsonNode scoreNode = node.path("humanScore");
+            Integer humanScore = null;
+            if (!scoreNode.isMissingNode() && !scoreNode.isNull()) {
+                if (!scoreNode.isInt() || scoreNode.asInt() < 1 || scoreNode.asInt() > 5) {
+                    throw new IllegalArgumentException("校准集第 " + lineNo + " 行 humanScore 必须在 1-5 之间");
+                }
+                humanScore = scoreNode.asInt();
+            }
+            return new CalibrationCase(id,
+                    node.path("source").isMissingNode() ? null : node.path("source").asText(null),
+                    requiredText(node, "question", lineNo),
+                    requiredText(node, "referenceAnswer", lineNo),
+                    requiredText(node, "candidateAnswer", lineNo),
+                    humanCorrect,
+                    humanScore);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("校准集第 " + lineNo + " 行不是合法 JSON: " + e.getMessage(), e);
+        }
+    }
+
+    private static String requiredText(JsonNode node, String field, int lineNo) {
+        String text = node.path(field).asText("");
+        if (text.isBlank()) {
+            throw new IllegalArgumentException("校准集第 " + lineNo + " 行缺少字段 " + field);
+        }
+        return text.trim();
+    }
+
+    private static boolean fail(int lineNo, String message) {
+        throw new IllegalArgumentException("校准集第 " + lineNo + " 行 " + message);
     }
 
     public static JudgeHumanAgreement compute(List<JudgeLabel> judgeLabels,

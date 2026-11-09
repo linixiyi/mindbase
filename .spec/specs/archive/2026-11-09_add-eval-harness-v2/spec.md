@@ -62,14 +62,14 @@
 ## 3. 功能范围
 
 ### 3.1 核心功能（MVP）
-- [ ] 报告 schema v2：版本、来源、全量 case 明细、token/费用
-- [ ] 评测默认走生产 ReAct 路径，保留单轮 RAG 对照
-- [ ] 检索指标：nDCG@K、多证据覆盖率、检索异常率、K 曲线
-- [ ] 生成与引用指标：faithfulness、citation precision/recall、拒答正确率
-- [ ] 评委独立化与 kappa 硬门禁（默认 0.6）
-- [ ] 统计口径：Wilson CI + McNemar / paired bootstrap + `--fail-if`
-- [ ] 本地门禁：`scripts/eval_gate.sh` 跑 20 题离线 fixture
-- [ ] 数据集重建：10 篇真实语料、≥120 题、dev/test 划分、gold 改 chunkId
+- [x] 报告 schema v2：版本、来源、全量 case 明细、token/费用
+- [x] 评测默认走生产 ReAct 路径，保留单轮 RAG 对照
+- [x] 检索指标：nDCG@K、多证据覆盖率、检索异常率、K 曲线
+- [x] 生成与引用指标：faithfulness、citation precision/recall、拒答正确率
+- [x] 评委独立化与 kappa 硬门禁（默认 0.6）
+- [x] 统计口径：Wilson CI + McNemar / paired bootstrap + `--fail-if`
+- [x] 本地门禁：`scripts/eval_gate.sh` 跑 20 题离线 fixture
+- [x] 数据集重建：10 篇真实语料、≥120 题、dev/test 划分、gold 改 chunkId
 
 ### 3.2 扩展功能
 - 旧报告按 Wilson CI 重述（作为交付文档，不阻塞）
@@ -120,13 +120,13 @@ Recommendation: B0 because A2 失败时也只是评委降级，不影响其余�
 - none.
 
 ## 6. 成功标准与验证方式
-- [ ] 标准 A：归档 JSON 含 schemaVersion/gitCommit/esAlias/embeddingModel/promptVersion 与全量 case 明细，可被第三方复核 -> verify: task_0001
-- [ ] 标准 B：评测默认走与生产一致的 ReAct 编排，可切换 rag 模式做对照 -> verify: task_0002
-- [ ] 标准 C：检索指标含 nDCG@5、多证据覆盖率、检索异常率，K 可配 -> verify: task_0003
-- [ ] 标准 D：评委与被测模型可不同族，kappa < 0.6 时报告标记不可用于发布 -> verify: task_0004
-- [ ] 标准 E：报告带 Wilson CI，配对比较用 McNemar / bootstrap，`--fail-if` 用 CI 下界判定 -> verify: task_0007
-- [ ] 标准 F：本地一条命令跑 20 题离线冒烟并通过 -> verify: task_0006
-- [ ] 标准 G：新题集基于 10 篇真实语料，≥120 题、含 dev/test 与 ≥15 条负样本 -> verify: task_0010
+- [x] 标准 A：归档 JSON 含 schemaVersion/gitCommit/esAlias/embeddingModel/promptVersion 与全量 case 明细，可被第三方复核 -> verify: task_0001
+- [x] 标准 B：评测默认走与生产一致的 ReAct 编排，可切换 rag 模式做对照 -> verify: task_0002
+- [x] 标准 C：检索指标含 nDCG@5、多证据覆盖率、检索异常率，K 可配 -> verify: task_0003
+- [x] 标准 D：评委与被测模型可不同族，kappa < 0.6 时报告标记不可用于发布 -> verify: task_0004
+- [x] 标准 E：报告带 Wilson CI，配对比较用 McNemar / bootstrap，`--fail-if` 用 CI 下界判定 -> verify: task_0007
+- [x] 标准 F：本地一条命令跑 20 题离线冒烟并通过 -> verify: task_0006
+- [x] 标准 G：新题集基于 10 篇真实语料，≥120 题、含 dev/test 与 ≥15 条负样本 -> verify: task_0010
 
 ## 7. 风险与约束
 - 风险点：抽取 `ChatPipeline` 会动到 R1 刚改过的 `ChatHandler` -> 缓解：本包必须在 R1 归档后从最新 main 开分支，且只做抽取不做行为变更

@@ -1,7 +1,9 @@
 # MindBase 评测集 v1：50 道题，针对本地知识库中已导入的文档（按 expectedFileNames 匹配）。每行一个用例，# 开头的行是注释。
 # expectedFileMd5s 与 expectedFileNames 至少填一个才会计算 Recall@K / MRR；两者都不填时只评估回答。
-{"id": "stack-springboot", "question": "MindBase基于哪个版本的 Spring Boot，使用哪个 Java 版本？", "expectedFileNames": ["mindbase.pdf"], "referenceAnswer": "MindBase基于 Spring Boot 3.4.2，使用 Java 17（JDK 17）开发。"}
-{"id": "stack-kafka-minio", "question": "MindBase里 Kafka、Redis 和 MinIO 分别用来做什么？", "expectedFileNames": ["mindbase.pdf"], "referenceAnswer": "Kafka 用于异步任务调度，Redis 用于缓存和对话上下文（多轮对话记忆）管理，MinIO 用于大文件分片上传与断点续传。"}
-{"id": "pipeline", "question": "MindBase处理一份上传文档的流程是什么？", "expectedFileNames": ["mindbase.pdf"], "referenceAnswer": "文档先解析并分块，再批量向量化，然后构建带权限信息的文档对象，最后批量写入 Elasticsearch。"}
-{"id": "hybrid-search", "question": "MindBase为什么同时保留关键词检索和语义检索？", "expectedFileNames": ["mindbase.pdf"], "referenceAnswer": "语义检索解决了关键词匹配查不到同义表达的问题，但精确关键词查询的场景依然存在，所以MindBase在 Elasticsearch 上同时提供关键词检索和语义检索。"}
-{"id": "realtime", "question": "MindBase通过什么技术把大模型生成的内容实时推送给前端？", "expectedFileNames": ["mindbase.pdf"], "referenceAnswer": "通过 WebSocket 实现实时通信，把大模型的流式输出逐步推送给前端。"}
+# v2 结构字段：split(dev|test，缺省按 dev 处理并 warn，报告标注 legacyDataset=true)、type、difficulty(1-3)、expectedRefusal。
+# 本文件是冒烟用 dev fixture：5 题全部标 dev；重复 id、非法 split、difficulty 不在 1-3 会被解析拒绝。
+{"id": "stack-springboot", "question": "MindBase基于哪个版本的 Spring Boot，使用哪个 Java 版本？", "split": "dev", "type": "fact", "difficulty": 1, "expectedRefusal": false, "expectedFileNames": ["mindbase.pdf"], "referenceAnswer": "MindBase基于 Spring Boot 3.4.2，使用 Java 17（JDK 17）开发。"}
+{"id": "stack-kafka-minio", "question": "MindBase里 Kafka、Redis 和 MinIO 分别用来做什么？", "split": "dev", "type": "multi", "difficulty": 2, "expectedRefusal": false, "expectedFileNames": ["mindbase.pdf"], "referenceAnswer": "Kafka 用于异步任务调度，Redis 用于缓存和对话上下文（多轮对话记忆）管理，MinIO 用于大文件分片上传与断点续传。"}
+{"id": "pipeline", "question": "MindBase处理一份上传文档的流程是什么？", "split": "dev", "type": "multi", "difficulty": 2, "expectedRefusal": false, "expectedFileNames": ["mindbase.pdf"], "referenceAnswer": "文档先解析并分块，再批量向量化，然后构建带权限信息的文档对象，最后批量写入 Elasticsearch。"}
+{"id": "hybrid-search", "question": "MindBase为什么同时保留关键词检索和语义检索？", "split": "dev", "type": "para", "difficulty": 2, "expectedRefusal": false, "expectedFileNames": ["mindbase.pdf"], "referenceAnswer": "语义检索解决了关键词匹配查不到同义表达的问题，但精确关键词查询的场景依然存在，所以MindBase在 Elasticsearch 上同时提供关键词检索和语义检索。"}
+{"id": "realtime", "question": "MindBase通过什么技术把大模型生成的内容实时推送给前端？", "split": "dev", "type": "fact", "difficulty": 1, "expectedRefusal": false, "expectedFileNames": ["mindbase.pdf"], "referenceAnswer": "通过 WebSocket 实现实时通信，把大模型的流式输出逐步推送给前端。"}

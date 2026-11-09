@@ -1,19 +1,29 @@
 package com.mindbase.service.eval;
 
 import com.mindbase.client.resilience.ModelCallPriority;
+import com.mindbase.client.resilience.ModelWebClientFactory;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mindbase.config.ChatDeadlineProperties;
 import com.mindbase.config.RagEvalProperties;
 import com.mindbase.entity.SearchResult;
 import com.mindbase.service.AgentToolRegistry;
+import com.mindbase.service.ChatHandler;
+import com.mindbase.service.ChatPipeline;
 import com.mindbase.service.HybridSearchService;
 import com.mindbase.service.LlmProviderRouter;
+import com.mindbase.service.ModelProviderConfigService;
 import com.mindbase.service.search.ParentContextExpander;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,11 +38,25 @@ import java.util.function.Supplier;
 /**
  * 跑单条评测用例：真实混合检索（以发起评测的管理员身份）→ 按问答的提示词约定生成回答 → 另起一次调用让评委打分。
  * 检索、生成、评委分开记录，任何一环失败都只影响本条用例。
+ * <p>
+ * 生成链路由 eval.mode 决定：
+ * <ul>
+ *   <li>react（默认）：走生产 {@link ChatPipeline} 的 ReAct 循环（轮次/工具调用/引用装配与线上一致），
+ *       工具检索以发起评测的管理员身份执行，模型调用以 eval.requester-id 计量；
+ *       评委证据使用模型 search_knowledge 实际命中的片段，轮次与引用编号写入 reactTrace；</li>
+ *   <li>rag：检索单轮直答（历史口径，与改造前一致），评委证据使用 topK 直接检索结果。</li>
+ * </ul>
  */
 @Service
 public class RagEvalCaseRunner {
 
     private static final Logger logger = LoggerFactory.getLogger(RagEvalCaseRunner.class);
+
+    /**
+     * 评委来源标记：eval.judge.provider 未配置时评委与生成共用主供应商链路，报告以此标注。
+     * 同一模型自评的一致率会虚高，kappa 门禁（eval.human-agreement.min-kappa）正是为这种场景准备的。
+     */
+    public static final String SELF_JUDGE = "SELF_JUDGE";
 
     static final String JUDGE_SYSTEM_PROMPT = """
             你是 RAG 问答评测的评委。输入是一个 JSON 对象，字段含义：
@@ -56,6 +80,26 @@ public class RagEvalCaseRunner {
     private final RagEvalProperties properties;
     private final ObjectMapper objectMapper;
     private final Executor llmExecutor;
+    /** react 模式使用的 headless 编排实例；rag 模式为 null。会话/持久化基础设施为空：headless 不做会话与落库 */
+    private final ChatPipeline reactPipeline;
+    /** 评委独立供应商解析；未注入或 eval.judge.provider 未配置时评委走主链路（SELF_JUDGE） */
+    private final ModelProviderConfigService modelProviderConfigService;
+    private final ModelWebClientFactory modelWebClientFactory;
+
+    @Autowired
+    public RagEvalCaseRunner(HybridSearchService hybridSearchService,
+                             LlmProviderRouter llmProviderRouter,
+                             ParentContextExpander parentContextExpander,
+                             RagEvalProperties properties,
+                             ObjectMapper objectMapper,
+                             @Qualifier("evalLlmExecutor") Executor llmExecutor,
+                             AgentToolRegistry agentToolRegistry,
+                             ModelProviderConfigService modelProviderConfigService,
+                             ModelWebClientFactory modelWebClientFactory) {
+        this(hybridSearchService, llmProviderRouter, parentContextExpander, properties, objectMapper, llmExecutor,
+                buildReactPipeline(hybridSearchService, llmProviderRouter, agentToolRegistry, objectMapper),
+                modelProviderConfigService, modelWebClientFactory);
+    }
 
     public RagEvalCaseRunner(HybridSearchService hybridSearchService,
                              LlmProviderRouter llmProviderRouter,
@@ -63,12 +107,53 @@ public class RagEvalCaseRunner {
                              RagEvalProperties properties,
                              ObjectMapper objectMapper,
                              @Qualifier("evalLlmExecutor") Executor llmExecutor) {
+        this(hybridSearchService, llmProviderRouter, parentContextExpander, properties, objectMapper, llmExecutor,
+                (ChatPipeline) null, null, null);
+    }
+
+    public RagEvalCaseRunner(HybridSearchService hybridSearchService,
+                             LlmProviderRouter llmProviderRouter,
+                             ParentContextExpander parentContextExpander,
+                             RagEvalProperties properties,
+                             ObjectMapper objectMapper,
+                             @Qualifier("evalLlmExecutor") Executor llmExecutor,
+                             AgentToolRegistry agentToolRegistry) {
+        this(hybridSearchService, llmProviderRouter, parentContextExpander, properties, objectMapper, llmExecutor,
+                buildReactPipeline(hybridSearchService, llmProviderRouter, agentToolRegistry, objectMapper),
+                null, null);
+    }
+
+    private static ChatPipeline buildReactPipeline(HybridSearchService hybridSearchService,
+                                                   LlmProviderRouter llmProviderRouter,
+                                                   AgentToolRegistry agentToolRegistry,
+                                                   ObjectMapper objectMapper) {
+        return new ChatPipeline(null, hybridSearchService, llmProviderRouter, null, null, null, null,
+                agentToolRegistry, null, objectMapper, null, new ChatDeadlineProperties());
+    }
+
+    private RagEvalCaseRunner(HybridSearchService hybridSearchService,
+                              LlmProviderRouter llmProviderRouter,
+                              ParentContextExpander parentContextExpander,
+                              RagEvalProperties properties,
+                              ObjectMapper objectMapper,
+                              Executor llmExecutor,
+                              ChatPipeline reactPipeline,
+                              ModelProviderConfigService modelProviderConfigService,
+                              ModelWebClientFactory modelWebClientFactory) {
         this.hybridSearchService = hybridSearchService;
         this.llmProviderRouter = llmProviderRouter;
         this.parentContextExpander = parentContextExpander;
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.llmExecutor = llmExecutor;
+        this.reactPipeline = reactPipeline;
+        this.modelProviderConfigService = modelProviderConfigService;
+        this.modelWebClientFactory = modelWebClientFactory;
+    }
+
+    /** 评测生成链路；react 为默认，rag 保留历史口径 */
+    boolean reactMode() {
+        return !"rag".equalsIgnoreCase(properties.getMode());
     }
 
     public EvalCaseResult run(EvalCase evalCase, String searchUserId, int topK, HumanReviewSampler sampler) {
@@ -90,7 +175,11 @@ public class RagEvalCaseRunner {
         results = expandParents(results);
 
         try {
-            draft.answer = generate(evalCase.question(), results);
+            if (reactMode()) {
+                generateViaReactPipeline(draft, evalCase, searchUserId);
+            } else {
+                draft.answer = generate(evalCase.question(), results);
+            }
         } catch (Exception e) {
             logger.warn("评测用例生成失败: case={}, error={}", evalCase.id(), e.getMessage());
             draft.error = "生成失败: " + rootMessage(e);
@@ -98,12 +187,49 @@ public class RagEvalCaseRunner {
 
         JudgeVerdict verdict = null;
         if (draft.answer != null) {
-            verdict = judge(evalCase, draft.answer, results);
+            // react 模式评委看模型 search_knowledge 实际命中的片段（编造判定与生成证据一致）；rag 模式沿用 topK 直接检索结果
+            List<SearchResult> judgeEvidence = draft.reactEvidence != null ? draft.reactEvidence : results;
+            verdict = judge(evalCase, draft.answer, judgeEvidence);
             draft.verdict = verdict;
+            // 生成与引用指标与评委用同一份证据："有据"/"引用指向"始终相对于模型生成时实际看到的片段
+            GenerationMetrics.Evaluation generation =
+                    GenerationMetrics.evaluateCase(evalCase, draft.answer, judgeEvidence);
+            draft.claimVerdicts = generation.claimVerdicts();
+            draft.generation = generation.metrics();
         }
         draft.diagnosis = EvalDiagnosis.classify(draft.retrievalHit, draft.answer != null, verdict);
         boolean judgeFailed = draft.answer != null && (verdict == null || verdict.parseFailed());
         return draft.build(sampler.decide(judgeFailed), System.currentTimeMillis() - start);
+    }
+
+    /**
+     * react 模式生成：走生产 ChatPipeline 的 headless ReAct 运行（同一循环、同一工具执行、同一引用装配），
+     * 轮次/工具调用计数、引用编号与 token 用量随结果带回写入用例明细
+     */
+    private void generateViaReactPipeline(Draft draft, EvalCase evalCase, String searchUserId) throws Exception {
+        if (reactPipeline == null) {
+            throw new IllegalStateException("eval.mode=react 需要 AgentToolRegistry 构造的 ChatPipeline（检查评测 runner 装配）");
+        }
+        ChatPipeline.ReActRunResult react = reactPipeline.runHeadless(searchUserId, properties.getRequesterId(),
+                evalCase.question(), List.of(), Duration.ofSeconds(Math.max(properties.getGenerationTimeoutSeconds(), 1)));
+        draft.answer = react.answer();
+        draft.reactEvidence = react.toolRetrieved().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(Map.Entry::getValue)
+                .toList();
+        draft.tokenUsage = new EvalCaseResult.TokenUsage(react.promptTokens(), react.completionTokens(),
+                react.promptTokens() + react.completionTokens());
+        List<Integer> referenceNumbers = react.references().keySet().stream().sorted().toList();
+        List<EvalCaseResult.RetrievedChunk> referenceChunks = new ArrayList<>(referenceNumbers.size());
+        for (Integer number : referenceNumbers) {
+            ChatHandler.ReferenceInfo info = react.references().get(number);
+            SearchResult source = react.toolRetrieved().get(number);
+            boolean relevant = evalCase.hasExpectedDocs() && source != null && RetrievalMetrics.isRelevant(source, evalCase);
+            referenceChunks.add(new EvalCaseResult.RetrievedChunk(number, info.fileMd5(), info.fileName(),
+                    info.chunkId(), info.score(), relevant));
+        }
+        draft.reactTrace = new EvalCaseResult.ReactTrace(react.modelRounds(), react.toolCallRounds(), react.toolCalls(),
+                referenceNumbers, List.copyOf(referenceChunks));
     }
 
     private List<SearchResult> expandParents(List<SearchResult> results) {
@@ -123,12 +249,16 @@ public class RagEvalCaseRunner {
                 ? "NONE"
                 : results.get(0).getRetrievalMode();
         List<EvalCaseResult.RetrievedChunk> retrieved = new ArrayList<>(results.size());
+        List<EvalCaseResult.RetrievedText> retrievedText = new ArrayList<>(results.size());
         for (int i = 0; i < results.size(); i++) {
             SearchResult r = results.get(i);
             retrieved.add(new EvalCaseResult.RetrievedChunk(i + 1, r.getFileMd5(), r.getFileName(), r.getChunkId(),
                     r.getScore(), evalCase.hasExpectedDocs() && RetrievalMetrics.isRelevant(r, evalCase)));
+            // v2 明细：评委与第三方复核"回答是否有据"需要片段正文
+            retrievedText.add(new EvalCaseResult.RetrievedText(i + 1, r.getTextContent()));
         }
         draft.retrieved = retrieved;
+        draft.retrievedText = retrievedText;
         if (!evalCase.hasExpectedDocs()) {
             return;
         }
@@ -164,8 +294,12 @@ public class RagEvalCaseRunner {
             List<Map<String, Object>> messages = List.of(
                     Map.of("role", "system", "content", JUDGE_SYSTEM_PROMPT),
                     Map.of("role", "user", "content", objectMapper.writeValueAsString(payload)));
-            LlmProviderRouter.ReActTurn turn = completeAllowingOneRetry(messages, properties.getJudgeMaxTokens(),
-                    properties.getJudgeTimeoutSeconds(), "评委");
+            // 评委通道：配置了 eval.judge.provider 走独立供应商定向调用，否则与生成共用主链路（SELF_JUDGE）
+            LlmProviderRouter.ReActTurn turn = independentJudgeConfigured()
+                    ? completeAllowingOneRetry(messages, properties.getJudgeMaxTokens(),
+                            properties.getJudgeTimeoutSeconds(), "评委", this::completeWithJudgeProvider)
+                    : completeAllowingOneRetry(messages, properties.getJudgeMaxTokens(),
+                            properties.getJudgeTimeoutSeconds(), "评委");
             if (isEmpty(turn)) {
                 return JudgeVerdict.failed("评委输出为空（finish_reason=" + finishReason(turn) + "）", null);
             }
@@ -173,6 +307,77 @@ public class RagEvalCaseRunner {
         } catch (Exception e) {
             logger.warn("评委调用失败: case={}, error={}", evalCase.id(), e.getMessage());
             return JudgeVerdict.failed("评委调用失败: " + rootMessage(e), null);
+        }
+    }
+
+    /**
+     * 评委实际使用的模型来源，写入报告供复核：配置 eval.judge.provider 时为 provider（配置了 eval.judge.model
+     * 则为 provider/model），未配置时返回 {@link #SELF_JUDGE}——评委与生成共用主供应商，同一模型自评。
+     */
+    public String judgeLlmDescription() {
+        if (!independentJudgeConfigured()) {
+            return SELF_JUDGE;
+        }
+        RagEvalProperties.Judge judge = properties.getJudge();
+        return judge.getModel() == null || judge.getModel().isBlank()
+                ? judge.getProvider().trim()
+                : judge.getProvider().trim() + "/" + judge.getModel().trim();
+    }
+
+    /** eval.judge.provider 是否配置了非空供应商编码 */
+    boolean independentJudgeConfigured() {
+        RagEvalProperties.Judge judge = properties.getJudge();
+        return judge != null && judge.getProvider() != null && !judge.getProvider().isBlank();
+    }
+
+    /**
+     * 评委走独立供应商：eval.judge.provider 按 llm scope 定向解析（不要求处于激活状态），eval.judge.model 覆盖该供应商默认模型。
+     * 该通道不经 LlmProviderRouter 的主备切换与限流预留（eval.requester-id 以 system 开头本就豁免用户配额）；
+     * 供应商解析失败或调用失败按评委失败处理（JUDGE_FAILED + 人工复核），绝不静默回退到生成模型自评。
+     */
+    private LlmProviderRouter.ReActTurn completeWithJudgeProvider(List<Map<String, Object>> messages,
+                                                                  int maxTokens) throws Exception {
+        ModelProviderConfigService.ActiveProviderView provider = modelProviderConfigService.getProvider(
+                ModelProviderConfigService.SCOPE_LLM, properties.getJudge().getProvider().trim());
+        RagEvalProperties.Judge judge = properties.getJudge();
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("model", judge.getModel() == null || judge.getModel().isBlank()
+                ? provider.model()
+                : judge.getModel().trim());
+        request.put("messages", messages);
+        request.put("stream", false);
+        request.put("max_tokens", Math.max(maxTokens, 1));
+        String responseBody = modelWebClientFactory.clientFor(ModelProviderConfigService.SCOPE_LLM, provider)
+                .post()
+                .uri("/chat/completions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block(Duration.ofSeconds(Math.max(properties.getJudgeTimeoutSeconds(), 1)));
+        return parseJudgeTurn(responseBody);
+    }
+
+    /** 独立供应商返回体按 OpenAI 兼容格式取 choices[0].message.content / finish_reason / usage（评委不使用工具） */
+    private LlmProviderRouter.ReActTurn parseJudgeTurn(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) {
+            throw new IllegalStateException("评委模型响应为空");
+        }
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            JsonNode choice = root.path("choices").path(0);
+            JsonNode message = choice.path("message");
+            if (!message.isObject()) {
+                throw new IllegalStateException("评委模型响应缺少 message");
+            }
+            JsonNode usage = root.path("usage");
+            return new LlmProviderRouter.ReActTurn(message.path("content").asText("").trim(),
+                    List.of(), Map.of(),
+                    choice.path("finish_reason").asText("unknown"),
+                    usage.path("prompt_tokens").asInt(0),
+                    usage.path("completion_tokens").asInt(0));
+        } catch (Exception e) {
+            throw new RuntimeException("解析评委模型响应失败", e);
         }
     }
 
@@ -195,13 +400,26 @@ public class RagEvalCaseRunner {
         return evidence;
     }
 
+    /** 单轮补全通道：评委未配置独立供应商时走共享 router 主链路；配置后走 {@link #completeWithJudgeProvider} 定向调用 */
+    @FunctionalInterface
+    private interface ChatCompletion {
+        LlmProviderRouter.ReActTurn complete(List<Map<String, Object>> messages, int maxTokens) throws Exception;
+    }
+
     /**
      * 推理模型的思考过程也计入 max_tokens，预算用完时 content 为空、finish_reason=length。
      * 输出为空时重试一次：因长度截断的把预算翻倍（不超过 eval.max-retry-tokens），其他原因按原预算重试。
      */
     private LlmProviderRouter.ReActTurn completeAllowingOneRetry(List<Map<String, Object>> messages, int maxTokens,
                                                                  int timeoutSeconds, String stage) throws Exception {
-        LlmProviderRouter.ReActTurn turn = complete(messages, maxTokens, timeoutSeconds);
+        return completeAllowingOneRetry(messages, maxTokens, timeoutSeconds, stage,
+                (msgs, tokens) -> complete(msgs, tokens, timeoutSeconds));
+    }
+
+    private LlmProviderRouter.ReActTurn completeAllowingOneRetry(List<Map<String, Object>> messages, int maxTokens,
+                                                                 int timeoutSeconds, String stage,
+                                                                 ChatCompletion channel) throws Exception {
+        LlmProviderRouter.ReActTurn turn = channel.complete(messages, maxTokens);
         if (!isEmpty(turn)) {
             return turn;
         }
@@ -209,7 +427,7 @@ public class RagEvalCaseRunner {
                 ? Math.max(maxTokens, Math.min(maxTokens * 2, properties.getMaxRetryTokens()))
                 : maxTokens;
         logger.warn("评测{}输出为空，重试一次: finish_reason={}, maxTokens={} -> {}", stage, finishReason(turn), maxTokens, retryTokens);
-        return complete(messages, retryTokens, timeoutSeconds);
+        return channel.complete(messages, retryTokens);
     }
 
     private LlmProviderRouter.ReActTurn complete(List<Map<String, Object>> messages, int maxTokens, int timeoutSeconds)
@@ -273,6 +491,7 @@ public class RagEvalCaseRunner {
         private final EvalCase evalCase;
         private String retrievalMode = "NONE";
         private List<EvalCaseResult.RetrievedChunk> retrieved = List.of();
+        private List<EvalCaseResult.RetrievedText> retrievedText = List.of();
         private Boolean retrievalHit;
         private Boolean docHit;
         private Integer firstRelevantRank;
@@ -282,6 +501,13 @@ public class RagEvalCaseRunner {
         private JudgeVerdict verdict;
         private EvalDiagnosis diagnosis;
         private String error;
+        /* react 模式专属：模型实际检索证据（评委用）、轮次与引用明细、LLM 用量；rag 模式保持 null */
+        private List<SearchResult> reactEvidence;
+        private EvalCaseResult.ReactTrace reactTrace;
+        private EvalCaseResult.TokenUsage tokenUsage;
+        /* v2 生成与引用指标：claim 级判定与 refusal/faithfulness/citation，回答产出后填充 */
+        private List<EvalCaseResult.ClaimVerdict> claimVerdicts;
+        private GenerationMetrics.Result generation;
 
         private Draft(EvalCase evalCase) {
             this.evalCase = evalCase;
@@ -313,7 +539,12 @@ public class RagEvalCaseRunner {
                     reviewReason != null,
                     reviewReason,
                     error != null ? error : judgeError,
-                    latencyMs);
+                    latencyMs,
+                    retrievedText,
+                    claimVerdicts,
+                    tokenUsage,
+                    reactTrace,
+                    generation);
         }
     }
 }

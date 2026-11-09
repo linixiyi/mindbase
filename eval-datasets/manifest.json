@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "purpose": "MindBase 离线评测语料（R2 task_0010 的前置输入）；本地使用，PDF 不入库",
+  "createdAt": "2026-11-09",
+  "selection": "10 篇，覆盖中英文 / 论文双栏 / 教材 / 报告 / 幻灯片 / 扫描件；页数 12–203，字符密度 66–4719 字符/页",
+  "documents": [
+    {
+      "name": "01-clip-radford-2021.pdf",
+      "title": "CLIP: Learning Transferable Visual Models From Natural Language Supervision",
+      "lang": "en",
+      "kind": "academic-2col",
+      "pages": 48,
+      "charsPerPage": 4719,
+      "mb": 6.5,
+      "md5": "1fc956711b1d99f17c09102e6f73ff2e"
+    },
+    {
+      "name": "02-dinov2-oquab-2024.pdf",
+      "title": "DINOv2: Learning Robust Visual Features without Supervision",
+      "lang": "en",
+      "kind": "academic-tmlr",
+      "pages": 32,
+      "charsPerPage": 3299,
+      "mb": 7.7,
+      "md5": "cf7a4fe0f316cba2a4727a24ba185527"
+    },
+    {
+      "name": "03-denoising-vit-yang-2024.pdf",
+      "title": "Denoising Vision Transformers",
+      "lang": "en",
+      "kind": "academic-2col",
+      "pages": 34,
+      "charsPerPage": 2244,
+      "mb": 20.8,
+      "md5": "0b4044f03691d6448c32dcc193efd210"
+    },
+    {
+      "name": "04-tactile-force-chen-2025.pdf",
+      "title": "General Force Sensation for Tactile Robot",
+      "lang": "en",
+      "kind": "academic-2col",
+      "pages": 40,
+      "charsPerPage": 2269,
+      "mb": 27.3,
+      "md5": "3592bb7f2f9c3a7f1e7ce02e78747d6d"
+    },
+    {
+      "name": "05-medical-instrumentation-ch2.pdf",
+      "title": "Medical Instrumentation (textbook chapter): input/output resistance, design criteria, regulation",
+      "lang": "en",
+      "kind": "textbook",
+      "pages": 59,
+      "charsPerPage": 1724,
+      "mb": 1,
+      "md5": "6d7c6338432c26b14ce7a57932e47305"
+    },
+    {
+      "name": "06-drug-discovery-a16z.pdf",
+      "title": "Drug Discovery Has No Magic Wands (a16z, Daphne Koller)",
+      "lang": "en",
+      "kind": "report",
+      "pages": 12,
+      "charsPerPage": 1588,
+      "mb": 3.5,
+      "md5": "fcbea2542f131a72ab499a95c407256c"
+    },
+    {
+      "name": "07-os-filesystem-ppt-zh.pdf",
+      "title": "操作系统 第四章 文件系统（PPT 导出，203 页，基本无可提取文本）",
+      "lang": "zh",
+      "kind": "scan-slides",
+      "pages": 203,
+      "charsPerPage": 66,
+      "mb": 14.5,
+      "md5": "3e969d119bc81916da3545e1ffd602c7"
+    },
+    {
+      "name": "08-os-review-zh.pdf",
+      "title": "操作系统强化讲义（一）问答与答案",
+      "lang": "zh",
+      "kind": "qa-notes",
+      "pages": 24,
+      "charsPerPage": 498,
+      "mb": 2.1,
+      "md5": "0f44c50208a7d942b3b80f22f313274c"
+    },
+    {
+      "name": "09-bme6144-week6-slides.pdf",
+      "title": "BME6144 Week 6 - Surface Engineering and Biointerfaces",
+      "lang": "en",
+      "kind": "slides",
+      "pages": 34,
+      "charsPerPage": 503,
+      "mb": 2.1,
+      "md5": "75fc40341c3b0caebddfe0600a3bf119"
+    },
+    {
+      "name": "10-bme6111-week4-slides.pdf",
+      "title": "BME 6111 Week 4 - Biopotentials and electrodes",
+      "lang": "en",
+      "kind": "slides",
+      "pages": 40,
+      "charsPerPage": 610,
+      "mb": 2.4,
+      "md5": "4ca04ccacafaed5689b266026dae6e34"
+    }
+  ]
+}

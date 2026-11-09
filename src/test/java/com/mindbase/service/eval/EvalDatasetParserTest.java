@@ -86,7 +86,7 @@ class EvalDatasetParserTest {
     void bundledMindbaseDatasetHasEvidenceForEveryLabeledCase() throws Exception {
         try (var in = getClass().getResourceAsStream("/eval/mindbase-eval-v1.jsonl")) {
             List<EvalCase> cases = EvalDatasetParser.parse(new InputStreamReader(in, StandardCharsets.UTF_8), objectMapper, 100);
-            assertEquals(50, cases.size());
+            assertEquals(53, cases.size(), "50 道原有题 + 3 道负向权限题（negperm-）");
             assertTrue(cases.stream().filter(EvalCase::hasExpectedDocs).allMatch(EvalCase::hasExpectedEvidence));
         }
     }

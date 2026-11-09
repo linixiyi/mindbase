@@ -53,6 +53,8 @@ class JudgeHumanAgreementTest {
             verdicts.put("c" + i, new HumanVerdict("c" + i, i != 9, null, null, "admin", null));
         }
 
+        // 默认 minKappa=0.6 会拦截 κ=0，这里先关掉 kappa 门禁验证"可选"语义
+        config.setMinKappa(null);
         JudgeHumanAgreement ok = JudgeHumanAgreement.compute(labels, verdicts, config);
         assertEquals(JudgeHumanAgreement.Status.OK, ok.status());
         assertEquals(0.0, ok.cohensKappa(), 1e-9);

@@ -51,6 +51,8 @@ class RagEvalCaseRunnerTest {
     @BeforeEach
     void setUp() {
         parentProperties.setEnabled(false);
+        // 本测试类校验 rag（检索单轮直答）链路的历史行为；react 链路见 EvalReActPipelineTest
+        properties.setMode("rag");
         runner = new RagEvalCaseRunner(searchService, router,
                 new ParentContextExpander(parentProperties, documentVectorRepository), properties, objectMapper, Runnable::run);
         when(router.buildRagMessages(anyString(), anyString()))

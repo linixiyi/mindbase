@@ -13,7 +13,13 @@ import java.util.stream.Collectors;
  * 检索指标：
  * - Recall@K（本项目口径）：前 K 条结果里只要出现任一相关分块即记为命中，数据集上取命中率；
  * - 倒数排名 RR：第一条相关分块排在第 r 位时为 1/r，前 K 条都没有时为 0，数据集上取平均即 MRR；
- * - 期望文档覆盖率：前 K 条覆盖了多少比例的期望文档（一道题需要多篇文档时参考）。
+ * - nDCG@K：相关分块越靠前得分越高。DCG = Σ rel_i / log2(i+1)（i 为 1 起的排名，rel 二值，
+ *   按 {@link #isRelevant} 判定），再除以"全部相关分块置顶"的理想 DCG 归一；
+ *   唯一相关分块排第 1 位时 nDCG=1，排第 r 位时为 1/log2(r+1)，前 K 都不相关时为 0。
+ *   理想 DCG 只用前 K 内的相关分块数（检索侧只拿到 topK 列表）。
+ * - 期望项覆盖率：前 K 条覆盖了多少比例的期望项。标注了 expectedEvidence 的用例按证据短语算
+ *   （命中的短语数 / 短语总数，两证据题只命中一条即 0.5，不再按"命中过一次"记满）；
+ *   否则按期望文档算（命中的期望文档数 / 期望文档总数）。
  * 期望文档优先按 MD5 匹配，其次按文件名（忽略大小写）匹配。
  * 用例标注了 expectedEvidence 时，相关分块还要求分块文本包含其中任意一个短语（分块级）；
  * 否则同一文件的任何分块都算相关（文件级）。文件级命中另外单独记录，用来对比两种口径的差距。
@@ -60,9 +66,69 @@ public final class RetrievalMetrics {
     }
 
     /**
-     * 前 K 条结果覆盖的期望文档比例；一个期望项（MD5 或文件名）被任一结果命中即算覆盖
+     * nDCG@K：相关性二值（按 {@link #isRelevant}），唯一相关分块排第 1 位时为 1，排第 r 位时为 1/log2(r+1)。
+     * 理想排序取前 K 内的全部相关分块置顶（检索侧只有 topK 列表，K 之外的相关性不可见）。
+     */
+    public static double ndcgAtK(List<SearchResult> results, EvalCase evalCase, int k) {
+        int limit = limit(results, k);
+        if (limit == 0) {
+            return 0d;
+        }
+        double dcg = 0d;
+        int relevant = 0;
+        for (int i = 0; i < limit; i++) {
+            if (isRelevant(results.get(i), evalCase)) {
+                relevant++;
+                dcg += 1d / log2Discount(i + 1);
+            }
+        }
+        return ndcg(dcg, relevant, k);
+    }
+
+    /**
+     * nDCG@K 的报告侧入口：直接按用例明细里记录的分块（rank 1 起、relevant 为用例标注判定）计算，
+     * 与 {@link #ndcgAtK(List, EvalCase, int)} 在同一份检索结果上取值一致。
+     */
+    public static double ndcgAtK(List<EvalCaseResult.RetrievedChunk> retrieved, int k) {
+        if (retrieved == null || retrieved.isEmpty() || k <= 0) {
+            return 0d;
+        }
+        double dcg = 0d;
+        int relevant = 0;
+        for (EvalCaseResult.RetrievedChunk chunk : retrieved) {
+            if (chunk.relevant() && chunk.rank() >= 1 && chunk.rank() <= k) {
+                relevant++;
+                dcg += 1d / log2Discount(chunk.rank());
+            }
+        }
+        return ndcg(dcg, relevant, k);
+    }
+
+    private static double ndcg(double dcg, int relevantInTopK, int k) {
+        if (relevantInTopK == 0) {
+            return 0d;
+        }
+        double idcg = 0d;
+        for (int rank = 1; rank <= Math.min(relevantInTopK, k); rank++) {
+            idcg += 1d / log2Discount(rank);
+        }
+        return dcg / idcg;
+    }
+
+    /** 排名 i（1 起）的折损 log2(i+1) */
+    private static double log2Discount(int rank) {
+        return Math.log(rank + 1) / Math.log(2);
+    }
+
+    /**
+     * 期望项覆盖率。标注了 expectedEvidence 的用例按证据短语覆盖（多证据改 coverage：
+     * 命中的短语数 / 短语总数），否则按期望文档覆盖，两种口径都只看前 K 条。
      */
     public static double expectedDocCoverage(List<SearchResult> results, EvalCase evalCase, int k) {
+        List<String> evidence = normalizedEvidence(evalCase);
+        if (!evidence.isEmpty()) {
+            return evidenceCoverage(results, evidence, k);
+        }
         int expectedCount = evalCase.expectedFileMd5s().size() + evalCase.expectedFileNames().size();
         if (expectedCount == 0) {
             return 0d;
@@ -73,6 +139,25 @@ public final class RetrievalMetrics {
         long covered = evalCase.expectedFileMd5s().stream().map(RetrievalMetrics::lower).filter(retrievedMd5s::contains).count()
                 + evalCase.expectedFileNames().stream().map(RetrievalMetrics::lower).filter(retrievedNames::contains).count();
         return (double) covered / expectedCount;
+    }
+
+    /**
+     * 证据短语覆盖率：前 K 条分块里出现了多少比例的期望证据短语（一个短语出现在多个分块只计一次）。
+     * 标注的短语归一化后全部为空时返回 0。
+     */
+    public static double evidenceCoverage(List<SearchResult> results, EvalCase evalCase, int k) {
+        return evidenceCoverage(results, normalizedEvidence(evalCase), k);
+    }
+
+    private static double evidenceCoverage(List<SearchResult> results, List<String> evidence, int k) {
+        if (evidence.isEmpty()) {
+            return 0d;
+        }
+        List<SearchResult> top = results == null ? List.of() : results.subList(0, limit(results, k));
+        long covered = evidence.stream()
+                .filter(phrase -> top.stream().anyMatch(result -> normalizeText(result.getTextContent()).contains(phrase)))
+                .count();
+        return (double) covered / evidence.size();
     }
 
     public static boolean isRelevant(SearchResult result, EvalCase evalCase) {
