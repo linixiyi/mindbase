@@ -251,7 +251,7 @@ task-0008, task-0009 可并行
   - 成功判定：测试绿。
   - 失败处理：不改 profile 文件；不引入新依赖。
 
-- [ ] task-0021 ES mapping 显式 public 字段与审计脚本
+- [x] task-0021 ES mapping 显式 public 字段与审计脚本
   - id: task-0021
   - boundary: src/main/resources/es-mappings/knowledge_base.json, new:scripts/es_mapping_audit.py
   - verify: `cd /Users/linyixi/PaiSmart && python3 -B scripts/es_mapping_audit.py --self-test`
