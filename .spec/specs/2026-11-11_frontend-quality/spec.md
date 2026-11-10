@@ -74,6 +74,7 @@
 - D3 | 0005 与 0009 的 a11y/键位门禁用 grep 脚本而不是引入 eslint 插件，避免依赖变更。
 - D4 | 0006 只锁定基线，不做全量翻译；`--update-baseline` 需人工在 PR 说明里写理由。
 - D5 | 包定义勘误（同评测包 D9 先例）：0002 交付与成功判定明文要求改 chat-list.vue 滚动 watch、0008 交付④明文要求 typings 增帧类型（实际路径 frontend/src/typings/api.d.ts）、0011 交付③明文要求旧 spec 移到 e2e/kb-column.spec.ts，三者均未列于各自 boundary 清单——按交付补入对应卡 boundary，非扩权 | by: V2 | reversal: checkpoint revert
+- D6 | task-0004 交付④（stop 语义改 stopped）与 task-0001 的过渡产物 reducer.spec.ts:85（卡面明文"本卡保持 finished，留给 0004"）互斥；且 api.d.ts:507 status 联合无 stopped 时 chat-message.vue 的 stopped 比较触发 TS2367、typecheck 必红——授权两处并入 task-0004 boundary：reducer.spec.ts:85 断言迁移为 stopped（保留"stop 不改内容"意图）、api.d.ts status 联合仅追加 'stopped'（加法不破坏既有消费），不用局部类型拓宽或 as 强转绕过 | by: V2 | reversal: checkpoint revert
 
 ## Deferred
 - 虚拟滚动/历史分页：需要后端分页参数，当前一次拉全量，单独立卡。

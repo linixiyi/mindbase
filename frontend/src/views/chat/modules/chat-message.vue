@@ -487,6 +487,11 @@ async function handleSourceFileClick(fileInfo: {
           重试本问
         </NButton>
       </div>
+      <!-- task-0004：用户主动停止——渲染停止标记并保留已生成内容（引用点击行为不变），不并入错误卡片 -->
+      <div v-else-if="msg.status === 'stopped'" class="chat-answer" @click="handleContentClick">
+        <div class="chat-stopped-marker">已停止</div>
+        <VueMarkdownIt ref="markdownRef" :content="content" />
+      </div>
       <div v-else class="chat-answer" @click="handleContentClick">
         <VueMarkdownIt ref="markdownRef" :content="content" />
       </div>
@@ -757,6 +762,19 @@ async function handleSourceFileClick(fileInfo: {
   :deep(.vp-doc div[class*='language-']) {
     border-radius: 10px;
   }
+}
+
+/* task-0004：停止标记——muted 弱化胶囊，标记用户主动中断；已生成正文保留在下方可复制 */
+.chat-stopped-marker {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--app-subtle);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--app-muted);
 }
 .dark .chat-answer :deep(.vp-doc) {
   --vp-c-brand: rgb(var(--primary-400-color));

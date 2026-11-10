@@ -45,9 +45,8 @@ const isSending = computed(() => {
 
 const sendDisabled = computed(() => {
   if (preparingSession.value) return true;
-  if (isSending.value) {
-    return false;
-  }
+  // 生成中不发送（task-0004）：中断走独立停止按钮，Enter 只提示不发送
+  if (isSending.value) return true;
   if (isRateLimited.value) {
     return true;
   }
@@ -135,7 +134,7 @@ async function handleCompletionPayload(assistant: Api.Chat.Message, payload: Rec
 }
 
 function handleStopPayload(assistant: Api.Chat.Message) {
-  // 终态前必须 flush（task-0002）；本卡保持 finished（停止语义与独立停止按钮由 task-0004 落地）
+  // 终态前必须 flush（task-0002）；task-0004 停止语义：后端确认的 stop 帧把生成中消息收敛为 stopped
   streamBuffer.flush();
   applyReducedStreamState(assistant, reduceStreamFrame(assistant, { type: 'stop' }));
   stopGenerationStatusMonitor();
@@ -355,30 +354,14 @@ watch(wsData, val => {
 });
 
 const handleSend = async () => {
+  // 生成中 Enter 不再中断（task-0004）：提示改用停止按钮，不发送
+  if (isSending.value) {
+    window.$message?.warning('生成中，点击停止按钮可中断');
+    return;
+  }
   if (sendDisabled.value) return;
   if (isRateLimited.value) {
     window.$message?.warning(`当前发送受限，${cooldownText.value}`);
-    return;
-  }
-
-  if (isSending.value) {
-    // 本地停止前先 flush（task-0002）：在途 chunk 先落进正文，再收敛状态
-    streamBuffer.flush();
-    const { error, data: tokenData } = await request<Api.Chat.Token>({
-      url: 'chat/websocket-token'
-    });
-    if (error) return;
-
-    chatStore.wsSend(
-      JSON.stringify({
-        type: 'stop',
-        generationId: latestMessage.value.generationId,
-        _internal_cmd_token: tokenData.cmdToken
-      })
-    );
-
-    list.value[list.value.length - 1].status = 'finished';
-    if (!latestMessage.value.content) list.value.pop();
     return;
   }
 
@@ -407,6 +390,28 @@ const handleSend = async () => {
     JSON.stringify({ type: 'chat', message: input.value.message, conversationId: chatStore.conversationId })
   );
   input.value.message = '';
+};
+
+/**
+ * 停止生成（task-0004）：独立停止按钮触发。后端确认前不得本地假装 stopped——cmd token 获取失败时 保持 loading 并可见报错（不再静默 return）；命令发出后由后端回推的 stop 帧经
+ * handleStopPayload → reducer 收敛为 stopped。
+ */
+const handleStop = async () => {
+  const { error, data: tokenData } = await request<Api.Chat.Token>({
+    url: 'chat/websocket-token'
+  });
+  if (error) {
+    window.$message?.error('停止失败，请重试');
+    return;
+  }
+
+  chatStore.wsSend(
+    JSON.stringify({
+      type: 'stop',
+      generationId: latestMessage.value.generationId,
+      _internal_cmd_token: tokenData.cmdToken
+    })
+  );
 };
 
 const inputRef = ref();
@@ -480,17 +485,31 @@ onUnmounted(() => {
         class="text-body max-h-32 min-h-6 w-full flex-1 resize-none border-none bg-transparent py-1 text-16px caret-[rgb(var(--primary-color))] outline-none"
         @keydown="handShortcut"
       />
+      <!-- task-0004：发送与停止拆为两个按钮，停止按钮仅生成中显示并带可读名称 -->
       <NButton
+        v-if="isSending"
+        class="shrink-0 self-end"
+        size="small"
+        circle
+        type="warning"
+        aria-label="停止生成"
+        @click="handleStop"
+      >
+        <template #icon>
+          <icon-lucide:square class="text-icon-small" />
+        </template>
+      </NButton>
+      <NButton
+        v-else
         :disabled="sendDisabled"
         class="shrink-0 self-end"
         size="small"
         circle
-        :type="isSending ? 'warning' : 'primary'"
+        type="primary"
         @click="handleSend"
       >
         <template #icon>
-          <icon-lucide:square v-if="isSending" class="text-icon-small" />
-          <icon-lucide:arrow-up v-else class="text-icon-small" />
+          <icon-lucide:arrow-up class="text-icon-small" />
         </template>
       </NButton>
     </div>

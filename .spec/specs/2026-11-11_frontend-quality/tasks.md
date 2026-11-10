@@ -45,9 +45,9 @@
   - 成功判定：vitest 绿；`grep -c "historyRequestId" chat-list.vue` 为 0；`grep -c "url: 'users/conversation'" chat-list.vue` 为 0。
   - 失败处理：`@sa/axios` 不支持 signal 时在 request 包装层用 `AbortController` + `axios.CancelToken` 等价实现，不改调用方语义。
 
-- [ ] task-0004 停止语义与独立停止按钮
+- [x] task-0004 停止语义与独立停止按钮
   - id: task-0004
-  - boundary: frontend/src/views/chat/modules/input-box.vue, frontend/src/views/chat/modules/chat-message.vue, new:frontend/src/views/chat/stream/reducer.ts, new:frontend/src/views/chat/stream/__tests__/stop.spec.ts
+  - boundary: frontend/src/views/chat/modules/input-box.vue, frontend/src/views/chat/modules/chat-message.vue, new:frontend/src/views/chat/stream/reducer.ts, new:frontend/src/views/chat/stream/__tests__/stop.spec.ts, frontend/src/views/chat/stream/__tests__/reducer.spec.ts（D6：:85 过渡断言迁移 stopped）, frontend/src/typings/api.d.ts（D6：status 联合仅追加 'stopped'）
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/views/chat/stream/__tests__/stop.spec.ts`
   - expect: red
   - depends-on: task-0001
