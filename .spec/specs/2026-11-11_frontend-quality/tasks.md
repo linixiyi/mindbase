@@ -69,7 +69,7 @@
   - 成功判定：`bash scripts/frontend_a11y_gate.sh --check` 退出 0 且 `--self-test` 通过。
   - 失败处理：NButton 不透传 aria-label 时改用 `aria-label` 属性透传或外层 `<span role="button">` 包装，不改组件库。
 
-- [ ] task-0006 i18n 止血：fallback 改 zh-CN + 中文硬编码基线门禁
+- [x] task-0006 i18n 止血：fallback 改 zh-CN + 中文硬编码基线门禁
   - id: task-0006
   - boundary: frontend/src/locales/index.ts, new:frontend/i18n-baseline.txt, new:scripts/i18n_gate.sh
   - verify: `cd /Users/linyixi/PaiSmart && bash scripts/i18n_gate.sh --check`
