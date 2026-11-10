@@ -94,6 +94,8 @@ public class ChatPipeline {
     private final Map<String, Map<Integer, SearchResult>> generationToolResults = new ConcurrentHashMap<>();
     // 上下文预算裁剪：本次生成中因超出 chat.react.max-context-tokens 被丢弃的检索分块累计数
     private final Map<String, Integer> generationDroppedChunks = new ConcurrentHashMap<>();
+    // 引用校验整体状态（PASSED/TRUNCATED/UNVERIFIED/NO_CITATIONS）：生产链路写入回答元数据与完成帧，headless 随 ReActRunResult 带回
+    private final Map<String, String> generationCitationStatuses = new ConcurrentHashMap<>();
 
     public ChatPipeline(RedisTemplate<String, String> redisTemplate,
                         HybridSearchService searchService,
@@ -157,6 +159,7 @@ public class ChatPipeline {
         Map<Integer, ChatHandler.ReferenceInfo> references;
         Map<Integer, SearchResult> toolRetrieved;
         int droppedChunks;
+        String citationVerificationStatus;
         try (RequestDeadline.Scope ignored = RequestDeadline.open(RequestDeadline.after(budget))) {
             runReActLoop(toolUserId, llmRequesterId, userMessage, null, generationId,
                     history == null ? List.of() : history, responseFuture, stats, true);
@@ -164,17 +167,21 @@ public class ChatPipeline {
             references = Map.copyOf(generationReferenceMappings.getOrDefault(generationId, Map.of()));
             toolRetrieved = Map.copyOf(generationToolResults.getOrDefault(generationId, Map.of()));
             droppedChunks = generationDroppedChunks.getOrDefault(generationId, 0);
+            citationVerificationStatus = generationCitationStatuses.get(generationId);
             cleanupGenerationState(generationId, null);
         }
         // 正常收尾时 future 已被 finalizeResponse 完成；循环中途异常时异常已向上抛出
         String answer = responseFuture.get(5, TimeUnit.SECONDS);
         return new ReActRunResult(answer, stats.modelRounds, stats.toolCallRounds, stats.toolCalls,
-                stats.promptTokens, stats.completionTokens, references, toolRetrieved, droppedChunks);
+                stats.promptTokens, stats.completionTokens, references, toolRetrieved, droppedChunks,
+                citationVerificationStatus);
     }
 
     /**
      * headless 运行的可观测结果：回答、ReAct 轮次与工具调用次数、引用编号装配结果、模型实际检索到的片段，
-     * 以及上下文预算裁剪丢弃的分块数（droppedChunks，0 表示没有裁剪；评测链路据此写 reactTrace.droppedChunks）
+     * 上下文预算裁剪丢弃的分块数（droppedChunks，0 表示没有裁剪；评测链路据此写 reactTrace.droppedChunks），
+     * 以及引用校验整体状态（citationVerificationStatus，PASSED/TRUNCATED/UNVERIFIED/NO_CITATIONS；
+     * 校验未开启时为 null，评测链路可据此区分"校验通过"与"没校验"）
      */
     public record ReActRunResult(
             String answer,
@@ -185,7 +192,8 @@ public class ChatPipeline {
             int completionTokens,
             Map<Integer, ChatHandler.ReferenceInfo> references,
             Map<Integer, SearchResult> toolRetrieved,
-            int droppedChunks
+            int droppedChunks,
+            String citationVerificationStatus
     ) {
     }
 
@@ -944,15 +952,16 @@ public class ChatPipeline {
                 completion != null ? completion.completionTokens() : 0);
         Map<Integer, ChatHandler.ReferenceInfo> referenceMappings = verifyCitations(
                 userId, generationId, completeResponse, generationReferenceMappings.get(generationId));
+        String citationVerificationStatus = generationCitationStatuses.get(generationId);
         if (headless) {
-            // 评测链路：不落库、不写生成快照、不推完成帧；引用装配结果由 runHeadless 读取后返回调用方
+            // 评测链路：不落库、不写生成快照、不推完成帧；引用装配结果与校验状态由 runHeadless 读取后返回调用方
             return;
         }
         // 先把消息事务性地落 MySQL；只有 MySQL 成功后才写 Redis 短期会话历史，
         // 否则两个数据源会出现一边有记录、一边没有的不一致状态。
         boolean persisted = persistConversation(userId, userMessage, completeResponse, conversationId, referenceMappings);
         if (persisted) {
-            updateConversationHistory(conversationId, userMessage, completeResponse, referenceMappings);
+            updateConversationHistory(conversationId, userMessage, completeResponse, referenceMappings, citationVerificationStatus);
         } else {
             logger.warn("MySQL 落库失败，跳过 Redis 会话历史写入以保持两端一致: generationId={}, conversationId={}",
                     generationId, conversationId);
@@ -965,7 +974,9 @@ public class ChatPipeline {
     }
 
     /**
-     * 引用事后校验（ai.citation-verification.enabled）：不被片段支撑的引用标记为 SUSPICIOUS，前端降低展示优先级
+     * 引用事后校验（ai.citation-verification.enabled）：不被片段支撑的引用标记为 SUSPICIOUS，前端降低展示优先级。
+     * 整体状态（PASSED/TRUNCATED/UNVERIFIED/NO_CITATIONS）记入 generationCitationStatuses，
+     * 由收尾路径写入回答元数据与完成帧；校验失败/超时降级 UNVERIFIED，不阻断回答。
      */
     private Map<Integer, ChatHandler.ReferenceInfo> verifyCitations(String userId, String generationId, String answer,
                                                         Map<Integer, ChatHandler.ReferenceInfo> referenceMappings) {
@@ -977,7 +988,12 @@ public class ChatPipeline {
         Map<Integer, String> parentContexts = generationParentContexts.getOrDefault(generationId, Map.of());
         referenceMappings.forEach((number, detail) ->
                 referenceTexts.put(number, parentContexts.getOrDefault(number, detail.matchedChunkText())));
-        Map<Integer, CitationVerdict> verdicts = citationVerificationService.verify(userId, answer, referenceTexts);
+        CitationVerificationService.VerificationOutcome outcome =
+                citationVerificationService.verifyDetailed(userId, answer, referenceTexts);
+        generationCitationStatuses.put(generationId, outcome.status().name());
+        logger.info("引用校验状态: generationId={}, status={}, verdicts={}, detail={}",
+                generationId, outcome.status(), outcome.verdicts().size(), outcome.detail());
+        Map<Integer, CitationVerdict> verdicts = outcome.verdicts();
         if (verdicts.isEmpty()) {
             return referenceMappings;
         }
@@ -1017,6 +1033,7 @@ public class ChatPipeline {
         generationParentContexts.remove(generationId);
         generationToolResults.remove(generationId);
         generationDroppedChunks.remove(generationId);
+        generationCitationStatuses.remove(generationId);
         stopFlags.remove(generationId);
         activeStreams.remove(generationId);
         cancelledGenerations.remove(generationId);
@@ -1135,7 +1152,8 @@ public class ChatPipeline {
     }
 
     private void updateConversationHistory(String conversationId, String userMessage, String response,
-                                           Map<Integer, ChatHandler.ReferenceInfo> referenceMapping) {
+                                           Map<Integer, ChatHandler.ReferenceInfo> referenceMapping,
+                                           String citationVerificationStatus) {
         String key = "conversation:" + conversationId;
         List<Map<String, Object>> history = getConversationHistoryRecords(conversationId);
 
@@ -1154,6 +1172,10 @@ public class ChatPipeline {
         assistantMsgMap.put("role", "assistant");
         assistantMsgMap.put("content", response);
         assistantMsgMap.put("timestamp", currentTimestamp);
+        if (citationVerificationStatus != null) {
+            // 引用校验整体状态（PASSED/TRUNCATED/UNVERIFIED/NO_CITATIONS）写入回答元数据
+            assistantMsgMap.put("citationVerificationStatus", citationVerificationStatus);
+        }
         if (referenceMapping != null && !referenceMapping.isEmpty()) {
             assistantMsgMap.put("referenceMappings", toSerializableReferenceMappings(referenceMapping));
         }
@@ -1312,6 +1334,10 @@ public class ChatPipeline {
         notification.put("timestamp", System.currentTimeMillis());
         notification.put("date", java.time.LocalDateTime.now().toString());
         if (!failed) {
+            String citationVerificationStatus = generationCitationStatuses.get(generationId);
+            if (citationVerificationStatus != null) {
+                notification.put("citationVerificationStatus", citationVerificationStatus);
+            }
             Map<Integer, ChatHandler.ReferenceInfo> referenceMappings = generationReferenceMappings.get(generationId);
             if (referenceMappings != null && !referenceMappings.isEmpty()) {
                 notification.put("referenceMappings", toSerializableReferenceMappings(referenceMappings));

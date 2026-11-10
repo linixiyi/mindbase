@@ -455,13 +455,16 @@ ai:
     max-tokens: ${AI_GENERATION_MAX_TOKENS:2000}
     top-p: ${AI_GENERATION_TOP_P:0.9}
   citation-verification:
-    # 回答生成后逐句校验引用是否被片段支撑，不支撑的引用在 referenceMappings 中标记为 SUSPICIOUS
-    enabled: ${AI_CITATION_VERIFICATION_ENABLED:false}
+    # 回答生成后逐句校验引用是否被片段支撑，不支撑的引用在 referenceMappings 中标记为 SUSPICIOUS；
+    # 整体状态（PASSED/TRUNCATED/UNVERIFIED/NO_CITATIONS）写入回答元数据 citationVerificationStatus。
+    # 默认开启；校验失败或超时不阻断回答，降级为 UNVERIFIED。
+    enabled: ${AI_CITATION_VERIFICATION_ENABLED:true}
     max-claims: ${AI_CITATION_VERIFICATION_MAX_CLAIMS:12}
     max-claim-chars: 300
     max-reference-chars: 800
     max-completion-tokens: 800
-    timeout-seconds: ${AI_CITATION_VERIFICATION_TIMEOUT_SECONDS:20}
+    # 校验调用超时（秒）：默认 1 秒，超时按 UNVERIFIED 降级，保证引用校验不拖慢回答收尾
+    timeout-seconds: ${AI_CITATION_VERIFICATION_TIMEOUT_SECONDS:1}
 
 # 微信支付相关配置
 wx:

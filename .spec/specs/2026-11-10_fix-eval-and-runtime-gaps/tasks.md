@@ -77,7 +77,7 @@
   - 成功判定：测试绿。
   - 失败处理：估算返回 0 或抛异常时退回字符数上限（tokens×4）并记 warn，不得静默放行。
 
-- [ ] task-0007 引用校验语义
+- [x] task-0007 引用校验语义
   - id: task-0007
   - boundary: src/main/java/com/mindbase/service/citation/CitationVerificationService.java, src/main/java/com/mindbase/service/ChatPipeline.java, src/main/resources/application.yml, new:src/test/java/com/mindbase/service/citation/CitationVerificationSemanticsTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=CitationVerificationSemanticsTest test`
