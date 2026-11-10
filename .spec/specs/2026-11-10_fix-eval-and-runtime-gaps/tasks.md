@@ -89,7 +89,7 @@
   - 成功判定：测试绿。
   - 失败处理：默认开启若让现有测试超时，保留"生产默认开、评测默认开"并在 Decisions 记录，不得退回默认关闭。
 
-- [ ] task-0008 分块重叠不进正文
+- [x] task-0008 分块重叠不进正文
   - id: task-0008
   - boundary: src/main/java/com/mindbase/service/ParseService.java, src/main/java/com/mindbase/service/chunk/ChunkTextMerger.java, src/main/java/com/mindbase/service/search/ParentContextExpander.java, new:src/test/java/com/mindbase/service/ChunkOverlapMetadataTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=ChunkOverlapMetadataTest test`
@@ -270,4 +270,17 @@ task-0008, task-0009 可并行
   - 交付：脚本检查两条路径：阿里云（`ALIYUN_OCR_ENABLED=true` 且 ACCESS_KEY_ID/SECRET 非空）、本地 LiteParse（`FILE_PARSING_LITEPARSE_OCR_ENABLED=true` 且 `tesseract` 在 PATH）。输出 JSON 与 markdown 表：可用引擎、缺失项、受影响题数（读 eval-v2.jsonl 统计 type=ocr）、建议命令；`--check` 无引擎时退出 0 但标 blocked，`--require-ocr` 退出 2。`--self-test` 用注入的 env/which 桩断言 3 种组合。文档写清两套配置与 blocked 题为何不能进分母。
   - 成功判定：`--self-test` 退出 0。
   - 失败处理：不联网探测阿里云，只看配置与本地二进制。
+  - origin: emergent
+
+- [ ] task-0023 旧分块重叠断言迁移新语义
+  - id: task-0023
+  - boundary: src/test/java/com/mindbase/service/ParseServiceUnitTest.java
+  - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=ParseServiceUnitTest test`
+  - expect: red
+  - depends-on: task-0008
+  - 背景：task-0008 移除 addSemanticOverlap 对 textContent 的改写后，既有用例 testSplitTextIntoChunksWithSemantics_AddsSentenceOverlap 仍断言本块以重叠前缀开头（ParseServiceUnitTest.java:173），与新语义互斥；不改则终树全量门禁必红。
+  - 交付：把该用例的断言更新为新语义（正文不带重叠前缀、正文等于纯本块内容），不删除测试、不改同文件其他用例、不改生产代码。
+  - 测试：ParseServiceUnitTest 自身。
+  - 成功判定：ParseServiceUnitTest 全绿。
+  - 失败处理：同文件其他用例若也依赖旧重叠语义，同样迁移断言并记录，不得删测试。
   - origin: emergent

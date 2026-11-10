@@ -22,6 +22,9 @@ import java.util.Optional;
  *     <li>引用、页码、锚点和证据片段仍然来自命中的小分块，父块只影响模型看到的上下文。</li>
  * </ul>
  * 相邻分块来自命中分块所在的同一文件，文件级权限已经在检索时校验过。
+ * task-0008 起分块正文不再携带重叠（ParseService 只把重叠长度记录到日志），邻块上下文只从这里
+ * 的 neighbour-chunks 窗口提供；合并对历史数据里的旧版 {@code 重叠句\n\n} 前缀仍会精确剥离，
+ * 正文互不包含时就是邻接拼接。
  */
 @Service
 public class ParentContextExpander {

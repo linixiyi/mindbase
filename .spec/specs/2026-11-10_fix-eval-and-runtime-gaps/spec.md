@@ -77,10 +77,12 @@
 - C20 | 配置优雅停机与 30s 停机超时 | task-0020
 - C21 | ES mapping 显式声明检索用权限字段，审计脚本可发现缺字段 | task-0021
 - C22 | OCR 预检脚本能报告可用引擎与受影响题数，并可要求 OCR 才通过 | task-0022
+- C23 | 旧分块重叠断言迁移到新语义，ParseServiceUnitTest 全绿，终树全量门禁无旧重叠断言失败 | task-0023
 
 ## Decisions
 - D1 | 不引入 Python 评测框架与付费 SaaS，指标与统计继续用 Java 自建，Python 只做离线脚本 | by: V1 | reversal: checkpoint revert
 - D2 | 本轮不改前端、不改 CI workflow、不新增运行时依赖 | by: V5 | reversal: checkpoint revert
+- D3 | task-0008 交付（正文不再带重叠前缀）与既有断言 ParseServiceUnitTest.testSplitTextIntoChunksWithSemantics_AddsSentenceOverlap:173 互斥；授权迁移该单测断言到新语义，扩边由 emergent task-0023 承接该文件 | by: V2 | reversal: checkpoint revert
 
 ## Parked
 
