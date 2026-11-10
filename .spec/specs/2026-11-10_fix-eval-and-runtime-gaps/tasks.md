@@ -218,7 +218,7 @@ task-0008, task-0009 可并行
   - 成功判定：测试绿且 grep 无命中。
   - 失败处理：空配置时拒绝执行，不得回退到默认密钥。
 
-- [ ] task-0018 上传文件签名校验
+- [x] task-0018 上传文件签名校验
   - id: task-0018
   - boundary: src/main/java/com/mindbase/controller/UploadController.java, new:src/main/java/com/mindbase/service/FileSignatureValidator.java, new:src/test/java/com/mindbase/service/FileSignatureValidatorTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=FileSignatureValidatorTest test`

@@ -6,6 +6,7 @@ import com.mindbase.model.FileProcessingTask;
 import com.mindbase.model.FileUpload;
 import com.mindbase.model.OrganizationTag;
 import com.mindbase.repository.FileUploadRepository;
+import com.mindbase.service.FileSignatureValidator;
 import com.mindbase.service.FileTypeValidationService;
 import com.mindbase.service.ParseService;
 import com.mindbase.service.UploadService;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -95,10 +97,10 @@ public class UploadController {
                         fileName, validationResult.isValid(), validationResult.getFileType(), validationResult.getMessage());
                 
                 if (!validationResult.isValid()) {
-                    LogUtils.logBusinessError("UPLOAD_CHUNK", userId, "文件类型验证失败: fileName=%s, fileType=%s", 
+                    LogUtils.logBusinessError("UPLOAD_CHUNK", userId, "文件类型验证失败: fileName=%s, fileType=%s",
                             new RuntimeException(validationResult.getMessage()), fileName, validationResult.getFileType());
                     monitor.end("文件类型验证失败: " + validationResult.getMessage());
-                    
+
                     Map<String, Object> errorResponse = new HashMap<>();
                     errorResponse.put("code", HttpStatus.BAD_REQUEST.value());
                     errorResponse.put("message", validationResult.getMessage());
@@ -106,6 +108,20 @@ public class UploadController {
                     errorResponse.put("supportedTypes", fileTypeValidationService.getSupportedFileTypes());
                     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
                 }
+
+                // 文件签名校验（task-0018，仅首片）：扩展名校验通过后，读取前 8 字节做魔数比对，
+                // 阻止改扩展名把任意二进制送进 Tika/OCR 链路；后续分片不重复校验。
+                // 读不到字节（含流读取失败）时按扩展名放行并记 warn，不抛 500。
+                byte[] headBytes;
+                try (InputStream headStream = file.getInputStream()) {
+                    headBytes = headStream.readNBytes(8);
+                } catch (IOException headReadException) {
+                    LogUtils.logBusiness("UPLOAD_CHUNK", userId, "读取文件头字节失败，按扩展名放行: fileName=%s, 原因=%s",
+                            fileName, headReadException.getMessage());
+                    headBytes = null;
+                }
+                // 签名不匹配抛 CustomException(BAD_REQUEST)，由下方统一 catch 返回 400
+                FileSignatureValidator.validate(fileName, headBytes);
             }
             
             String fileType = getFileType(fileName);
