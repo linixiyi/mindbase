@@ -89,6 +89,9 @@ jwt:
   secret-key: ${JWT_SECRET_KEY:}
 
 admin:
+  # 清库密钥（POST /api/v1/admin/clear-all-data 危险操作二次校验）。
+  # 必须通过环境变量 ADMIN_CLEAR_ALL_KEY 注入；为空时清库接口直接返回 503 拒绝执行，不存在默认密钥。
+  clear-all-key: ${ADMIN_CLEAR_ALL_KEY:}
   bootstrap:
     # 仅用于首次引导创建管理员账号，创建成功后应关闭
     enabled: ${ADMIN_BOOTSTRAP_ENABLED:false}

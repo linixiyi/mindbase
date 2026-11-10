@@ -207,7 +207,7 @@ task-0008, task-0009 可并行
   - 成功判定：测试绿。
   - 失败处理：不得为了脱敏吞掉异常类型与堆栈。
 
-- [ ] task-0017 清库密钥外部化
+- [x] task-0017 清库密钥外部化
   - id: task-0017
   - boundary: src/main/java/com/mindbase/controller/AdminController.java, new:src/main/java/com/mindbase/security/AdminKeyVerifier.java, src/main/resources/application.yml, new:src/test/java/com/mindbase/security/AdminKeyVerifierTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=AdminKeyVerifierTest test && ! grep -q 'CLEAR_ALL_2024' src/main/java/com/mindbase/controller/AdminController.java`

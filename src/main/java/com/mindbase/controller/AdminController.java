@@ -19,12 +19,14 @@ import com.mindbase.service.RateLimitConfigService;
 import com.mindbase.service.UsageDashboardService;
 import com.mindbase.service.UsageQuotaService;
 import com.mindbase.service.UserService;
+import com.mindbase.security.AdminKeyVerifier;
 import com.mindbase.service.UserTokenService;
 import com.mindbase.utils.JwtUtils;
 import com.mindbase.utils.LogUtils;
 import com.mindbase.utils.MinioMigrationUtil;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -78,6 +80,13 @@ public class AdminController {
 
     @Autowired
     private ModelProviderConfigService modelProviderConfigService;
+
+    /**
+     * 清库密钥，来自配置 admin.clear-all-key（环境变量 ADMIN_CLEAR_ALL_KEY）。
+     * 空配置时拒绝执行清库操作，不存在默认密钥。
+     */
+    @Value("${admin.clear-all-key:}")
+    private String clearAllKey;
 
     @Autowired
     private com.mindbase.client.RerankClient rerankClient;
@@ -1175,8 +1184,17 @@ public class AdminController {
             adminUsername = jwtUtils.extractUsernameFromToken(token.replace("Bearer ", ""));
             validateAdmin(adminUsername);
 
-            // 更严格的密钥验证
-            if (!"CLEAR_ALL_2024".equals(adminKey)) {
+            // 更严格的密钥验证：密钥来自配置，空配置拒绝执行（不回退默认密钥）
+            boolean keyNotConfigured = clearAllKey == null || clearAllKey.trim().isEmpty();
+            if (keyNotConfigured) {
+                LogUtils.logBusiness("CLEAR_ALL_DATA", adminUsername, "清库密钥未配置，操作拒绝执行");
+                Map<String, Object> response = new HashMap<>();
+                response.put("code", 503);
+                response.put("message", "清库密钥未配置，操作拒绝执行");
+                return ResponseEntity.status(503).body(response);
+            }
+            if (!AdminKeyVerifier.matches(clearAllKey, adminKey)) {
+                LogUtils.logBusiness("CLEAR_ALL_DATA", adminUsername, "清库密钥不符，操作拒绝执行");
                 Map<String, Object> response = new HashMap<>();
                 response.put("code", 403);
                 response.put("message", "无效的管理员密钥");
