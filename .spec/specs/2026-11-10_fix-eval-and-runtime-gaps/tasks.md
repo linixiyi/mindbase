@@ -240,7 +240,7 @@ task-0008, task-0009 可并行
   - 成功判定：测试绿。
   - 失败处理：解析失败一律回落 remoteAddr，不得返回攻击者可控值。
 
-- [ ] task-0020 优雅停机配置
+- [x] task-0020 优雅停机配置
   - id: task-0020
   - boundary: src/main/resources/application.yml, new:src/test/java/com/mindbase/config/GracefulShutdownConfigTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=GracefulShutdownConfigTest test`
