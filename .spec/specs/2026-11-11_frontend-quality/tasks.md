@@ -80,7 +80,7 @@
   - 成功判定：`bash scripts/i18n_gate.sh --check` 退出 0；`grep -n "fallbackLocale" frontend/src/locales/index.ts` 为 zh-CN。
   - 失败处理：基线文件必须与当前树一致；首次生成后不得手改数字，只能通过 `--update-baseline` 并说明原因。
 
-- [ ] task-0007 请求层清污：移除模板 token 与生产调试日志
+- [x] task-0007 请求层清污：移除模板 token 与生产调试日志
   - id: task-0007
   - boundary: frontend/src/service/request/index.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && ! grep -q "apifoxToken" src/service/request/index.ts && ! grep -q "console.log(" src/service/request/index.ts`

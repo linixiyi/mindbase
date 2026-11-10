@@ -20,10 +20,7 @@ const { baseURL } = getServiceBaseURL(import.meta.env, isHttpProxy);
 function getFlatRequest(options: Partial<RequestOption<App.Service.Response>> = {}) {
   const request = createFlatRequest<App.Service.Response, RequestInstanceState>(
     {
-      baseURL,
-      headers: {
-        apifoxToken: 'FY65Vng88xra_BveQ5E_4'
-      }
+      baseURL
     },
     {
       async onRequest(config) {
@@ -37,7 +34,7 @@ function getFlatRequest(options: Partial<RequestOption<App.Service.Response>> = 
         const authStore = useAuthStore();
         authStore.setToken(newToken);
         // eslint-disable-next-line no-console
-        console.log('🔄 Token automatically refreshed');
+        if (import.meta.env.DEV) console.debug('🔄 Token automatically refreshed');
       },
       isBackendSuccess(response) {
         // when the backend response code is "0000"(default), it means the request is success
@@ -46,7 +43,7 @@ function getFlatRequest(options: Partial<RequestOption<App.Service.Response>> = 
       },
       async onBackendFail(response, instance) {
         // eslint-disable-next-line no-console
-        console.log('%c [ 👉 onBackendFail 👈 ]-35', 'font-size:16px; background:#3cd735; color:#80ff79;', response);
+        if (import.meta.env.DEV) console.debug('[onBackendFail]', response);
         const authStore = useAuthStore();
         const responseCode = String(response.data.code);
 
