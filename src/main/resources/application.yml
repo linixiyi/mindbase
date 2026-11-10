@@ -360,8 +360,11 @@ search:
     recall-multiplier: ${SEARCH_HYBRID_RECALL_MULTIPLIER:30}
     max-recall-window: ${SEARCH_HYBRID_MAX_RECALL_WINDOW:300}
     knn-num-candidates-multiplier: ${SEARCH_HYBRID_KNN_NUM_CANDIDATES_MULTIPLIER:2}
-    # RRF 融合常数，score = Σ 1/(k + rank)
+    # RRF 融合常数，score = Σ weight/(k + rank)
     rrf-k: ${SEARCH_HYBRID_RRF_K:60}
+    # RRF 分路权重：两路名次贡献的相对权重，等权 1.0 时与旧版结果一致
+    bm25-weight: ${SEARCH_HYBRID_BM25_WEIGHT:1.0}
+    knn-weight: ${SEARCH_HYBRID_KNN_WEIGHT:1.0}
     recall-timeout-seconds: ${SEARCH_HYBRID_RECALL_TIMEOUT_SECONDS:10}
     rerank:
       # 关闭或调用失败时按 RRF 顺序截取 topK

@@ -174,7 +174,7 @@ task-0008, task-0009 可并行
   - 成功判定：`--self-test` 退出 0。
   - 失败处理：报告缺 humanAgreement 时 agreement 打印“未计算”退出 2，不伪造数字。
 
-- [ ] task-0014 RRF 分路权重
+- [x] task-0014 RRF 分路权重
   - id: task-0014
   - boundary: src/main/java/com/mindbase/service/search/RrfFusion.java, src/main/java/com/mindbase/config/HybridSearchProperties.java, src/main/java/com/mindbase/service/HybridSearchService.java, src/main/resources/application.yml, new:src/test/java/com/mindbase/service/search/RrfWeightedFusionTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=RrfWeightedFusionTest test`
