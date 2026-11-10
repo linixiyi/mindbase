@@ -1,5 +1,7 @@
 server:
   port: ${SERVER_PORT:8081}
+  # 优雅停机：SIGTERM 后等待在途请求（WS 会话、生成中回答、Kafka 消费）收尾再关闭，避免滚动发布掉请求
+  shutdown: graceful
 
 spring:
   # 基础设施连接统一从 `.env` / 环境变量读取，避免把敏感信息写死在仓库。
@@ -47,7 +49,9 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: "*"
+        # 反序列化白名单只放行项目消息包（Kafka 消息值目前只有 com.mindbase.model.FileProcessingTask）。
+        # 历史消息类型反序列化失败时，把对应包补进本清单，禁止回退 "*"
+        spring.json.trusted.packages: "com.mindbase.model"
         client.dns.lookup: use_all_dns_ips
     topic:
       # 文件上传完成后进入该主题，消费者会顺序完成“解析 + 向量化”
@@ -62,6 +66,9 @@ spring:
       pool:
         # outbox 补发、卡住任务恢复各占一个线程，互不阻塞
         size: ${SPRING_TASK_SCHEDULING_POOL_SIZE:4}
+  lifecycle:
+    # 优雅停机超时：每个停机阶段（SmartLifecycle.stop / 消费者停止等）最多等待 30s，超时才强制关闭
+    timeout-per-shutdown-phase: 30s
   webflux:
     client:
       max-in-memory-size: 16MB
@@ -76,11 +83,20 @@ minio:
   bucketName: ${MINIO_BUCKET_NAME:uploads}
   publicUrl: ${MINIO_PUBLIC_URL:http://localhost:9000}
 
+mindbase:
+  storage:
+    # 取文件收口：Kafka 任务里的 filePath 只允许 http/https 且 host 命中本白名单（逗号分隔主机名）。
+    # 显式配置后默认派生不再生效；未配置（空）时默认从 minio.endpoint 的主机名派生
+    allowed-hosts: ${MINDBASE_STORAGE_ALLOWED_HOSTS:}
+
 jwt:
   # 必须是 Base64 编码字符串
   secret-key: ${JWT_SECRET_KEY:}
 
 admin:
+  # 清库密钥（POST /api/v1/admin/clear-all-data 危险操作二次校验）。
+  # 必须通过环境变量 ADMIN_CLEAR_ALL_KEY 注入；为空时清库接口直接返回 503 拒绝执行，不存在默认密钥。
+  clear-all-key: ${ADMIN_CLEAR_ALL_KEY:}
   bootstrap:
     # 仅用于首次引导创建管理员账号，创建成功后应关闭
     enabled: ${ADMIN_BOOTSTRAP_ENABLED:false}
@@ -308,14 +324,27 @@ eval:
   max-retry-tokens: ${EVAL_MAX_RETRY_TOKENS:8000}
   generation-timeout-seconds: ${EVAL_GENERATION_TIMEOUT_SECONDS:90}
   judge-timeout-seconds: ${EVAL_JUDGE_TIMEOUT_SECONDS:60}
+  # 评委双采样：同一 prompt 同一模型连调两次；两次 correct 一致 → 取分数均值，
+  # 不一致或单侧解析失败 → judgeScore/judgeCorrect 置空并强制人工复核（reviewReason=judge-disagree / judge-unstable）；
+  # 置 false 时评委只调一次，报告不产生一致性数字
+  judge:
+    repeat: ${EVAL_JUDGE_REPEAT:true}
   max-evidence-chars: 800
   requester-id: system-eval
+  # 模型单价（每 1000 tokens）：inputPer1k/outputPer1k 需同时配置才折算，报告 cost.amount =
+  # promptTokens/1000*input-per-1k + completionTokens/1000*output-per-1k（四舍五入到 6 位）；
+  # 默认不配价 → cost.amount=null 且 note 写 unpriced: set eval.pricing.*，不做字符数估算
+  pricing:
+    input-per-1k: ${EVAL_PRICING_INPUT_PER_1K:}
+    output-per-1k: ${EVAL_PRICING_OUTPUT_PER_1K:}
+    currency: ${EVAL_PRICING_CURRENCY:}
   # 评委与人工一致率：POST /api/v1/admin/eval/runs/{runId}/human-reviews 录入人工判定后计算
   human-agreement:
     # 评委与人工在"是否正确"上的一致率低于该值时，在评测汇总上告警：评分标准或评委模型需要重新校准
     min-agreement-rate: ${EVAL_HUMAN_AGREEMENT_MIN_RATE:0.8}
-    # Cohen's kappa 下限，为空时不检查；正确率很高或很低时一致率会虚高，kappa 能扣掉碰巧一致的部分
-    min-kappa: ${EVAL_HUMAN_AGREEMENT_MIN_KAPPA:}
+    # Cohen's kappa 下限（默认 0.6：扣掉碰巧一致后的一致性低于它说明评委不可信）；
+    # env 可覆盖为空表示不启用 κ 检查，但不代表可发布——报告 releaseEligible 仍按其余门禁规则判定
+    min-kappa: ${EVAL_HUMAN_AGREEMENT_MIN_KAPPA:0.6}
     # 可比较的用例（评委和人工都给了结论）少于该数量时只提示样本不足，不下结论
     min-comparable-cases: ${EVAL_HUMAN_AGREEMENT_MIN_CASES:5}
 
@@ -327,6 +356,11 @@ chat:
     final-answer-reserve-seconds: ${CHAT_DEADLINE_FINAL_ANSWER_RESERVE_SECONDS:30}
     # 剩余时间不够"一轮工具调用 + 最终回答预留"时，不再调用工具，直接让模型回答
     min-tool-round-seconds: ${CHAT_DEADLINE_MIN_TOOL_ROUND_SECONDS:15}
+  react:
+    # ReAct 工具结果（search_knowledge 检索片段）拼入模型消息前的上下文 token 预算：
+    # 超预算时首条命中始终保留，其余按分数从低到高丢弃；裁剪数量计入 ReActRunResult.droppedChunks
+    # （评测链路带回 reactTrace）；token 估算不可用时退回字符数上限（tokens×4）并记 warn
+    max-context-tokens: ${CHAT_REACT_MAX_CONTEXT_TOKENS:6000}
 
 search:
   hybrid:
@@ -334,8 +368,11 @@ search:
     recall-multiplier: ${SEARCH_HYBRID_RECALL_MULTIPLIER:30}
     max-recall-window: ${SEARCH_HYBRID_MAX_RECALL_WINDOW:300}
     knn-num-candidates-multiplier: ${SEARCH_HYBRID_KNN_NUM_CANDIDATES_MULTIPLIER:2}
-    # RRF 融合常数，score = Σ 1/(k + rank)
+    # RRF 融合常数，score = Σ weight/(k + rank)
     rrf-k: ${SEARCH_HYBRID_RRF_K:60}
+    # RRF 分路权重：两路名次贡献的相对权重，等权 1.0 时与旧版结果一致
+    bm25-weight: ${SEARCH_HYBRID_BM25_WEIGHT:1.0}
+    knn-weight: ${SEARCH_HYBRID_KNN_WEIGHT:1.0}
     recall-timeout-seconds: ${SEARCH_HYBRID_RECALL_TIMEOUT_SECONDS:10}
     rerank:
       # 关闭或调用失败时按 RRF 顺序截取 topK
@@ -378,6 +415,10 @@ elasticsearch:
 security:
   # WebSocket 与浏览器跨域白名单，支持 Origin pattern，多个来源用逗号分隔
   allowed-origins: ${SECURITY_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
+  # 受信代理列表（逗号分隔，支持 IPv4 CIDR 与 IPv6 精确地址）：
+  # 仅当直连来源（remoteAddr）命中该列表时才采信 X-Forwarded-For / X-Real-IP /
+  # CF-Connecting-IP 转发头；默认空 = 不信任任何直连来源，一律以 remoteAddr 为准
+  trusted-proxies: ${SECURITY_TRUSTED_PROXIES:}
 
 management:
   endpoints:
@@ -442,13 +483,16 @@ ai:
     max-tokens: ${AI_GENERATION_MAX_TOKENS:2000}
     top-p: ${AI_GENERATION_TOP_P:0.9}
   citation-verification:
-    # 回答生成后逐句校验引用是否被片段支撑，不支撑的引用在 referenceMappings 中标记为 SUSPICIOUS
-    enabled: ${AI_CITATION_VERIFICATION_ENABLED:false}
+    # 回答生成后逐句校验引用是否被片段支撑，不支撑的引用在 referenceMappings 中标记为 SUSPICIOUS；
+    # 整体状态（PASSED/TRUNCATED/UNVERIFIED/NO_CITATIONS）写入回答元数据 citationVerificationStatus。
+    # 默认开启；校验失败或超时不阻断回答，降级为 UNVERIFIED。
+    enabled: ${AI_CITATION_VERIFICATION_ENABLED:true}
     max-claims: ${AI_CITATION_VERIFICATION_MAX_CLAIMS:12}
     max-claim-chars: 300
     max-reference-chars: 800
     max-completion-tokens: 800
-    timeout-seconds: ${AI_CITATION_VERIFICATION_TIMEOUT_SECONDS:20}
+    # 校验调用超时（秒）：默认 1 秒，超时按 UNVERIFIED 降级，保证引用校验不拖慢回答收尾
+    timeout-seconds: ${AI_CITATION_VERIFICATION_TIMEOUT_SECONDS:1}
 
 # 微信支付相关配置
 wx:

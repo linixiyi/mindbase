@@ -10,6 +10,7 @@ import com.mindbase.config.AiProperties;
 import com.mindbase.config.ModelCallProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -42,6 +43,14 @@ public class LlmProviderRouter {
     private final ModelWebClientFactory webClientFactory;
     private final ModelCallGuard modelCallGuard;
     private final ModelCallProperties modelCallProperties;
+
+    /**
+     * ReAct 工具结果上下文 token 预算（chat.react.max-context-tokens，默认 6000）：
+     * ChatPipeline 在把 search_knowledge 结果拼入模型消息前按此预算估算并裁剪。
+     * 评测 headless 链路以 new 方式构造 ChatPipeline 时也传入本 Spring bean，两条链路取到同一配置。
+     */
+    @Value("${chat.react.max-context-tokens:6000}")
+    private int reactMaxContextTokens = 6000;
 
     public LlmProviderRouter(AiProperties aiProperties,
                              RateLimitService rateLimitService,
@@ -572,7 +581,11 @@ public class LlmProviderRouter {
         return tokens;
     }
 
-    private int estimateObjectMessagesTokens(List<Map<String, Object>> messages) {
+    /**
+     * 估算一组对话消息的 prompt tokens。除 ReAct 计费外，也供 ChatPipeline 裁剪
+     * search_knowledge 工具结果时按 chat.react.max-context-tokens 预算估算（同包可见，与计费同源）。
+     */
+    int estimateObjectMessagesTokens(List<Map<String, Object>> messages) {
         if (messages == null || messages.isEmpty()) {
             return 0;
         }
@@ -599,6 +612,13 @@ public class LlmProviderRouter {
             }
         }
         return Math.max(tokens, 1);
+    }
+
+    /**
+     * ReAct 工具结果上下文预算（chat.react.max-context-tokens），供 ChatPipeline 裁剪 search_knowledge 结果（同包访问）
+     */
+    int reactMaxContextTokenBudget() {
+        return reactMaxContextTokens;
     }
 
     private ReActTurn parseReActTurn(String responseBody, int estimatedPromptTokens) {

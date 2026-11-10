@@ -4,12 +4,12 @@ import com.mindbase.client.resilience.ModelCallPriority;
 import com.mindbase.client.resilience.ModelWebClientFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mindbase.config.ChatDeadlineProperties;
 import com.mindbase.config.RagEvalProperties;
 import com.mindbase.entity.SearchResult;
 import com.mindbase.service.AgentToolRegistry;
 import com.mindbase.service.ChatHandler;
 import com.mindbase.service.ChatPipeline;
+import com.mindbase.service.ChatPipelineFactory;
 import com.mindbase.service.HybridSearchService;
 import com.mindbase.service.LlmProviderRouter;
 import com.mindbase.service.ModelProviderConfigService;
@@ -34,6 +34,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 /**
  * 跑单条评测用例：真实混合检索（以发起评测的管理员身份）→ 按问答的提示词约定生成回答 → 另起一次调用让评委打分。
@@ -58,6 +59,32 @@ public class RagEvalCaseRunner {
      */
     public static final String SELF_JUDGE = "SELF_JUDGE";
 
+    /**
+     * 评委来源标记（独立）：eval.judge.provider 配置了非空供应商编码，评委走独立供应商定向调用。
+     * 与 {@link #SELF_JUDGE} 一起写入报告 config.judgeIndependence，发布门禁只放行 INDEPENDENT 的报告。
+     */
+    public static final String INDEPENDENT = "INDEPENDENT";
+
+    /**
+     * 评委双采样（eval.judge.repeat，默认 true）强制人工复核原因：两次采样恰有一次解析失败，
+     * 无法形成可用的自动判定（judgeScore/judgeCorrect 置空）。
+     */
+    public static final String REASON_JUDGE_UNSTABLE = "judge-unstable";
+
+    /**
+     * 评委双采样强制人工复核原因：两次采样 correct 结论相反，自动判定不可信（judgeScore/judgeCorrect 置空，
+     * judgeReason 写 {@code A=<score>/<correct>; B=<score>/<correct>} 供复核对照）。
+     */
+    public static final String REASON_JUDGE_DISAGREE = "judge-disagree";
+
+    /**
+     * 评委双采样"两次成功解析且结论一致"时追加在 judgeReason 末尾的 A/B 轨迹（disagree 时整体构成 judgeReason）。
+     * 聚合器据此把一致用例计入 judgeAgreementCases（分母 = 两次都成功解析的用例数）；
+     * 要求模式出现在末尾且 A/B 前是串首或全角分号，避免与评委自由文本理由误配。
+     */
+    static final Pattern REPEAT_AGREEMENT_TRACE =
+            Pattern.compile("(^|；)A=([1-5])/(true|false); B=([1-5])/(true|false)$");
+
     static final String JUDGE_SYSTEM_PROMPT = """
             你是 RAG 问答评测的评委。输入是一个 JSON 对象，字段含义：
             - question：用户问题
@@ -80,7 +107,7 @@ public class RagEvalCaseRunner {
     private final RagEvalProperties properties;
     private final ObjectMapper objectMapper;
     private final Executor llmExecutor;
-    /** react 模式使用的 headless 编排实例；rag 模式为 null。会话/持久化基础设施为空：headless 不做会话与落库 */
+    /** react 模式使用的 headless 编排实例（经 {@link ChatPipelineFactory#createHeadlessPipeline()} 统一装配）；rag 模式为 null */
     private final ChatPipeline reactPipeline;
     /** 评委独立供应商解析；未注入或 eval.judge.provider 未配置时评委走主链路（SELF_JUDGE） */
     private final ModelProviderConfigService modelProviderConfigService;
@@ -95,9 +122,10 @@ public class RagEvalCaseRunner {
                              @Qualifier("evalLlmExecutor") Executor llmExecutor,
                              AgentToolRegistry agentToolRegistry,
                              ModelProviderConfigService modelProviderConfigService,
-                             ModelWebClientFactory modelWebClientFactory) {
+                             ModelWebClientFactory modelWebClientFactory,
+                             ChatPipelineFactory chatPipelineFactory) {
         this(hybridSearchService, llmProviderRouter, parentContextExpander, properties, objectMapper, llmExecutor,
-                buildReactPipeline(hybridSearchService, llmProviderRouter, agentToolRegistry, objectMapper),
+                chatPipelineFactory.createHeadlessPipeline(),
                 modelProviderConfigService, modelWebClientFactory);
     }
 
@@ -111,6 +139,11 @@ public class RagEvalCaseRunner {
                 (ChatPipeline) null, null, null);
     }
 
+    /**
+     * @deprecated headless 装配已统一走 {@link ChatPipelineFactory#createHeadlessPipeline()}；
+     * 本重载仅为既有测试保留，内部同样经由 {@link ChatPipelineFactory#offline} 装配，评测链路不得再调用。
+     */
+    @Deprecated
     public RagEvalCaseRunner(HybridSearchService hybridSearchService,
                              LlmProviderRouter llmProviderRouter,
                              ParentContextExpander parentContextExpander,
@@ -119,16 +152,29 @@ public class RagEvalCaseRunner {
                              @Qualifier("evalLlmExecutor") Executor llmExecutor,
                              AgentToolRegistry agentToolRegistry) {
         this(hybridSearchService, llmProviderRouter, parentContextExpander, properties, objectMapper, llmExecutor,
-                buildReactPipeline(hybridSearchService, llmProviderRouter, agentToolRegistry, objectMapper),
+                ChatPipelineFactory.offline(hybridSearchService, llmProviderRouter, agentToolRegistry, objectMapper)
+                        .createHeadlessPipeline(),
                 null, null);
     }
 
-    private static ChatPipeline buildReactPipeline(HybridSearchService hybridSearchService,
-                                                   LlmProviderRouter llmProviderRouter,
-                                                   AgentToolRegistry agentToolRegistry,
-                                                   ObjectMapper objectMapper) {
-        return new ChatPipeline(null, hybridSearchService, llmProviderRouter, null, null, null, null,
-                agentToolRegistry, null, objectMapper, null, new ChatDeadlineProperties());
+    /**
+     * @deprecated 生产/评测装配走 {@link ChatPipelineFactory}（见带 {@code ChatPipelineFactory} 参数的构造器）；
+     * 本重载仅为既有测试保留，内部同样经由 {@link ChatPipelineFactory#offline} 装配。
+     */
+    @Deprecated
+    public RagEvalCaseRunner(HybridSearchService hybridSearchService,
+                             LlmProviderRouter llmProviderRouter,
+                             ParentContextExpander parentContextExpander,
+                             RagEvalProperties properties,
+                             ObjectMapper objectMapper,
+                             @Qualifier("evalLlmExecutor") Executor llmExecutor,
+                             AgentToolRegistry agentToolRegistry,
+                             ModelProviderConfigService modelProviderConfigService,
+                             ModelWebClientFactory modelWebClientFactory) {
+        this(hybridSearchService, llmProviderRouter, parentContextExpander, properties, objectMapper, llmExecutor,
+                ChatPipelineFactory.offline(hybridSearchService, llmProviderRouter, agentToolRegistry, objectMapper)
+                        .createHeadlessPipeline(),
+                modelProviderConfigService, modelWebClientFactory);
     }
 
     private RagEvalCaseRunner(HybridSearchService hybridSearchService,
@@ -185,21 +231,34 @@ public class RagEvalCaseRunner {
             draft.error = "生成失败: " + rootMessage(e);
         }
 
-        JudgeVerdict verdict = null;
+        JudgeOutcome judgeOutcome = null;
         if (draft.answer != null) {
             // react 模式评委看模型 search_knowledge 实际命中的片段（编造判定与生成证据一致）；rag 模式沿用 topK 直接检索结果
             List<SearchResult> judgeEvidence = draft.reactEvidence != null ? draft.reactEvidence : results;
-            verdict = judge(evalCase, draft.answer, judgeEvidence);
-            draft.verdict = verdict;
+            judgeOutcome = judge(evalCase, draft.answer, judgeEvidence);
+            draft.verdict = judgeOutcome.verdict();
             // 生成与引用指标与评委用同一份证据："有据"/"引用指向"始终相对于模型生成时实际看到的片段
             GenerationMetrics.Evaluation generation =
                     GenerationMetrics.evaluateCase(evalCase, draft.answer, judgeEvidence);
             draft.claimVerdicts = generation.claimVerdicts();
             draft.generation = generation.metrics();
         }
-        draft.diagnosis = EvalDiagnosis.classify(draft.retrievalHit, draft.answer != null, verdict);
-        boolean judgeFailed = draft.answer != null && (verdict == null || verdict.parseFailed());
-        return draft.build(sampler.decide(judgeFailed), System.currentTimeMillis() - start);
+        // 评委 usage 与生成 usage 合并写入用例 tokenUsage（评委缺失时只计生成侧并标 partial）；
+        // rag 模式不记录生成用量，保持历史口径（不记录 tokenUsage）
+        if (reactMode()) {
+            draft.tokenUsage = EvalCaseResult.TokenUsage.merged(draft.tokenUsage,
+                    judgeOutcome == null ? null : judgeOutcome.usage());
+        }
+        draft.diagnosis = EvalDiagnosis.classify(draft.retrievalHit, draft.answer != null, judgeOutcome == null ? null : judgeOutcome.verdict());
+        boolean judgeFailed = draft.answer != null
+                && (judgeOutcome == null || judgeOutcome.verdict() == null || judgeOutcome.verdict().parseFailed());
+        // 评委双采样的强制复核（judge-unstable / judge-disagree）覆盖抽样结论；两次都解析失败仍走 JUDGE_FAILED 通道。
+        // decide 始终调用一次，保持固定种子下每个用例消耗一次随机数，抽样序列不因评委成败改变
+        String reviewReason = sampler.decide(judgeFailed);
+        if (judgeOutcome != null && judgeOutcome.repeatReviewReason() != null) {
+            reviewReason = judgeOutcome.repeatReviewReason();
+        }
+        return draft.build(reviewReason, System.currentTimeMillis() - start);
     }
 
     /**
@@ -217,6 +276,7 @@ public class RagEvalCaseRunner {
                 .sorted(Map.Entry.comparingByKey())
                 .map(Map.Entry::getValue)
                 .toList();
+        // 生成侧用量；评委 usage 在 run() 里与此合并成用例 tokenUsage
         draft.tokenUsage = new EvalCaseResult.TokenUsage(react.promptTokens(), react.completionTokens(),
                 react.promptTokens() + react.completionTokens());
         List<Integer> referenceNumbers = react.references().keySet().stream().sorted().toList();
@@ -284,7 +344,20 @@ public class RagEvalCaseRunner {
         return turn.content().trim();
     }
 
-    JudgeVerdict judge(EvalCase evalCase, String answer, List<SearchResult> results) {
+    /**
+     * 评委调用结果：判定 + 评委调用的 token 用量（写用例 tokenUsage 时与生成侧合并）+ 双采样强制复核原因。
+     * 调用失败、输出为空或 usage 不可得时 usage 为 null，用例侧只计生成侧并标 partial（禁止字符数估算）。
+     * repeatReviewReason 仅在双采样合并出"单侧解析失败 / 结论相反"时非空（judge-unstable / judge-disagree），
+     * 用例侧以此覆盖人工复核抽样结论；单次调用与"两次都解析失败"时为 null（后者沿用 JUDGE_FAILED 通道）。
+     */
+    record JudgeOutcome(JudgeVerdict verdict, EvalCaseResult.TokenUsage usage, String repeatReviewReason) {
+    }
+
+    /** 单次评委调用样本：判定 + 该次调用的 token 用量（合并双采样的 usage 用） */
+    private record JudgeSample(JudgeVerdict verdict, EvalCaseResult.TokenUsage usage) {
+    }
+
+    JudgeOutcome judge(EvalCase evalCase, String answer, List<SearchResult> results) {
         try {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("question", evalCase.question());
@@ -294,6 +367,29 @@ public class RagEvalCaseRunner {
             List<Map<String, Object>> messages = List.of(
                     Map.of("role", "system", "content", JUDGE_SYSTEM_PROMPT),
                     Map.of("role", "user", "content", objectMapper.writeValueAsString(payload)));
+            if (!judgeRepeatEnabled()) {
+                JudgeSample sample = judgeSample(evalCase, messages);
+                return new JudgeOutcome(sample.verdict(), sample.usage(), null);
+            }
+            // 评委双采样：同一 prompt、同一模型连调两次（eval.judge.repeat，默认 true），按合并规则落盘
+            JudgeSample first = judgeSample(evalCase, messages);
+            JudgeSample second = judgeSample(evalCase, messages);
+            return mergeJudgeSamples(first, second);
+        } catch (Exception e) {
+            logger.warn("评委调用失败: case={}, error={}", evalCase.id(), e.getMessage());
+            return new JudgeOutcome(JudgeVerdict.failed("评委调用失败: " + rootMessage(e), null), null, null);
+        }
+    }
+
+    /** eval.judge.repeat 是否开启（Java 字段默认 false，生产经 application.yml 默认 true，裁决 D6）；关闭时评委只调一次，报告不产生一致性数字 */
+    boolean judgeRepeatEnabled() {
+        RagEvalProperties.Judge judge = properties.getJudge();
+        return judge == null || judge.isRepeat();
+    }
+
+    /** 单次评委调用（含输出为空的一次重试）：解析失败或调用异常都折算成 failed 判定，绝不抛出到采样层 */
+    private JudgeSample judgeSample(EvalCase evalCase, List<Map<String, Object>> messages) {
+        try {
             // 评委通道：配置了 eval.judge.provider 走独立供应商定向调用，否则与生成共用主链路（SELF_JUDGE）
             LlmProviderRouter.ReActTurn turn = independentJudgeConfigured()
                     ? completeAllowingOneRetry(messages, properties.getJudgeMaxTokens(),
@@ -301,13 +397,99 @@ public class RagEvalCaseRunner {
                     : completeAllowingOneRetry(messages, properties.getJudgeMaxTokens(),
                             properties.getJudgeTimeoutSeconds(), "评委");
             if (isEmpty(turn)) {
-                return JudgeVerdict.failed("评委输出为空（finish_reason=" + finishReason(turn) + "）", null);
+                return new JudgeSample(JudgeVerdict.failed("评委输出为空（finish_reason=" + finishReason(turn) + "）", null),
+                        null);
             }
-            return JudgeOutputParser.parse(turn.content(), objectMapper);
+            // 解析失败但评委调用真实发生：token 照记，费用照算（parseFailed 只影响 score/correct）
+            return new JudgeSample(JudgeOutputParser.parse(turn.content(), objectMapper), judgeUsageOf(turn));
         } catch (Exception e) {
             logger.warn("评委调用失败: case={}, error={}", evalCase.id(), e.getMessage());
-            return JudgeVerdict.failed("评委调用失败: " + rootMessage(e), null);
+            return new JudgeSample(JudgeVerdict.failed("评委调用失败: " + rootMessage(e), null), null);
         }
+    }
+
+    /**
+     * 评委双采样合并规则（C11）：
+     * <ol>
+     *   <li>两次都解析失败 → 按既有评委失败通道落盘（reason 取首个失败说明，reviewReason 仍走 JUDGE_FAILED），
+     *       绝不当作"两次一致"；</li>
+     *   <li>恰有一次解析失败 → judgeScore/judgeCorrect 置空、needsHumanReview=true、reviewReason=judge-unstable；</li>
+     *   <li>两次 correct 不同 → 同样置空、reviewReason=judge-disagree，judgeReason 写
+     *       {@code A=<score>/<correct>; B=<score>/<correct>}；</li>
+     *   <li>两次 correct 一致 → 分数取均值（先保留 1 位小数；用例侧 judgeScore 为整数，四舍五入落盘，
+     *       A/B 原始样本完整保留在 judgeReason 供复核），correct 取一致结论。</li>
+     * </ol>
+     * 两次调用的 token 用量求和（评委成本真实发生两次），某侧不可得时只计另一侧。
+     */
+    private JudgeOutcome mergeJudgeSamples(JudgeSample first, JudgeSample second) {
+        JudgeVerdict a = first.verdict();
+        JudgeVerdict b = second.verdict();
+        EvalCaseResult.TokenUsage usage = sumJudgeUsages(first.usage(), second.usage());
+        if (a.parseFailed() && b.parseFailed()) {
+            return new JudgeOutcome(JudgeVerdict.failed(a.reason(), a.rawOutput()), usage, null);
+        }
+        if (a.parseFailed() || b.parseFailed()) {
+            JudgeVerdict failed = a.parseFailed() ? a : b;
+            return new JudgeOutcome(JudgeVerdict.failed(failed.reason(), failed.rawOutput()), usage,
+                    REASON_JUDGE_UNSTABLE);
+        }
+        if (!a.correct().equals(b.correct())) {
+            return new JudgeOutcome(JudgeVerdict.failed(repeatTrace("A", a) + "; " + repeatTrace("B", b), null),
+                    usage, REASON_JUDGE_DISAGREE);
+        }
+        // 一致 → 取分数均值：先按卡面保留 1 位小数；用例侧 judgeScore 为 Integer，再四舍五入（half-up）落盘（裁决 D7）。
+        // A/B 轨迹固定在 judgeReason 末尾（聚合器按末尾模式识别一致用例）；分数不同时补写 1 位小数均值与最终落盘值，
+        // 原始分/均值/落盘值三要素齐全，报告可直接复核
+        double mean = Math.round((a.score() + b.score()) / 2d * 10) / 10d;
+        int storedScore = (int) Math.round(mean);
+        String meanNote = a.score().equals(b.score())
+                ? ""
+                : "mean=" + mean + "→judgeScore=" + storedScore + "；";
+        String agreedReason = (a.reason() == null || a.reason().isBlank() ? "" : a.reason() + "；")
+                + meanNote
+                + repeatTrace("A", a) + "; " + repeatTrace("B", b);
+        return new JudgeOutcome(JudgeVerdict.of(storedScore, a.correct(), agreedReason), usage, null);
+    }
+
+    /** 单侧样本轨迹：{@code <label>=<score>/<correct>}（disagree 合并与一致追加共用） */
+    private static String repeatTrace(String label, JudgeVerdict verdict) {
+        return label + "=" + verdict.score() + "/" + verdict.correct();
+    }
+
+    /** 两次评委调用的用量求和；两侧都不可得返回 null，维度缺失时只计另一侧（禁止估算） */
+    private static EvalCaseResult.TokenUsage sumJudgeUsages(EvalCaseResult.TokenUsage first,
+                                                            EvalCaseResult.TokenUsage second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        Integer prompt = addUsage(first.promptTokens(), second.promptTokens());
+        Integer completion = addUsage(first.completionTokens(), second.completionTokens());
+        Integer total = prompt != null && completion != null
+                ? prompt + completion
+                : addUsage(first.totalTokens(), second.totalTokens());
+        return new EvalCaseResult.TokenUsage(prompt, completion, total);
+    }
+
+    private static Integer addUsage(Integer left, Integer right) {
+        if (left == null) {
+            return right;
+        }
+        if (right == null) {
+            return left;
+        }
+        return left + right;
+    }
+
+    /** 评委回合的 token 用量；两侧都为 0 视为供应商未回填 usage（不可得），返回 null 不编数字 */
+    private static EvalCaseResult.TokenUsage judgeUsageOf(LlmProviderRouter.ReActTurn turn) {
+        if (turn == null || (turn.promptTokens() == 0 && turn.completionTokens() == 0)) {
+            return null;
+        }
+        return new EvalCaseResult.TokenUsage(turn.promptTokens(), turn.completionTokens(),
+                turn.promptTokens() + turn.completionTokens());
     }
 
     /**
@@ -322,6 +504,14 @@ public class RagEvalCaseRunner {
         return judge.getModel() == null || judge.getModel().isBlank()
                 ? judge.getProvider().trim()
                 : judge.getProvider().trim() + "/" + judge.getModel().trim();
+    }
+
+    /**
+     * 评委独立性标记（写入报告 config.judgeIndependence）：配置 eval.judge.provider 时为 {@link #INDEPENDENT}，
+     * 否则为 {@link #SELF_JUDGE}。发布门禁（{@link EvalReportAggregator#releaseGate}）只放行独立评委的报告。
+     */
+    public String judgeIndependence() {
+        return independentJudgeConfigured() ? INDEPENDENT : SELF_JUDGE;
     }
 
     /** eval.judge.provider 是否配置了非空供应商编码 */

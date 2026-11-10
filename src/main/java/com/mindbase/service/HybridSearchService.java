@@ -181,8 +181,9 @@ public class HybridSearchService {
         List<Hit<EsDocument>> bm25Hits = bm25Future.join();
         List<Hit<EsDocument>> knnHits = knnFuture.join();
 
-        List<RrfFusion.Fused<Hit<EsDocument>>> fused =
-                RrfFusion.fuse(properties.getRrfK(), Hit::id, bm25Hits, knnHits);
+        List<RrfFusion.Fused<Hit<EsDocument>>> fused = RrfFusion.fuse(
+                new double[]{properties.getBm25Weight(), properties.getKnnWeight()},
+                properties.getRrfK(), Hit::id, bm25Hits, knnHits);
         logger.debug("双路召回完成: window={}, bm25={}, knn={}, fused={}", window, bm25Hits.size(), knnHits.size(), fused.size());
 
         RankedResults ranked = rerankAndTruncate(query, fused, topK);

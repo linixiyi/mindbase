@@ -3,9 +3,13 @@ package com.mindbase.service.chunk;
 import java.util.List;
 
 /**
- * 把同一文件里相邻的分块拼回连续文本。
- * 切分时每块开头会带上上一块结尾的几句作为重叠（overlapText + 空行 + 本块正文），直接拼接会让这几句重复出现，
- * 这里尽力去掉重叠部分；识别不出重叠时原样拼接，宁可重复几句也不丢内容。
+ * 把同一文件里 chunkIndex 相邻的分块按顺序拼回连续文本。
+ * <p>
+ * task-0008 起分块正文不再携带重叠（ParseService 只把重叠长度记录到日志元数据，
+ * 邻块上下文由 ParentContextExpander 的 neighbour-chunks 窗口提供），所以合并就是邻接拼接；
+ * 对历史数据里旧版 {@code 重叠句\n\n} 固定格式的前缀保留一次精确剥离，识别不出就原样拼接。
+ * 旧版"12 字相同"的字面启发式已从合并路径移除：旧格式前缀本身有固定的 {@code \n\n} 形状，
+ * 无需按长度猜测；该启发式只保留在 {@link #stripLeadingOverlap}（历史渲染路径仍在使用）。
  */
 public final class ChunkTextMerger {
 
@@ -16,6 +20,10 @@ public final class ChunkTextMerger {
     private ChunkTextMerger() {
     }
 
+    /**
+     * @param orderedChunks 同一文件按 chunkIndex 升序且邻接的分块文本
+     *                      （顺序与邻接由调用方保证，如 ParentContextExpander 的 chunkId 区间查询）
+     */
     public static String merge(List<String> orderedChunks) {
         if (orderedChunks == null || orderedChunks.isEmpty()) {
             return "";
@@ -27,7 +35,7 @@ public final class ChunkTextMerger {
                 continue;
             }
             String text = chunk.trim();
-            String addition = previous == null ? text : stripLeadingOverlap(previous, text);
+            String addition = previous == null ? text : stripLegacyOverlapPrefix(previous, text);
             if (!addition.isEmpty()) {
                 if (!merged.isEmpty()) {
                     merged.append(SEPARATOR);
@@ -40,7 +48,24 @@ public final class ChunkTextMerger {
     }
 
     /**
-     * 去掉 next 开头与 previous 结尾重复的部分
+     * 历史分块（task-0008 之前解析）开头带 {@code 重叠句\n\n} 前缀：只按这个固定格式精确剥离；
+     * 新分块正文不带重叠，这里通常原样返回。不再做"12 字相同"的字面探测。
+     */
+    static String stripLegacyOverlapPrefix(String previous, String next) {
+        int separator = next.indexOf(SEPARATOR);
+        if (separator > 0) {
+            String head = next.substring(0, separator);
+            String compactHead = compact(head);
+            if (!compactHead.isEmpty() && compact(previous).endsWith(compactHead)) {
+                return next.substring(separator + SEPARATOR.length()).trim();
+            }
+        }
+        return next;
+    }
+
+    /**
+     * 旧版重叠探测（含"12 字相同"字面启发式），仅保留给历史数据渲染路径（ContextWindowBuilder）使用；
+     * 父块合并已改用 {@link #stripLegacyOverlapPrefix}，新分块正文不带重叠时结果与原样拼接一致。
      */
     public static String stripLeadingOverlap(String previous, String next) {
         int separator = next.indexOf(SEPARATOR);

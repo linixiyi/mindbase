@@ -1,5 +1,6 @@
 package com.mindbase.utils;
 
+import com.mindbase.security.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -9,8 +10,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Optional;
 
 /**
  * 请求工具类
@@ -20,6 +19,13 @@ import java.util.Optional;
  */
 @Slf4j
 public class HttpRequestUtil {
+
+    /**
+     * 与 Spring 装配的 {@link ClientIpResolver} 桥接（由其 @PostConstruct 注册）。
+     * 未注册时（如脱离 Spring 的单测环境）保守回落 remoteAddr，不采信任何转发头。
+     */
+    private static volatile ClientIpResolver clientIpResolver;
+
     /**
      * readData
      *
@@ -60,36 +66,28 @@ public class HttpRequestUtil {
         return "";
     }
 
+    /**
+     * 客户端 IP 信任策略解析，委托 {@link ClientIpResolver} 同一实现（task-0019）：
+     * 仅当直连来源命中 security.trusted-proxies 时才采信转发头，
+     * 解析失败一律回落 remoteAddr，不返回攻击者可控值。
+     */
     public static String resolveClientIp(HttpServletRequest request) {
-        return firstUsableIp(
-                request.getHeader("CF-Connecting-IP"),
-                request.getHeader("True-Client-IP"),
-                extractForwardedForIp(request.getHeader("X-Forwarded-For")),
-                request.getHeader("X-Real-IP"),
-                request.getHeader("Proxy-Client-IP"),
-                request.getHeader("WL-Proxy-Client-IP"),
-                request.getRemoteAddr()
-        ).orElse("unknown");
+        if (request == null) {
+            return "unknown";
+        }
+        ClientIpResolver resolver = clientIpResolver;
+        if (resolver != null) {
+            return resolver.resolveClientIp(request);
+        }
+        String remoteAddr = request.getRemoteAddr();
+        return isUsableIp(remoteAddr) ? remoteAddr : "unknown";
     }
 
-    private static Optional<String> firstUsableIp(String... candidates) {
-        return Arrays.stream(candidates)
-                .filter(HttpRequestUtil::isUsableIp)
-                .findFirst();
+    public static void setClientIpResolver(ClientIpResolver resolver) {
+        clientIpResolver = resolver;
     }
 
     private static boolean isUsableIp(String ip) {
         return ip != null && !ip.isBlank() && !"unknown".equalsIgnoreCase(ip);
-    }
-
-    private static String extractForwardedForIp(String xForwardedFor) {
-        if (xForwardedFor == null || xForwardedFor.isBlank()) {
-            return null;
-        }
-        return Arrays.stream(xForwardedFor.split(","))
-                .map(String::trim)
-                .filter(HttpRequestUtil::isUsableIp)
-                .findFirst()
-                .orElse(null);
     }
 }

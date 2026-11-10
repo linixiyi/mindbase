@@ -16,21 +16,30 @@ import io.minio.errors.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @Slf4j
 public class FileProcessingConsumer {
+
+    /** 取文件只允许的协议：其他 scheme（file:、ftp:、jar: 等）一律拒绝 */
+    private static final Set<String> ALLOWED_FETCH_SCHEMES = Set.of("http", "https");
 
     private final ParseService parseService;
     private final VectorizationService vectorizationService;
@@ -41,6 +50,12 @@ public class FileProcessingConsumer {
     private KafkaConfig kafkaConfig;
     @Autowired(required = false)
     private ApplicationEventPublisher eventPublisher;
+    /** 取文件白名单：逗号分隔主机名；空（未配置）时默认从 minio.endpoint 的主机名派生 */
+    @Value("${mindbase.storage.allowed-hosts:}")
+    private String allowedHostsConfig;
+    /** MinIO 端点，用于派生默认白名单主机 */
+    @Value("${minio.endpoint:}")
+    private String minioEndpoint;
 
 
     public FileProcessingConsumer(
@@ -114,6 +129,11 @@ public class FileProcessingConsumer {
         } catch (VectorizationLeaseLostException e) {
             // 任务已被定时任务改回待处理并重新投递，交给新的认领者，这条消息正常提交
             log.warn("向量化认领已失效，放弃本次处理: fileMd5={}", task.getFileMd5());
+        } catch (UntrustedStorageTargetException e) {
+            // 来源非法是确定性拒绝，重试结果相同：写任务 error 后直接提交，不进重试/死信，也不发起任何连接
+            leaseService.fail(lease, e);
+            log.warn("文件来源未通过 scheme/host 白名单校验，任务标记失败且不重试: fileMd5={}, userId={}, reason={}",
+                    task.getFileMd5(), task.getUserId(), e.getMessage());
         } catch (Exception e) {
             if (isInsufficientBalance(e)) {
                 // 余额不足重试多少次结果都一样，每次重试还要重新解析整份文件、占住消费线程，直接标记失败并提交消息
@@ -159,7 +179,7 @@ public class FileProcessingConsumer {
 
     /**
      * 优先直接读 MinIO 里的合并文件：预签名 URL 一小时就过期，outbox 补发、卡住重投、重建任务都可能晚于这个时间。
-     * 合并对象读不到时再退回消息里的路径（兼容旧消息和本地文件路径）
+     * 合并对象读不到时再退回消息里的路径；该路径只允许 http/https 且 host 在白名单内（file:// 等本地路径已按取文件收口移除）
      */
     private InputStream openSourceStream(FileProcessingTask task) throws Exception {
         try {
@@ -179,52 +199,148 @@ public class FileProcessingConsumer {
     }
 
     /**
-     * 模拟从存储系统下载文件
+     * 从消息里的 filePath 下载文件。任何连接动作之前先过 {@link #resolveTrustedFetchUrl(String)} 收口：
+     * 非 http/https 或 host 不在 {@code mindbase.storage.allowed-hosts}（默认从 minio.endpoint 派生）的来源
+     * 直接抛 {@link UntrustedStorageTargetException}，不发起连接。
      *
-     * @param filePath 文件路径或 URL
-     * @return 文件输入流
+     * @param filePath 文件 URL
+     * @return 文件输入流；网络失败（非白名单拒绝）返回 null，由 openSourceStream 统一转成"流为空"失败
      */
     private InputStream downloadFileFromStorage(String filePath) throws ServerException, InsufficientDataException, ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException, InternalException {
         log.info("Downloading file from storage: {}", filePath);
+        URL url = resolveTrustedFetchUrl(filePath);
 
         try {
-            // 如果是文件系统路径
-            File file = new File(filePath);
-            if (file.exists()) {
-                log.info("Detected file system path: {}", filePath);
-                return new FileInputStream(file);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(30000); // 连接超时30秒
+            connection.setReadTimeout(180000);   // 读取超时时间3分钟
+            // 关闭自动重定向：重定向目标不在白名单校验范围内，跟进等于绕过取文件收口
+            connection.setInstanceFollowRedirects(false);
+
+            // 添加必要的请求头
+            connection.setRequestProperty("User-Agent", "MindBase-FileProcessor/1.0");
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                log.info("Successfully connected to URL, starting download...");
+                return connection.getInputStream();
+            } else if (responseCode == HttpURLConnection.HTTP_FORBIDDEN) {
+                log.error("Access forbidden - possible expired presigned URL");
+                throw new IOException("Access forbidden - the presigned URL may have expired");
+            } else {
+                log.error("Failed to download file, HTTP response code: {} for URL: {}", responseCode, filePath);
+                throw new IOException(String.format("Failed to download file, HTTP response code: %d", responseCode));
             }
-
-            // 如果是远程 URL
-            if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
-                log.info("Detected remote URL: {}", filePath);
-                URL url = new URL(filePath);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
-                connection.setConnectTimeout(30000); // 连接超时30秒
-                connection.setReadTimeout(180000);   // 读取超时时间3分钟
-
-                // 添加必要的请求头
-                connection.setRequestProperty("User-Agent", "MindBase-FileProcessor/1.0");
-
-                int responseCode = connection.getResponseCode();
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    log.info("Successfully connected to URL, starting download...");
-                    return connection.getInputStream();
-                } else if (responseCode == HttpURLConnection.HTTP_FORBIDDEN) {
-                    log.error("Access forbidden - possible expired presigned URL");
-                    throw new IOException("Access forbidden - the presigned URL may have expired");
-                } else {
-                    log.error("Failed to download file, HTTP response code: {} for URL: {}", responseCode, filePath);
-                    throw new IOException(String.format("Failed to download file, HTTP response code: %d", responseCode));
-                }
-            }
-
-            // 如果既不是文件路径也不是 URL
-            throw new IllegalArgumentException("Unsupported file path format: " + filePath);
         } catch (Exception e) {
             log.error("Error downloading file from storage: {}", filePath, e);
             return null; // 或者抛出异常
+        }
+    }
+
+    /**
+     * 取文件收口（task-0009）：消息里的 filePath 只允许 http/https 且 host 命中
+     * {@code mindbase.storage.allowed-hosts}（未显式配置时默认从 minio.endpoint 的主机名派生）。
+     * 其他 scheme/host（file://、169.254.169.254 等云元数据地址、任意外部主机）直接拒绝，
+     * 且拒绝发生在任何连接发起之前。包内可见供测试固化白名单语义。
+     */
+    URL resolveTrustedFetchUrl(String filePath) throws IOException {
+        if (filePath == null || filePath.isBlank()) {
+            throw new UntrustedStorageTargetException("文件路径为空，拒绝取文件");
+        }
+        URI uri;
+        try {
+            uri = new URI(filePath.trim());
+        } catch (URISyntaxException e) {
+            throw new UntrustedStorageTargetException("文件路径不是合法 URI，拒绝取文件: " + filePath, e);
+        }
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        if (!ALLOWED_FETCH_SCHEMES.contains(scheme)) {
+            throw new UntrustedStorageTargetException(
+                    "不支持的文件来源协议 '" + scheme + "'，只允许 http/https: " + filePath);
+        }
+        String host = normalizedHost(uri.getHost());
+        if (host == null || !allowedFetchHosts().contains(host)) {
+            throw new UntrustedStorageTargetException(
+                    "文件来源主机不在白名单: host=" + host + ", url=" + filePath);
+        }
+        return uri.toURL();
+    }
+
+    /**
+     * 白名单主机集合：显式配置（逗号分隔）优先；未配置时从 minio.endpoint 派生。
+     * 集合为空表示全部 http(s) 来源都被拒绝（fail closed）
+     */
+    private Set<String> allowedFetchHosts() {
+        Set<String> hosts = new LinkedHashSet<>();
+        if (allowedHostsConfig != null && !allowedHostsConfig.isBlank()) {
+            for (String candidate : allowedHostsConfig.split(",")) {
+                String host = normalizedHost(candidate);
+                if (host != null) {
+                    hosts.add(host);
+                }
+            }
+        }
+        if (hosts.isEmpty()) {
+            String derived = endpointHost(minioEndpoint);
+            if (derived != null) {
+                hosts.add(derived);
+            }
+        }
+        return hosts;
+    }
+
+    /** 主机名归一化：去空白、小写、IPv6 字面量去方括号；空返回 null */
+    private static String normalizedHost(String host) {
+        if (host == null) {
+            return null;
+        }
+        String trimmed = host.trim().toLowerCase(Locale.ROOT);
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+            trimmed = trimmed.substring(1, trimmed.length() - 1);
+        }
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /**
+     * 从 minio.endpoint 取主机名作为默认白名单；endpoint 缺 scheme（如 localhost:9000）时按 http:// 补齐再解析。
+     * 解析不出主机返回 null（fail closed）
+     */
+    static String endpointHost(String endpoint) {
+        if (endpoint == null || endpoint.isBlank()) {
+            return null;
+        }
+        String trimmed = endpoint.trim();
+        URI uri = null;
+        try {
+            uri = new URI(trimmed);
+        } catch (URISyntaxException ignored) {
+            // 退回补 scheme 再解析
+        }
+        if (uri == null || uri.getHost() == null) {
+            try {
+                uri = new URI("http://" + trimmed);
+            } catch (URISyntaxException e) {
+                return null;
+            }
+        }
+        return normalizedHost(uri.getHost());
+    }
+
+    /**
+     * 文件来源未通过 scheme/host 白名单校验的确定性拒绝。
+     * 与余额不足同语义：消费端据此写任务 error 后直接提交消息，不进重试与死信。
+     */
+    static class UntrustedStorageTargetException extends RuntimeException {
+        UntrustedStorageTargetException(String message) {
+            super(message);
+        }
+
+        UntrustedStorageTargetException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 

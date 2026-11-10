@@ -160,7 +160,7 @@ class ParseServiceUnitTest {
     }
 
     @Test
-    void testSplitTextIntoChunksWithSemantics_AddsSentenceOverlap() throws Exception {
+    void testSplitTextIntoChunksWithSemantics_DoesNotAddSentenceOverlap() throws Exception {
         ReflectionTestUtils.setField(parseService, "overlapSize", 10);
         ReflectionTestUtils.setField(parseService, "minChunkSize", 1);
 
@@ -170,7 +170,11 @@ class ParseServiceUnitTest {
 
         assertEquals(2, result.size());
         assertEquals("第一句内容较长。第二句内容较长。", result.get(0));
-        assertTrue(result.get(1).startsWith("第二句内容较长。\n\n第三句内容较长。"));
+        // task-0008 起分块正文不再携带语义重叠：正文等于纯本块内容，
+        // 邻块上下文由 ParentContextExpander 的 neighbour-chunks 窗口提供（扩边依据 spec.md D3 / task-0023）
+        assertEquals("第三句内容较长。第四句内容较长。", result.get(1), "正文等于纯本块内容，不带重叠前缀");
+        assertFalse(result.get(1).startsWith("第二句内容较长。\n\n"), "正文不再携带重叠前缀");
+        assertFalse(result.get(1).contains("第二句内容较长。"), "相邻块正文互不包含");
     }
 
     @Test

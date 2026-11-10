@@ -49,6 +49,10 @@ public class RagEvalProperties {
     /** 评委模型配置：走独立供应商时的定向参数；provider 未配置时评委与生成共用主链路（SELF_JUDGE） */
     private Judge judge = new Judge();
 
+    /** 模型单价配置：配置后报告 cost.amount 按 promptTokens/1000*inputPer1k + completionTokens/1000*outputPer1k 折算；
+     *  字段默认 null（未配价），报告 cost.amount 保持 null 并在 note 写 unpriced，不做字符数估算 */
+    private Pricing pricing = new Pricing();
+
     /** 评委与人工一致率的告警阈值 */
     private HumanAgreement humanAgreement = new HumanAgreement();
 
@@ -58,6 +62,25 @@ public class RagEvalProperties {
         private String provider;
         /** 评委模型名；为空时使用该供应商配置里的默认模型 */
         private String model;
+        /**
+         * 评委双采样：同一 prompt、同一模型连调两次，按合并规则落盘——
+         * 两次 correct 一致 → 分数取均值；不一致或单侧解析失败 → judgeScore/judgeCorrect 置空并强制人工复核；
+         * 两次都解析失败 → 按既有评委失败通道处理。关闭时评委只调一次，报告一致性数字为 null（不产生一致性结论）。
+         * <p>
+         * Java 字段默认 false（直接 new RagEvalProperties() 的单测路径走单采样，不污染既有断言口径）；
+         * 生产默认 true 由 application.yml 的 {@code eval.judge.repeat: ${EVAL_JUDGE_REPEAT:true}} 承担（裁决 D6）。
+         */
+        private boolean repeat = false;
+    }
+
+    @Data
+    public static class Pricing {
+        /** 每 1000 prompt tokens 的单价；null 表示未配价，报告 cost.amount 保持 null（inputPer1k 与 outputPer1k 需同时配置才折算） */
+        private Double inputPer1k;
+        /** 每 1000 completion tokens 的单价；null 表示未配价 */
+        private Double outputPer1k;
+        /** 计价币种（如 CNY/USD）；未配置或空白时报告不写币种 */
+        private String currency;
     }
 
     @Data

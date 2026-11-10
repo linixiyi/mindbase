@@ -35,6 +35,12 @@ public class RerankClient {
     private final ObjectMapper objectMapper;
     private final SecretCryptoService secretCryptoService;
 
+    /**
+     * 懒加载共享 WebClient：连接池与线程资源跨请求复用（rerank 是每请求热路径）。
+     * API Key 运行时可变，因此鉴权头不下沉到这里，由每次请求单独携带。
+     */
+    private volatile WebClient sharedWebClient;
+
     public RerankClient(HybridSearchProperties properties,
                         ModelProviderConfigService modelProviderConfigService,
                         ObjectMapper objectMapper,
@@ -43,6 +49,27 @@ public class RerankClient {
         this.modelProviderConfigService = modelProviderConfigService;
         this.objectMapper = objectMapper;
         this.secretCryptoService = secretCryptoService;
+    }
+
+    /**
+     * 共享 WebClient 单例（volatile + 双重检查锁），testConnection 与 rerank 复用同一实例。
+     * 只承载常量配置：JSON Content-Type 与 4MB 响应缓冲上限。
+     */
+    WebClient webClient() {
+        WebClient local = sharedWebClient;
+        if (local == null) {
+            synchronized (this) {
+                local = sharedWebClient;
+                if (local == null) {
+                    local = WebClient.builder()
+                            .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                            .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(4 * 1024 * 1024))
+                            .build();
+                    sharedWebClient = local;
+                }
+            }
+        }
+        return local;
     }
 
     /**
@@ -88,12 +115,10 @@ public class RerankClient {
                     "model", cfg.getModel(),
                     "input", Map.of("query", "ping", "documents", List.of("ping")),
                     "parameters", Map.of("return_documents", false, "top_n", 1));
-            String response = WebClient.builder()
-                    .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                    .build()
+            String response = webClient()
                     .post()
                     .uri(cfg.getUrl())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                     .bodyValue(body)
                     .retrieve()
                     .bodyToMono(String.class)
@@ -148,13 +173,10 @@ public class RerankClient {
         );
 
         long start = System.currentTimeMillis();
-        String response = WebClient.builder()
-                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(4 * 1024 * 1024))
-                .build()
+        String response = webClient()
                 .post()
                 .uri(cfg.getUrl())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(String.class)

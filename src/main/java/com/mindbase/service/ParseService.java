@@ -281,6 +281,8 @@ public class ParseService {
      */
     private int saveChildChunks(String fileMd5, List<String> chunks,
             String userId, String orgTag, boolean isPublic, int startingChunkId, Integer pageNumber) {
+        // 分块正文不带重叠，重叠长度只记录日志（邻块上下文由 ParentContextExpander 的 neighbour-chunks 提供）
+        recordSemanticOverlapMetadata(fileMd5, chunks, startingChunkId, chunkSize);
         int currentChunkId = startingChunkId;
         for (String chunk : chunks) {
             currentChunkId++;
@@ -591,17 +593,21 @@ public class ParseService {
     }
 
     /**
-     * 智能文本分割，保持语义完整性
+     * 智能文本分割，保持语义完整性。
+     * <p>
+     * 分块正文不再携带语义重叠：旧实现会把上一块结尾至多 overlap-size 字以 {@code 重叠\n\n}
+     * 前置进本块正文，同一句话在相邻分块里重复计词（BM25 词频虚高）、embedding 被稀释。
+     * 现在正文只含本块原文；重叠长度在保存时由 {@link #recordSemanticOverlapMetadata} 记录到日志，
+     * 邻块上下文统一由 ParentContextExpander 的 neighbour-chunks 窗口在检索期拼装。
      */
-    private List<String> splitTextIntoChunksWithSemantics(String text, int chunkSize) {
+    List<String> splitTextIntoChunksWithSemantics(String text, int chunkSize) {
         if (text == null || text.isBlank()) {
             return new ArrayList<>();
         }
 
         int effectiveChunkSize = Math.max(1, chunkSize);
         List<String> baseChunks = splitTextIntoBaseChunks(text, effectiveChunkSize);
-        List<String> mergedChunks = mergeSmallChunks(baseChunks, effectiveChunkSize);
-        return addSemanticOverlap(mergedChunks, effectiveChunkSize);
+        return mergeSmallChunks(baseChunks, effectiveChunkSize);
     }
 
     private List<String> splitTextIntoBaseChunks(String text, int chunkSize) {
@@ -716,28 +722,59 @@ public class ParseService {
         return normalizeChunk(first) + "\n\n" + normalizeChunk(second);
     }
 
-    private List<String> addSemanticOverlap(List<String> chunks, int chunkSize) {
-        int effectiveOverlapSize = normalizedOverlapSize(chunkSize);
-        if (effectiveOverlapSize <= 0 || chunks.size() <= 1) {
-            return chunks;
+    /**
+     * 记录相邻分块之间的语义重叠长度（只进日志，不改写正文，不加数据库列）。
+     * <p>
+     * 旧实现 {@code addSemanticOverlap} 会把上一块结尾至多 overlap-size 字的文本前置进本块正文，
+     * 导致同一句话在相邻分块里重复计词（BM25 词频虚高）、embedding 被稀释。现在正文不再重叠，
+     * 这里按旧规则计算"本应重叠的长度"并逐块记录，用于观察 {@code file.parsing.overlap-size}
+     * 配置的实际影响；邻块上下文由 ParentContextExpander 的 neighbour-chunks 提供。
+     * <p>
+     * ES 文档（EsDocument）没有可用的重叠元数据位，且该结构不在本任务 boundary 内，
+     * 因此重叠长度只记录日志，不入 ES、不入数据库。
+     *
+     * @param fileMd5         文件 MD5（仅用于日志定位）
+     * @param chunks          按 chunkIndex 邻接顺序的分块正文
+     * @param startingChunkId 本批起始 chunkId（首个分块的 chunkId = startingChunkId + 1）
+     * @param chunkSize       分块目标大小
+     * @return 与 chunks 对齐的重叠长度数组（index 0 恒为 0；其余为旧实现会前置进该块的重叠字符数）
+     */
+    int[] recordSemanticOverlapMetadata(String fileMd5, List<String> chunks, int startingChunkId, int chunkSize) {
+        int[] overlapLengths = new int[chunks == null ? 0 : chunks.size()];
+        if (chunks == null || chunks.size() <= 1) {
+            return overlapLengths;
         }
 
-        List<String> overlappedChunks = new ArrayList<>(chunks.size());
-        overlappedChunks.add(chunks.get(0));
+        int effectiveOverlapSize = normalizedOverlapSize(chunkSize);
+        if (effectiveOverlapSize <= 0) {
+            return overlapLengths;
+        }
 
+        int chunksWithOverlap = 0;
+        long totalOverlapChars = 0;
         for (int i = 1; i < chunks.size(); i++) {
-            String overlapText = buildOverlapText(chunks.get(i - 1), effectiveOverlapSize);
-            String currentChunk = chunks.get(i);
-            if (overlapText.isEmpty()) {
-                overlappedChunks.add(currentChunk);
-            } else {
-                overlappedChunks.add(overlapText + "\n\n" + currentChunk);
+            int overlapChars = buildOverlapText(chunks.get(i - 1), effectiveOverlapSize).length();
+            overlapLengths[i] = overlapChars;
+            if (overlapChars > 0) {
+                chunksWithOverlap++;
+                totalOverlapChars += overlapChars;
+                logger.debug("语义重叠长度已记录（正文不再携带重叠）: fileMd5={}, chunkId={}, overlapChars={}",
+                        fileMd5, startingChunkId + i + 1, overlapChars);
             }
         }
 
-        return overlappedChunks;
+        if (chunksWithOverlap > 0) {
+            logger.info("分块正文不再携带语义重叠，重叠长度仅记录日志，邻块上下文由父块扩展提供: "
+                            + "fileMd5={}, chunks={}, withOverlap={}, totalOverlapChars={}",
+                    fileMd5, chunks.size(), chunksWithOverlap, totalOverlapChars);
+        }
+        return overlapLengths;
     }
 
+    /**
+     * 计算旧实现会前置进下一块的重叠文本（取上一块结尾的句子，至多 maxLength 字）；
+     * 现在只用于统计重叠长度，不再拼进任何分块正文。
+     */
     private String buildOverlapText(String text, int maxLength) {
         if (text == null || text.isBlank() || maxLength <= 0) {
             return "";

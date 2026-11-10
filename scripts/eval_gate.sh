@@ -34,7 +34,10 @@ fi
 
 echo "==> 2/3 阈值门禁（python3 scripts/eval_compare.py）"
 echo "报告: $REPORT"
-python3 scripts/eval_compare.py "$REPORT" \
+# fixture 的评委是 Mockito 桩、与生成同源，报告必然 SELF_JUDGE / releaseEligible=false；
+# 本门禁做的是离线回归检测而非发布判定，按 eval_compare.py 约定显式 --allow-self-judge
+# 放行（脚本会打印降级说明），7 条阈值本身不放宽。
+python3 scripts/eval_compare.py "$REPORT" --allow-self-judge \
   --fail-if 'recallAtK<0.90' \
   --fail-if 'docRecallAtK<0.95' \
   --fail-if 'mrr<0.90' \
@@ -56,3 +59,4 @@ if [ "$(python3 -c "print(1 if float('$ACC_LOWER') >= 0.70 else 0)")" != "1" ]; 
 fi
 
 echo "eval_gate: PASS（20 题 fixture + 7 条阈值 + Wilson 下界全部满足）"
+echo "真机冒烟（可选，默认不跑；需本机后端/ES/MinIO 与管理员凭据）：先 bash scripts/eval_real_smoke.sh --dry-run 静态预检，真跑与排查见 docs/eval/real-smoke.md"

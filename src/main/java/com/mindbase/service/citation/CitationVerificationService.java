@@ -22,7 +22,9 @@ import java.util.concurrent.TimeUnit;
  * 引用事后校验（虚空引用检测）。
  * 回答生成后抽取每个带引用的句子，和被引用的文档块一起交给模型判断能否支撑；
  * 判为不支撑的引用标记为 SUSPICIOUS，前端据此降低展示优先级。
- * 所有（句子, 片段）对合并成一次模型调用，校验失败或超时不影响回答本身。
+ * 所有（句子, 片段）对合并成一次模型调用；调用失败或超时降级为 UNVERIFIED，不阻断回答本身。
+ * 整体结论（PASSED/TRUNCATED/UNVERIFIED/NO_CITATIONS）由 {@link #verifyDetailed} 返回，
+ * 调用方负责把状态写入回答元数据；旧的 {@link #verify} 只返回逐条结论。
  */
 @Service
 public class CitationVerificationService {
@@ -59,19 +61,63 @@ public class CitationVerificationService {
     }
 
     /**
+     * 一次引用校验的整体结论。
+     *
+     * @param status   整体状态，见 {@link VerificationStatus}
+     * @param verdicts 引用编号 → 校验结论；TRUNCATED 时只含已校验部分，UNVERIFIED/NO_CITATIONS 时为空 Map
+     * @param detail   服务端可读的补充说明（随日志输出，不进回答元数据）
+     */
+    public record VerificationOutcome(VerificationStatus status, Map<Integer, CitationVerdict> verdicts, String detail) {
+    }
+
+    /**
+     * 整体校验状态：让下游能区分"校验完整通过"和"根本没校验"。
+     */
+    public enum VerificationStatus {
+        /** 校验完整执行完毕（个别引用是否可疑看 verdicts 里的逐条结论） */
+        PASSED,
+        /** （句子, 引用）对超过 max-claims：只校验了前缀，verdicts 保留已校验部分，其余引用保持未校验 */
+        TRUNCATED,
+        /** 未校验：未开启、没有可校验片段、模型调用失败/超时、或判定结果不可用 */
+        UNVERIFIED,
+        /** 回答不含 来源#N 引用，无需校验 */
+        NO_CITATIONS
+    }
+
+    /**
      * @param referenceTexts 引用编号 → 被引用的文档块原文
-     * @return 引用编号 → 校验结论；未开启、没有引用或校验失败时返回空 Map
+     * @return 引用编号 → 校验结论；未开启、没有引用或校验失败时返回空 Map（整体状态见 {@link #verifyDetailed}）
      */
     public Map<Integer, CitationVerdict> verify(String requesterId, String answer, Map<Integer, String> referenceTexts) {
+        return verifyDetailed(requesterId, answer, referenceTexts).verdicts();
+    }
+
+    /**
+     * 带整体状态的引用校验。失败与超时只降级为 UNVERIFIED，不向调用方抛异常，不阻断回答。
+     *
+     * @param referenceTexts 引用编号 → 被引用的文档块原文
+     */
+    public VerificationOutcome verifyDetailed(String requesterId, String answer, Map<Integer, String> referenceTexts) {
         AiProperties.CitationVerification cfg = aiProperties.getCitationVerification();
-        if (!cfg.isEnabled() || answer == null || answer.isBlank() || referenceTexts == null || referenceTexts.isEmpty()) {
-            return Map.of();
+        if (!cfg.isEnabled()) {
+            return new VerificationOutcome(VerificationStatus.UNVERIFIED, Map.of(), "citation-verification 未开启");
+        }
+        List<CitationExtractor.CitedClaim> claims = answer == null || answer.isBlank()
+                ? List.of()
+                : CitationExtractor.extract(answer, cfg.getMaxClaimChars());
+        if (claims.isEmpty()) {
+            return new VerificationOutcome(VerificationStatus.NO_CITATIONS, Map.of(), "回答不含 来源#N 引用");
+        }
+        if (referenceTexts == null || referenceTexts.isEmpty()) {
+            return new VerificationOutcome(VerificationStatus.UNVERIFIED, Map.of(), "没有可校验的引用片段");
         }
 
-        List<ClaimPair> pairs = buildPairs(CitationExtractor.extract(answer, cfg.getMaxClaimChars()), referenceTexts, cfg);
+        List<ClaimPair> pairs = buildPairs(claims, referenceTexts, cfg);
         if (pairs.isEmpty()) {
-            return Map.of();
+            return new VerificationOutcome(VerificationStatus.UNVERIFIED, Map.of(), "回答引用的来源编号没有对应片段");
         }
+        int totalPairs = countValidPairs(claims, referenceTexts);
+        boolean truncated = totalPairs > pairs.size();
 
         try {
             List<Map<String, Object>> messages = buildJudgeMessages(pairs);
@@ -79,12 +125,37 @@ public class CitationVerificationService {
                     .supplyAsync(() -> llmProviderRouter.completeReActTurn(requesterId, messages, List.of(), cfg.getMaxCompletionTokens()), executor)
                     .get(cfg.getTimeoutSeconds(), TimeUnit.SECONDS);
             Map<Integer, CitationVerdict> verdicts = aggregate(pairs, parseJudgement(turn.content()));
-            logger.info("引用校验完成: pairs={}, 结论={}", pairs.size(), verdicts);
-            return verdicts;
+            if (verdicts.isEmpty()) {
+                logger.warn("引用校验未得到任何有效判定，按未校验处理: pairs={}", pairs.size());
+                return new VerificationOutcome(VerificationStatus.UNVERIFIED, Map.of(), "校验模型未返回有效判定");
+            }
+            VerificationStatus status = truncated ? VerificationStatus.TRUNCATED : VerificationStatus.PASSED;
+            String detail = truncated
+                    ? "共 " + totalPairs + " 对（句子, 引用），超出 max-claims=" + cfg.getMaxClaims() + "，仅校验前 " + pairs.size() + " 对"
+                    : "全部 " + pairs.size() + " 对（句子, 引用）已校验";
+            logger.info("引用校验完成: status={}, pairs={}, verdicts={}, detail={}", status, pairs.size(), verdicts.size(), detail);
+            return new VerificationOutcome(status, verdicts, detail);
         } catch (Exception e) {
             logger.warn("引用校验失败，按未校验处理: {}", e.getMessage());
-            return Map.of();
+            String detail = e.getMessage() == null ? e.getClass().getSimpleName() : e.getClass().getSimpleName() + ": " + e.getMessage();
+            return new VerificationOutcome(VerificationStatus.UNVERIFIED, Map.of(), detail);
         }
+    }
+
+    /**
+     * 统计引用编号都能对应到片段的（句子, 引用）对总数，用于判断是否被 max-claims 截断
+     */
+    private int countValidPairs(List<CitationExtractor.CitedClaim> claims, Map<Integer, String> referenceTexts) {
+        int count = 0;
+        for (CitationExtractor.CitedClaim claim : claims) {
+            for (Integer referenceNumber : claim.referenceNumbers()) {
+                String reference = referenceTexts.get(referenceNumber);
+                if (reference != null && !reference.isBlank()) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     List<ClaimPair> buildPairs(List<CitationExtractor.CitedClaim> claims,

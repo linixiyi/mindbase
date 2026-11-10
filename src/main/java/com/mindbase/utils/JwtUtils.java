@@ -147,7 +147,7 @@ public class JwtUtils {
             Claims claims = extractClaimsIgnoreExpiration(token);
             return claims != null ? claims.getSubject() : null;
         } catch (Exception e) {
-            logger.error("Error extracting username from token: {}", token, e);
+            logger.error("Error extracting username from token: {}", TokenRedactor.fingerprint(token), e);
             return null;
         }
     }
@@ -160,7 +160,7 @@ public class JwtUtils {
             Claims claims = extractClaimsIgnoreExpiration(token);
             return claims != null ? claims.get("userId", String.class) : null;
         } catch (Exception e) {
-            logger.error("Error extracting userId from token: {}", token, e);
+            logger.error("Error extracting userId from token: {}", TokenRedactor.fingerprint(token), e);
             return null;
         }
     }
@@ -173,7 +173,7 @@ public class JwtUtils {
             Claims claims = extractClaimsIgnoreExpiration(token);
             return claims != null ? claims.get("role", String.class) : null;
         } catch (Exception e) {
-            logger.error("Error extracting role from token: {}", token, e);
+            logger.error("Error extracting role from token: {}", TokenRedactor.fingerprint(token), e);
             return null;
         }
     }
@@ -186,7 +186,7 @@ public class JwtUtils {
             Claims claims = extractClaimsIgnoreExpiration(token);
             return claims != null ? claims.get("orgTags", String.class) : null;
         } catch (Exception e) {
-            logger.error("Error extracting organization tags from token: {}", token, e);
+            logger.error("Error extracting organization tags from token: {}", TokenRedactor.fingerprint(token), e);
             return null;
         }
     }
@@ -199,7 +199,7 @@ public class JwtUtils {
             Claims claims = extractClaimsIgnoreExpiration(token);
             return claims != null ? claims.get("primaryOrg", String.class) : null;
         } catch (Exception e) {
-            logger.error("Error extracting primary organization from token: {}", token, e);
+            logger.error("Error extracting primary organization from token: {}", TokenRedactor.fingerprint(token), e);
             return null;
         }
     }

@@ -297,10 +297,12 @@ public class RagEvalService {
                 results.add(caseRunner.run(evalCase, searchUserId, progress.topK, sampler));
                 progress.completedCases = results.size();
             }
+            EvalCaseResult.TokenUsage totalUsage = EvalReportAggregator.tokenUsage(results);
             EvalReport report = new EvalReport(progress.runId, progress.label, progress.datasetSource, progress.topK,
                     progress.startedAt, Instant.now(),
                     EvalReport.SCHEMA_VERSION, gitCommit(), KnowledgeIndexNames.ALIAS, embeddingModel(), promptVersion(),
-                    configSnapshot(progress.topK), EvalReportAggregator.tokenUsage(results), EvalReport.Cost.unpriced(),
+                    configSnapshot(progress.topK), totalUsage,
+                    EvalReport.Cost.of(totalUsage, pricingInputPer1k(), pricingOutputPer1k(), pricingCurrency()),
                     EvalReportAggregator.summarize(results), EvalReportAggregator.diagnosisGuide(), List.copyOf(results));
             Path reportPath = writeReport(report);
             progress.succeed(report.summary(), reportPath.toString());
@@ -436,7 +438,34 @@ public class RagEvalService {
         }
         config.put("humanReviewSampleRate", properties.getHumanReviewSampleRate());
         config.put("randomSeed", properties.getRandomSeed());
+        // 单价与来源落盘（评估缺口修复）：cost.amount 可由本 config 的单价 × tokenUsage 复算；
+        // 未配价时单价为 null，cost.note 写 unpriced: set eval.pricing.*
+        RagEvalProperties.Pricing pricing = properties.getPricing();
+        config.put("pricingInputPer1k", pricing == null ? null : pricing.getInputPer1k());
+        config.put("pricingOutputPer1k", pricing == null ? null : pricing.getOutputPer1k());
+        config.put("pricingCurrency", pricing == null ? null : blankToNull(pricing.getCurrency()));
+        config.put("pricingSource", "eval.pricing.*");
         return config;
+    }
+
+    private Double pricingInputPer1k() {
+        RagEvalProperties.Pricing pricing = properties.getPricing();
+        return pricing == null ? null : pricing.getInputPer1k();
+    }
+
+    private Double pricingOutputPer1k() {
+        RagEvalProperties.Pricing pricing = properties.getPricing();
+        return pricing == null ? null : pricing.getOutputPer1k();
+    }
+
+    private String pricingCurrency() {
+        RagEvalProperties.Pricing pricing = properties.getPricing();
+        return pricing == null ? null : blankToNull(pricing.getCurrency());
+    }
+
+    /** 空白字符串（env 默认空占位）按未配置处理 */
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private void remember(RunProgress progress) {

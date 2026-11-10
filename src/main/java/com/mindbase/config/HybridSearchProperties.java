@@ -21,6 +21,10 @@ public class HybridSearchProperties {
     private int knnNumCandidatesMultiplier = 2;
     /** RRF 平滑常数 k，score = Σ 1 / (k + rank) */
     private int rrfK = 60;
+    /** BM25 路在 RRF 融合中的权重，名次贡献 = weight / (k + rank) */
+    private double bm25Weight = 1.0d;
+    /** KNN 路在 RRF 融合中的权重，名次贡献 = weight / (k + rank) */
+    private double knnWeight = 1.0d;
     /** 双路召回的等待超时 */
     private int recallTimeoutSeconds = 10;
 

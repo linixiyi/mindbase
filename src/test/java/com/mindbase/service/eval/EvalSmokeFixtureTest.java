@@ -216,10 +216,11 @@ class EvalSmokeFixtureTest {
         assertEquals(List.of(1), toIntList(trace.get("referenceNumbers")));
         assertTrue(firstCase.get("answer").asText().contains("[1]"), "回答带引用编号");
         assertTrue(firstCase.get("judgeReason").asText().contains("一致"), "评委理由保留在明细里");
-        assertEquals(45, firstCase.get("tokenUsage").get("totalTokens").asInt(), "每题 30 prompt + 15 completion");
-        assertEquals(570, report.get("tokenUsage").get("promptTokens").asInt(), "19 题 × 30");
-        assertEquals(285, report.get("tokenUsage").get("completionTokens").asInt(), "19 题 × 15");
-        assertEquals(855, report.get("tokenUsage").get("totalTokens").asInt());
+        assertEquals(51, firstCase.get("tokenUsage").get("totalTokens").asInt(),
+                "每题 33 prompt + 18 completion（生成 30/15 + 评委 3/3，task-0002 合并口径）");
+        assertEquals(627, report.get("tokenUsage").get("promptTokens").asInt(), "19 题 × 33（生成 30 + 评委 3）");
+        assertEquals(342, report.get("tokenUsage").get("completionTokens").asInt(), "19 题 × 18（生成 15 + 评委 3）");
+        assertEquals(969, report.get("tokenUsage").get("totalTokens").asInt());
 
         // 构造出的边界行为逐题落在报告里
         JsonNode rankTwo = report.get("cases").get(9);
