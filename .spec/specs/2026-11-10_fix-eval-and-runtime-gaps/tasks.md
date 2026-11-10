@@ -261,7 +261,7 @@ task-0008, task-0009 可并行
   - 成功判定：`--self-test` 退出 0。
   - 失败处理：ES 不可达时只报“未连接”，不把网络失败当字段缺失。
 
-- [ ] task-0022 OCR 可用性预检
+- [x] task-0022 OCR 可用性预检
   - id: task-0022
   - boundary: new:scripts/eval_ocr_preflight.py, new:docs/eval/ocr-preflight.md
   - verify: `cd /Users/linyixi/PaiSmart && python3 -B scripts/eval_ocr_preflight.py --self-test`
