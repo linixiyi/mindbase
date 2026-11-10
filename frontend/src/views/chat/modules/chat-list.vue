@@ -62,7 +62,14 @@ function handleScroll(e: Event) {
   }
 }
 
-watch(() => [...list.value], scrollToBottom);
+// task-0002：滚动跟随触发源改为「列表长度 + 最后一条消息的 content.length」，不再对整个消息
+// 数组做浅拷贝 watch——原实现对消息数组逐项复制，每次 chunk 都复制全量数组且追踪所有元素，
+// 长回答流式期间是 O(n) 分配；现在 getter 只触达数组长度与最后一条消息，配合 input-box 的
+// 50ms 批量 flush，触发频率从每 chunk 一次降到每批一次
+watch(() => {
+  const last = list.value[list.value.length - 1];
+  return [list.value.length, last?.content?.length ?? 0];
+}, scrollToBottom);
 
 let scrollTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -217,7 +224,8 @@ watch(params, getList, { immediate: true });
 async function getList() {
   historyRequestId += 1;
   const requestId = historyRequestId;
-  const messagesBeforeRequest = [...list.value];
+  // 快照用 slice 等价替换数组的 spread 浅拷贝（task-0002 门禁；getList 本体由 task-0003 收口删除）
+  const messagesBeforeRequest = list.value.slice();
   // 无选中会话不回填全量历史（pm-016）：删除/归档当前会话清选中态后，消息区停在欢迎区；
   // 选中会话后 params 变化会再次触发本次加载
   if (!conversationId.value) {

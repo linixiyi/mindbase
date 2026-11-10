@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { createStreamBuffer } from '../stream/buffer';
 import { reduceStreamFrame } from '../stream/reducer';
 
 const chatStore = useChatStore();
@@ -18,6 +19,23 @@ const preparingSession = ref(false);
 let generationStatusTimer: number | null = null;
 let lastStreamContentLength = 0;
 let lastStreamContentChangedAt = 0;
+
+/**
+ * chunk 批量缓冲（task-0002）：chunk 不再逐帧直写 assistant.content（VueMarkdownIt 会整段重渲染，长答案 O(n²)），同窗口（50ms）合并为一次 reducer 更新。 推送目标在
+ * push 时锁定，flush 时校验仍在列表且未到终态再应用——迟到 chunk 不得把已 finished/error 的消息拉回 loading。
+ */
+let streamChunkTarget: Api.Chat.Message | null = null;
+const streamBuffer = createStreamBuffer({
+  flushIntervalMs: 50,
+  onFlush: (_generationId, text) => {
+    const assistant = streamChunkTarget;
+    if (!assistant || !list.value.includes(assistant)) return;
+    if (!['pending', 'loading'].includes(assistant.status || '')) return;
+    applyReducedStreamState(assistant, reduceStreamFrame(assistant, { type: 'chunk', chunk: text }));
+    lastStreamContentLength = assistant.content.length;
+    lastStreamContentChangedAt = Date.now();
+  }
+});
 
 const isSending = computed(() => {
   return (
@@ -80,6 +98,8 @@ function findAssistantMessage(generationId?: string, payloadConversationId?: str
 }
 
 function handleStartPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
+  // start（尤其重连 resumed）前先输出在途 chunk：resumed 内容按长度取大，先落字符避免重复拼接
+  streamBuffer.flush();
   applyReducedStreamState(
     assistant,
     reduceStreamFrame(assistant, {
@@ -94,6 +114,8 @@ function handleStartPayload(assistant: Api.Chat.Message, payload: Record<string,
 }
 
 async function handleCompletionPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
+  // 终态前必须 flush（task-0002）：先落在途 chunk，再收敛状态，保证字符不丢、顺序不变
+  streamBuffer.flush();
   applyReducedStreamState(
     assistant,
     reduceStreamFrame(assistant, {
@@ -113,12 +135,15 @@ async function handleCompletionPayload(assistant: Api.Chat.Message, payload: Rec
 }
 
 function handleStopPayload(assistant: Api.Chat.Message) {
-  // 本卡保持 finished（停止语义与独立停止按钮由 task-0004 落地）
+  // 终态前必须 flush（task-0002）；本卡保持 finished（停止语义与独立停止按钮由 task-0004 落地）
+  streamBuffer.flush();
   applyReducedStreamState(assistant, reduceStreamFrame(assistant, { type: 'stop' }));
   stopGenerationStatusMonitor();
 }
 
 function handleErrorPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
+  // 终态前必须 flush（task-0002）：先落在途 chunk，再写错误话术覆盖正文
+  streamBuffer.flush();
   const rateLimited = Number(payload.code) === 429;
   const next = reduceStreamFrame(assistant, {
     type: 'error',
@@ -144,10 +169,9 @@ function handleErrorPayload(assistant: Api.Chat.Message, payload: Record<string,
 }
 
 function handleChunkPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
-  const next = reduceStreamFrame(assistant, { type: 'chunk', chunk: payload.chunk });
-  applyReducedStreamState(assistant, next);
-  lastStreamContentLength = next.content.length;
-  lastStreamContentChangedAt = Date.now();
+  // 目标消息在 push 时锁定（chunk 帧可能不带 generationId，watch 已按既有口径解析好目标）
+  streamChunkTarget = assistant;
+  streamBuffer.push(assistant.generationId || '', typeof payload.chunk === 'string' ? payload.chunk : '');
 }
 
 function stopGenerationStatusMonitor() {
@@ -338,6 +362,8 @@ const handleSend = async () => {
   }
 
   if (isSending.value) {
+    // 本地停止前先 flush（task-0002）：在途 chunk 先落进正文，再收敛状态
+    streamBuffer.flush();
     const { error, data: tokenData } = await request<Api.Chat.Token>({
       url: 'chat/websocket-token'
     });
@@ -425,6 +451,8 @@ watch(
 );
 
 onUnmounted(() => {
+  // dispose 先输出剩余缓冲（尾部不丢）再清定时器
+  streamBuffer.dispose();
   stopGenerationStatusMonitor();
 });
 </script>

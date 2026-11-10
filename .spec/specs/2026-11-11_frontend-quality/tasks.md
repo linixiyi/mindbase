@@ -22,7 +22,7 @@
   - 成功判定：vitest 7 用例全绿；`grep -c "content += payload.chunk" input-box.vue` 为 0。
   - 失败处理：后端帧字段拿不准时以现有 `input-box.vue` 消费的字段为准，不得改后端协议。
 
-- [ ] task-0002 chunk 批量 flush，消除逐帧全量重渲染
+- [x] task-0002 chunk 批量 flush，消除逐帧全量重渲染
   - id: task-0002
   - boundary: frontend/src/views/chat/modules/input-box.vue, frontend/src/views/chat/modules/chat-list.vue, new:frontend/src/views/chat/stream/reducer.ts, new:frontend/src/views/chat/stream/buffer.ts, new:frontend/src/views/chat/stream/__tests__/buffer.spec.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/views/chat/stream/__tests__/buffer.spec.ts`
