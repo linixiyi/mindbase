@@ -55,7 +55,7 @@
   - 成功判定：`--dry-run` 在无服务、无 token 环境下退出 0；真跑缺凭据时退出 2 并指明缺哪个变量。
   - 失败处理：本机没有 ES/MinIO 时不得让 dry-run 失败；真跑 401 时重新登录一次再重试，仍失败则退出并指向 runbook，不吞异常。
 
-- [ ] task-0005 阈值曲线脚本
+- [x] task-0005 阈值曲线脚本
   - id: task-0005
   - boundary: new:scripts/eval_threshold_curve.py, scripts/eval_compare.py
   - verify: `cd /Users/linyixi/PaiSmart && python3 scripts/eval_threshold_curve.py --self-test`
