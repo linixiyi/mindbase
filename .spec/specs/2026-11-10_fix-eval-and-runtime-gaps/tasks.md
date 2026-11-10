@@ -151,7 +151,7 @@ task-0008, task-0009 可并行
   - 成功判定：测试绿；repeat=false 时报告标 `judgeRepeatEnabled=false` 且不产生一致性数字。
   - 失败处理：不得把两次失败当一致；不得用空一致性冒充稳定。
 
-- [ ] task-0012 评测数据集审计脚本
+- [x] task-0012 评测数据集审计脚本
   - id: task-0012
   - boundary: new:scripts/eval_dataset_audit.py
   - verify: `cd /Users/linyixi/PaiSmart && python3 -B scripts/eval_dataset_audit.py --self-test`
