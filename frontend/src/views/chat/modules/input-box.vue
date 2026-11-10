@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { parseStreamFrame } from '@/service/api/chat';
 import { createStreamBuffer } from '../stream/buffer';
 import { reduceStreamFrame } from '../stream/reducer';
 
@@ -96,7 +97,7 @@ function findAssistantMessage(generationId?: string, payloadConversationId?: str
   return null;
 }
 
-function handleStartPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
+function handleStartPayload(assistant: Api.Chat.Message, payload: Api.Chat.ChatStartFrame) {
   // start（尤其重连 resumed）前先输出在途 chunk：resumed 内容按长度取大，先落字符避免重复拼接
   streamBuffer.flush();
   applyReducedStreamState(
@@ -112,7 +113,7 @@ function handleStartPayload(assistant: Api.Chat.Message, payload: Record<string,
   );
 }
 
-async function handleCompletionPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
+async function handleCompletionPayload(assistant: Api.Chat.Message, payload: Api.Chat.ChatCompletionFrame) {
   // 终态前必须 flush（task-0002）：先落在途 chunk，再收敛状态，保证字符不丢、顺序不变
   streamBuffer.flush();
   applyReducedStreamState(
@@ -140,7 +141,7 @@ function handleStopPayload(assistant: Api.Chat.Message) {
   stopGenerationStatusMonitor();
 }
 
-function handleErrorPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
+function handleErrorPayload(assistant: Api.Chat.Message, payload: Api.Chat.ChatErrorFrame) {
   // 终态前必须 flush（task-0002）：先落在途 chunk，再写错误话术覆盖正文
   streamBuffer.flush();
   const rateLimited = Number(payload.code) === 429;
@@ -167,7 +168,7 @@ function handleErrorPayload(assistant: Api.Chat.Message, payload: Record<string,
   }
 }
 
-function handleChunkPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
+function handleChunkPayload(assistant: Api.Chat.Message, payload: Api.Chat.ChatChunkFrame) {
   // 目标消息在 push 时锁定（chunk 帧可能不带 generationId，watch 已按既有口径解析好目标）
   streamChunkTarget = assistant;
   streamBuffer.push(assistant.generationId || '', typeof payload.chunk === 'string' ? payload.chunk : '');
@@ -271,7 +272,7 @@ function updateExecutingToolStatus(assistant: Api.Chat.Message, status: Api.Chat
   }
 }
 
-function handleToolCallPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
+function handleToolCallPayload(assistant: Api.Chat.Message, payload: Api.Chat.ChatToolCallFrame) {
   const id = typeof payload.toolCallId === 'string' ? payload.toolCallId : '';
   const tool = typeof payload.tool === 'string' ? payload.tool : '';
   const status = typeof payload.status === 'string' ? payload.status : 'executing';
@@ -308,48 +309,45 @@ function handleToolCallPayload(assistant: Api.Chat.Message, payload: Record<stri
 watch(wsData, val => {
   if (!val) return;
 
-  let payload: Record<string, any>;
+  // task-0008：帧解析收口到 parseStreamFrame（判别联合）。非法 JSON / 缺 type / 未知 type
+  // 统一归 unknown，不抛异常；后端每帧都带显式 type，error 帧也走 type 分派
+  const frame = parseStreamFrame(val);
 
-  try {
-    payload = JSON.parse(val);
-  } catch {
+  // 知识库文档状态推送和聊天共用一条连接，聊天这边不处理；connection 帧由 store 消费
+  if (frame.type === 'document_status' || frame.type === 'connection' || frame.type === 'unknown') {
     return;
   }
 
-  // 知识库文档状态推送和聊天共用一条连接，聊天这边不处理
-  if (payload.type === 'document_status') return;
-
-  const assistant = findAssistantMessage(payload.generationId, payload.conversationId, payload.type === 'start');
+  // stop 帧不携带 conversationId（后端口径），寻址字段按各帧实际携带取用
+  const generationId = 'generationId' in frame ? frame.generationId : undefined;
+  const conversationId = 'conversationId' in frame ? frame.conversationId : undefined;
+  const assistant = findAssistantMessage(generationId, conversationId, frame.type === 'start');
 
   if (!assistant) return;
 
-  if (payload.type === 'start') {
-    handleStartPayload(assistant, payload);
-    return;
-  }
-
-  if (payload.type === 'completion') {
-    handleCompletionPayload(assistant, payload);
-    return;
-  }
-
-  if (payload.type === 'tool_call') {
-    handleToolCallPayload(assistant, payload);
-    return;
-  }
-
-  if (payload.type === 'stop') {
-    handleStopPayload(assistant);
-    return;
-  }
-
-  if (payload.error || Number(payload.code) >= 400) {
-    handleErrorPayload(assistant, payload);
-    return;
-  }
-
-  if (payload.chunk) {
-    handleChunkPayload(assistant, payload);
+  switch (frame.type) {
+    case 'start':
+      handleStartPayload(assistant, frame);
+      break;
+    case 'completion':
+      handleCompletionPayload(assistant, frame);
+      break;
+    case 'tool_call':
+      handleToolCallPayload(assistant, frame);
+      break;
+    case 'stop':
+      handleStopPayload(assistant);
+      break;
+    case 'error':
+      handleErrorPayload(assistant, frame);
+      break;
+    case 'chunk':
+      if (frame.chunk) {
+        handleChunkPayload(assistant, frame);
+      }
+      break;
+    default:
+      break;
   }
 });
 
@@ -397,9 +395,8 @@ const handleSend = async () => {
  * handleStopPayload → reducer 收敛为 stopped。
  */
 const handleStop = async () => {
-  const { error, data: tokenData } = await request<Api.Chat.Token>({
-    url: 'chat/websocket-token'
-  });
+  // task-0008：请求收口到 service/api/chat › fetchWebsocketToken；获取失败保持 loading 并可见报错
+  const { error, data: tokenData } = await fetchWebsocketToken();
   if (error) {
     window.$message?.error('停止失败，请重试');
     return;

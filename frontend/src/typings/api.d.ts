@@ -504,7 +504,8 @@ declare namespace Api {
     interface Message {
       role: 'user' | 'assistant';
       content: string;
-      status?: 'pending' | 'loading' | 'finished' | 'error';
+      /** stopped：用户主动停止生成（task-0004），与正常完成 finished 可区分 */
+      status?: 'pending' | 'loading' | 'finished' | 'error' | 'stopped';
       /** 失败类别码（pm-001）：PROVIDER_UNAVAILABLE / TIMEOUT / BUSY / RATE_LIMIT / OTHER */
       errorCategory?: string;
       timestamp?: string;
@@ -542,6 +543,103 @@ declare namespace Api {
       status: 'ACTIVE' | 'ARCHIVED';
       createdAt: string;
       updatedAt: string;
+    }
+
+    // ---- WS 帧判别联合（task-0008）----
+    // 字段口径对齐后端实际推送（ChatPipeline / ChatWebSocketHandler / DocumentStatusNotifier），
+    // 每一帧都带显式 type；与 views/chat/stream/reducer.ts 的归约帧结构兼容（reducer 消费同一协议的子集）。
+    // 解析入口见 service/api/chat.ts › parseStreamFrame。
+
+    interface ChatStartFrame {
+      type: 'start';
+      generationId?: string;
+      conversationId?: string;
+      /** 后端发毫秒数（System.currentTimeMillis()）；保留 string 兼容历史口径（reducer 同） */
+      timestamp?: string | number;
+      /** 重复提交同一问题时后端复用进行中的生成，start 帧携带已生成内容 */
+      resumed?: boolean;
+      content?: string;
+    }
+
+    interface ChatChunkFrame {
+      type: 'chunk';
+      /** 后端 chunk 帧正常携带 generationId，但前端消费口径允许缺失（按最新 pending 消息兜底），缺字段不得崩溃 */
+      generationId?: string;
+      conversationId?: string;
+      chunk?: string;
+    }
+
+    interface ChatCompletionFrame {
+      type: 'completion';
+      generationId?: string;
+      conversationId?: string;
+      status?: 'finished' | 'failed';
+      message?: string;
+      referenceMappings?: Record<string, ReferenceEvidence>;
+      persistenceDegraded?: boolean;
+    }
+
+    interface ChatStopFrame {
+      type: 'stop';
+      generationId?: string;
+      message?: string;
+    }
+
+    interface ChatErrorFrame {
+      type: 'error';
+      code?: number;
+      retryAfterSeconds?: number;
+      error?: string;
+      message?: string;
+      errorCategory?: string;
+      generationId?: string;
+    }
+
+    interface ChatToolCallFrame {
+      type: 'tool_call';
+      tool?: string;
+      toolCallId?: string;
+      status?: string;
+      generationId?: string;
+      conversationId?: string;
+      timestamp?: number;
+    }
+
+    /** 握手帧：连接建立后后端推送 sessionId（store 据此确认握手并触发重连快照同步） */
+    interface ChatConnectionFrame {
+      type: 'connection';
+      sessionId?: string;
+      message?: string;
+    }
+
+    /** 知识库文档状态推送：与聊天共用一条 WS 连接，由知识库视图消费 */
+    interface ChatDocumentStatusFrame {
+      type: 'document_status';
+      fileMd5?: string;
+      fileName?: string;
+      /** 后端 FileUpload.status 为数字状态码（与前端 UploadStatus 枚举同源） */
+      status?: number;
+      vectorizationStatus?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | null;
+      vectorizationErrorMessage?: string | null;
+      actualEmbeddingTokens?: number | null;
+      actualChunkCount?: number | null;
+      timestamp?: number;
+    }
+
+    type ChatStreamFrame =
+      | ChatStartFrame
+      | ChatChunkFrame
+      | ChatCompletionFrame
+      | ChatStopFrame
+      | ChatErrorFrame
+      | ChatToolCallFrame
+      | ChatConnectionFrame
+      | ChatDocumentStatusFrame;
+
+    /** 解析失败 / 缺 type / 未知 type 的兜底帧：raw 保留原始报文供调用方排查 */
+    interface ChatUnknownFrame {
+      type: 'unknown';
+      raw: string;
     }
   }
 

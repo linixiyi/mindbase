@@ -92,7 +92,7 @@
   - 成功判定：verify 退出 0；`pnpm typecheck` 绿。
   - 失败处理：若某条日志对排障必要，改为 DEV 下 `console.debug`，不得保留 `console.log`。
 
-- [ ] task-0008 聊天请求收口 service/api + WS 帧判别联合
+- [x] task-0008 聊天请求收口 service/api + WS 帧判别联合
   - id: task-0008
   - boundary: new:frontend/src/service/api/chat.ts, new:frontend/src/service/api/__tests__/streamFrame.spec.ts, frontend/src/store/modules/chat/index.ts, frontend/src/views/chat/modules/input-box.vue, frontend/src/views/knowledge-base/index.vue, frontend/src/typings/api.d.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/service/api/__tests__/streamFrame.spec.ts`
