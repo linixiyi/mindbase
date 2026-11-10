@@ -297,3 +297,16 @@ task-0008, task-0009 可并行
   - 成功判定：两测试类全绿；`./mvnw -q -B test` 无该三例失败。
   - 失败处理：同文件其他断言若也依赖旧口径，同样迁移并记录，不得删测试。
   - origin: emergent
+
+- [x] task-0025 ES mapping 追加断言迁移新模板口径
+  - id: task-0025
+  - boundary: src/test/java/com/mindbase/service/index/KnowledgeIndexManagerTest.java
+  - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=KnowledgeIndexManagerTest test`
+  - expect: red
+  - depends-on: task-0021
+  - 背景：task-0021 在 mapping 增显式 public 字段（cf2c20e）后，模板 properties 11→12；既有用例 onlyMissingNonVectorFieldsAreAppendedToExistingIndex 对旧索引 fixture（10 字段）断言缺失字段数=1，现在实际为 2（chunkContext 与 public），expected 1 but was 2，终树全量门禁必红。授权见 Decisions D8。
+  - 交付：把该用例断言迁移到新模板口径——缺失数 1→2、assertTrue 含 public、幂等段 afterUpgrade 同步补 public（fixture 保持"旧索引"语义不动）；不删除测试、不改同文件其他用例、不改生产代码。
+  - 测试：KnowledgeIndexManagerTest 自身。
+  - 成功判定：KnowledgeIndexManagerTest 全绿；`./mvnw -q -B test` 无该例失败。
+  - 失败处理：同文件其他用例若也依赖旧模板口径，同样迁移并记录，不得删测试。
+  - origin: emergent

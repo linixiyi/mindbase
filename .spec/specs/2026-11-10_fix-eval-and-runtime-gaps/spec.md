@@ -79,6 +79,7 @@
 - C22 | OCR 预检脚本能报告可用引擎与受影响题数，并可要求 OCR 才通过 | task-0022
 - C23 | 旧分块重叠断言迁移到新语义，ParseServiceUnitTest 全绿，终树全量门禁无旧重叠断言失败 | task-0023
 - C24 | token 用量断言迁移合并口径，EvalReActPipelineTest 与 EvalSmokeFixtureTest 全绿，全量门禁无旧口径失败 | task-0024
+- C25 | ES mapping 追加缺失字段的既有断言迁移到含 public 的新模板口径，KnowledgeIndexManagerTest 全绿 | task-0025
 
 ## Decisions
 - D1 | 不引入 Python 评测框架与付费 SaaS，指标与统计继续用 Java 自建，Python 只做离线脚本 | by: V1 | reversal: checkpoint revert
@@ -88,11 +89,12 @@
 - D5 | eval_gate.sh 离线门禁对 fixture 报告（SELF_JUDGE/releaseEligible=false）加 --allow-self-judge 放行：沿用 task-0001 既有显式降级通道，定位为离线回归检测而非发布判定；A/B 实测确认 7 条 --fail-if 阈值与 Wilson 门禁未放宽（不加旗标则 done 标准"eval_gate.sh 全绿"在桩评委前提下无解） | by: V2 | reversal: checkpoint revert
 - D6 | task-0011 卡面 repeat"默认 true"若落在 Java 字段默认，会使 11 个直接构造 RagEvalProperties 的既有用例（单评委回复队列，跨 5 文件）失败；裁决 Java 字段默认 false、application.yml ${EVAL_JUDGE_REPEAT:true} 一字不动——生产默认仍 true（卡面生产语义由 yml 承担），单测走单采样路径，双采样由 JudgeRepeatConsistencyTest 专测（显式 setRepeat(true)）；5 个 boundary 外测试文件不动 | by: V2 | reversal: checkpoint revert
 - D7 | task-0011 卡面"两次一致取均值（1 位小数）"与 Integer score 字段（JudgeVerdict/EvalCaseResult，均在 boundary 外）冲突；裁决：先按 1 位小数求均值，再四舍五入（half-up）落 Integer judgeScore；"一致但分数不同"的样本 judgeReason 写 A=…/correct; B=…/correct; mean=x.x→N 自文档化（原始样本完整可复核）；不改报告 JSON schema（V6 keep-public-api） | by: V2 | reversal: checkpoint revert
+- D8 | task-0021 在 mapping 增显式 public 字段（cf2c20e）使既有断言 KnowledgeIndexManagerTest.onlyMissingNonVectorFieldsAreAppendedToExistingIndex:54 互斥（模板 12 字段→旧索引缺失=2，原断言 expected 1）；授权把断言迁移到新模板口径（missing=2 且含 chunkContext 与 public，幂等断言同步补 public），fixture 保持"旧索引"语义不动；扩边由 emergent task-0025 承接该测试文件（复审两轮同一发现，修法与 0023/0024 先例一致） | by: V2 | reversal: checkpoint revert
 
 ## Parked
 
 ## Deferred (R3.5)
-以下项已确认但不在本包：`ddl-auto` 改 Flyway、WS token 移出 URL、Micrometer/Prometheus、多实例 WS resume、Kafka 分区与消费并发、会话历史分页、上传配额。ES 权限字段、Admin 硬编码密钥、graceful shutdown 已分别由 task-0021 / task-0017 / task-0020 收口。
+以下项已确认但不在本包：`ddl-auto` 改 Flyway、WS token 移出 URL、Micrometer/Prometheus、多实例 WS resume、Kafka 分区与消费并发、会话历史分页、上传配额。ES 权限字段、Admin 硬编码密钥、graceful shutdown 已分别由 task-0021 / task-0017 / task-0020 收口。复审终轮补充（07ab968..8bb02c6）：`AdminController.java:1120` migrate-minio 端点第二重密钥 "migration2024" 仍硬编码——预先存在、不在 C17 字面（清库）与本分支 diff 内，随 R3.5 一并收口；在它收口前不得把 task-0017 完成误读为 Admin 硬编码密钥清零。
 
 ## Risks
 - `ChatPipeline` 同时被 task-0006、task-0007、task-0010 修改，必须按依赖串行，不得并行。
