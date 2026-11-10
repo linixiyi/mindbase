@@ -47,7 +47,9 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: "*"
+        # 反序列化白名单只放行项目消息包（Kafka 消息值目前只有 com.mindbase.model.FileProcessingTask）。
+        # 历史消息类型反序列化失败时，把对应包补进本清单，禁止回退 "*"
+        spring.json.trusted.packages: "com.mindbase.model"
         client.dns.lookup: use_all_dns_ips
     topic:
       # 文件上传完成后进入该主题，消费者会顺序完成“解析 + 向量化”
@@ -75,6 +77,12 @@ minio:
   secretKey: ${MINIO_SECRET_KEY:}
   bucketName: ${MINIO_BUCKET_NAME:uploads}
   publicUrl: ${MINIO_PUBLIC_URL:http://localhost:9000}
+
+mindbase:
+  storage:
+    # 取文件收口：Kafka 任务里的 filePath 只允许 http/https 且 host 命中本白名单（逗号分隔主机名）。
+    # 显式配置后默认派生不再生效；未配置（空）时默认从 minio.endpoint 的主机名派生
+    allowed-hosts: ${MINDBASE_STORAGE_ALLOWED_HOSTS:}
 
 jwt:
   # 必须是 Base64 编码字符串

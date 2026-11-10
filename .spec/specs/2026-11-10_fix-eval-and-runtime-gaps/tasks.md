@@ -100,7 +100,7 @@
   - 成功判定：测试绿。
   - 失败处理：若 ES 文档结构没有元数据位，允许只做"正文不重叠 + 邻接合并"，在报告里记录 overlap 信息丢失。
 
-- [ ] task-0009 Kafka 白名单与取文件收口
+- [x] task-0009 Kafka 白名单与取文件收口
   - id: task-0009
   - boundary: src/main/resources/application.yml, src/main/java/com/mindbase/config/KafkaConfig.java, src/main/java/com/mindbase/consumer/FileProcessingConsumer.java, new:src/test/java/com/mindbase/consumer/KafkaTrustAndFetchGuardTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=KafkaTrustAndFetchGuardTest test`
