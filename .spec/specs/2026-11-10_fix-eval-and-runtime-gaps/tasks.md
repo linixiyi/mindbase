@@ -272,7 +272,7 @@ task-0008, task-0009 可并行
   - 失败处理：不联网探测阿里云，只看配置与本地二进制。
   - origin: emergent
 
-- [ ] task-0023 旧分块重叠断言迁移新语义
+- [x] task-0023 旧分块重叠断言迁移新语义
   - id: task-0023
   - boundary: src/test/java/com/mindbase/service/ParseServiceUnitTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=ParseServiceUnitTest test`
