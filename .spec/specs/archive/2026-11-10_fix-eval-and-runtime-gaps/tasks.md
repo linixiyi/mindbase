@@ -113,7 +113,7 @@
 
 - [x] task-0010 生产与评测共用 ChatPipeline 装配
   - id: task-0010
-  - boundary: src/main/java/com/mindbase/service/ChatPipeline.java, src/main/java/com/mindbase/service/ChatHandler.java, src/main/java/com/mindbase/service/eval/RagEvalCaseRunner.java, new:src/test/java/com/mindbase/service/ChatPipelineParityTest.java
+  - boundary: src/main/java/com/mindbase/service/ChatPipeline.java, src/main/java/com/mindbase/service/ChatHandler.java, src/main/java/com/mindbase/service/eval/RagEvalCaseRunner.java, new:src/main/java/com/mindbase/service/ChatPipelineFactory.java, new:src/test/java/com/mindbase/service/ChatPipelineParityTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=ChatPipelineParityTest test`
   - expect: red
   - depends-on: task-0006, task-0007
