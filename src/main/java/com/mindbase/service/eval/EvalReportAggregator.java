@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -179,6 +180,83 @@ public final class EvalReportAggregator {
             ndcgAtK.put(String.valueOf(k), ratio(sum, labeledResults.size()));
         }
         return ndcgAtK;
+    }
+
+    /** 无人工复核数据时不伪造 κ，报告里写明未计算（config.kappaNote 与阻断原因里都会出现） */
+    static final String KAPPA_NOT_COMPUTED_NOTE = "kappa 未计算：无人工复核数据，不伪造 κ";
+
+    /**
+     * 评委独立性与发布门禁：返回的报告结论写入 config（judgeIndependence/releaseEligible/releaseBlockedReason），
+     * releaseEligible=false 表示该报告的评委分数不能用于发布判定。判定规则（命中任一即阻断）：
+     * <ol>
+     *   <li>评委身份为 {@link RagEvalCaseRunner#SELF_JUDGE}（评委与生成同模型自评；评委身份缺失时同样按
+     *       SELF_JUDGE 处理，宁可误拦不可放行）；</li>
+     *   <li>κ 可计算且配置了下限（minKappa 非 null）而 κ 低于下限；</li>
+     *   <li>可比样本数已知（comparableCases 非 null）且少于 minComparableCases。</li>
+     * </ol>
+     * 没有人工复核数据时 κ 为 null：不伪造 κ，只按 SELF_JUDGE 规则判定，报告写明 kappa 未计算
+     * （见 {@link #releaseGateConfig} 写入的 kappaNote）。minKappa 为 null 表示不启用 κ 检查，
+     * 但这不改变其余规则的结论。
+     */
+    public static EvalReport.ReleaseGate releaseGate(String judgeIdentity, Double kappa, Double minKappa,
+                                                     Integer comparableCases, Integer minComparableCases) {
+        String independence = judgeIdentity == null || judgeIdentity.isBlank()
+                || RagEvalCaseRunner.SELF_JUDGE.equals(judgeIdentity.trim())
+                ? RagEvalCaseRunner.SELF_JUDGE
+                : RagEvalCaseRunner.INDEPENDENT;
+        List<String> reasons = new ArrayList<>();
+        if (RagEvalCaseRunner.SELF_JUDGE.equals(independence)) {
+            reasons.add("评委与生成共用同一模型（SELF_JUDGE），自评分数不能用于发布判定");
+            if (kappa == null) {
+                reasons.add(KAPPA_NOT_COMPUTED_NOTE);
+            }
+        }
+        if (kappa != null && minKappa != null && kappa < minKappa) {
+            reasons.add(String.format(Locale.ROOT,
+                    "评委与人工 Cohen's kappa %.2f 低于下限 %.2f，评委一致性不足", kappa, minKappa));
+        }
+        if (comparableCases != null && minComparableCases != null && comparableCases < minComparableCases) {
+            reasons.add(String.format(Locale.ROOT,
+                    "评委与人工可比样本 %d 条少于下限 %d 条，一致性结论不成立", comparableCases, minComparableCases));
+        }
+        boolean eligible = reasons.isEmpty();
+        return new EvalReport.ReleaseGate(independence, eligible, eligible ? null : String.join("；", reasons));
+    }
+
+    /**
+     * 从报告 config 派生发布门禁三键（judgeIndependence/releaseEligible/releaseBlockedReason）并补 κ 说明。
+     * κ 与可比样本输入取 config 同名键（{@link EvalReport} 的 CONFIG_KAPPA 等常量）：
+     * 刚跑完报告时还没有人工复核数据，这些键缺失 → κ 记为 null 并写明未计算，只按 SELF_JUDGE 规则判定。
+     * 返回的是排序后的新 LinkedHashMap，不改写调用方传入的 map。
+     */
+    static Map<String, Object> releaseGateConfig(Map<String, Object> config) {
+        Map<String, Object> enriched = config == null ? new LinkedHashMap<>() : new LinkedHashMap<>(config);
+        Double kappa = asDouble(enriched.get(EvalReport.CONFIG_KAPPA));
+        Double minKappa = asDouble(enriched.get(EvalReport.CONFIG_MIN_KAPPA));
+        Integer comparableCases = asInteger(enriched.get(EvalReport.CONFIG_COMPARABLE_CASES));
+        Integer minComparableCases = asInteger(enriched.get(EvalReport.CONFIG_MIN_COMPARABLE_CASES));
+        EvalReport.ReleaseGate gate = releaseGate(asText(enriched.get(EvalReport.CONFIG_JUDGE)),
+                kappa, minKappa, comparableCases, minComparableCases);
+        enriched.put(EvalReport.CONFIG_JUDGE_INDEPENDENCE, gate.judgeIndependence());
+        enriched.put(EvalReport.CONFIG_RELEASE_ELIGIBLE, gate.releaseEligible());
+        enriched.put(EvalReport.CONFIG_RELEASE_BLOCKED_REASON, gate.releaseBlockedReason());
+        enriched.put(EvalReport.CONFIG_KAPPA, kappa);
+        if (kappa == null) {
+            enriched.put(EvalReport.CONFIG_KAPPA_NOTE, KAPPA_NOT_COMPUTED_NOTE);
+        }
+        return enriched;
+    }
+
+    private static String asText(Object value) {
+        return value instanceof String text ? text : null;
+    }
+
+    private static Double asDouble(Object value) {
+        return value instanceof Number number ? number.doubleValue() : null;
+    }
+
+    private static Integer asInteger(Object value) {
+        return value instanceof Number number ? number.intValue() : null;
     }
 
     /**

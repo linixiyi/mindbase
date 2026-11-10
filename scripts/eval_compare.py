@@ -13,6 +13,10 @@
   python3 scripts/eval_compare.py report.json --fail-if 'accuracy<0.85'   # 门禁：任一报告命中任一失败条件 → exit 3
   python3 scripts/eval_compare.py --self-test                             # 用内置两份真实结构 fixture 跑通新旧 schema
 
+发布门禁（评委独立性）：--fail-if 涉及 accuracy / judgeScore 类指标且报告 config.releaseEligible=false
+（评委为 SELF_JUDGE 自评，或 κ/可比样本不达标）时，打印 releaseBlockedReason 并退出 2——评委分数不可信，
+不能据此做发布判定；确要继续须显式加 --allow-self-judge，放行时打印降级说明，结果仅作参考。
+
 --fail-if 语法：<metric><op><value>（表达式是"失败条件"，成立即门禁失败），op 取 >= > <= < == !=。
 指标名：
   summary 指标：recallAtK / docRecallAtK / mrr / accuracy / meanJudgeScore / meanExpectedDocCoverage /
@@ -21,6 +25,9 @@
                 ndcgAtK.3 / ndcgAtK.5 / ndcgAtK.10；
   题型指标：  <type>.<metric>，如 fact.recallAtK、multi.accuracy（type 取用例显式 type 字段或 caseId 前缀）。
 指标缺失（旧 schema 没有该字段）或无法评估时按失败处理——门禁宁可误报也不放行。
+
+退出码：0 门禁通过；1 报告读取/解析失败；2 发布门禁拦截（releaseEligible=false 且未 --allow-self-judge）；
+3 --fail-if 指标条件未通过。
 """
 import argparse
 import json
@@ -57,6 +64,9 @@ OVERALL_KEY_MAP = {
 
 CONDITION_RE = re.compile(
     r"^\s*([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)?)\s*(>=|<=|==|!=|>|<)\s*(-?\d+(?:\.\d+)?)\s*$")
+
+# 依赖评委分数的指标（accuracy 及评委打分族）：这些门禁受报告 releaseEligible 发布门禁约束
+JUDGE_METRIC_NAMES = {"accuracy", "meanJudgeScore", "judgeScore"}
 
 # ---------------------------------------------------------------------------
 # 内置 fixture：--self-test 用，两份都是真实报告改造，不是手写指标。
@@ -238,6 +248,37 @@ def check_conditions(reports, conditions):
 
 
 # ---------------------------------------------------------------------------
+# 发布门禁（评委独立性）：releaseEligible=false 的报告不得用 accuracy/judgeScore 做发布判定
+# ---------------------------------------------------------------------------
+
+def _is_judge_condition(condition):
+    """--fail-if 条件是否依赖评委分数（accuracy / judgeScore 族，含题型指标如 fact.accuracy）。"""
+    match = CONDITION_RE.match(condition)
+    if not match:
+        return False
+    return match.group(1).split(".")[-1] in JUDGE_METRIC_NAMES
+
+
+def release_gate_blocks(reports, conditions):
+    """发布门禁阻断项：[(label, judgeIndependence, releaseBlockedReason)]，空列表表示无阻断。
+
+    只在 --fail-if 涉及 accuracy/judgeScore 且报告 config.releaseEligible=false（布尔假，
+    Java 侧 EvalReportAggregator.releaseGate 按评委独立性与 κ/可比样本规则写入）时阻断。
+    旧报告没有 releaseEligible 字段时不在这一层拦——缺指标的风险由 check_conditions 的
+    "无法评估也按违规"承担；纯检索类门禁（recall/mrr 等）不依赖评委分数，不受此门禁影响。
+    """
+    if not any(_is_judge_condition(condition) for condition in conditions):
+        return []
+    blocks = []
+    for report in reports:
+        config = report["config"] or {}
+        if config.get("releaseEligible") is False:
+            blocks.append((report["label"], config.get("judgeIndependence"),
+                           config.get("releaseBlockedReason")))
+    return blocks
+
+
+# ---------------------------------------------------------------------------
 # 展示
 # ---------------------------------------------------------------------------
 
@@ -380,10 +421,37 @@ def self_test():
     assert len(check_conditions([v2], ["notAMetric>=1"])) == 1, "未知指标必须按违规处理"
     assert len(check_conditions([v2], ["garbage condition"])) == 1, "非法条件必须按违规处理"
 
+    # 7) 发布门禁：releaseEligible=false 的报告在 accuracy/judgeScore 门禁上必须被拦（评测缺口修复）
+    self_judge_raw = json.loads(_FIXTURE_V2_JSON)
+    self_judge_raw["config"] = dict(self_judge_raw["config"])
+    self_judge_raw["config"].update({
+        "judgeIndependence": "SELF_JUDGE",
+        "releaseEligible": False,
+        "releaseBlockedReason": "评委与生成共用同一模型（SELF_JUDGE），自评分数不能用于发布判定；"
+                                "kappa 未计算：无人工复核数据，不伪造 κ",
+    })
+    self_judge = normalize_report(self_judge_raw, source="fixture-self-judge")
+    blocks = release_gate_blocks([self_judge], ["accuracy<0.99"])
+    assert len(blocks) == 1 and "SELF_JUDGE" in (blocks[0][2] or ""), \
+        "self-judge 报告的 accuracy 门禁必须被发布门禁拦下并给出原因"
+    assert release_gate_blocks([self_judge], ["recallAtK<0.99"]) == [], \
+        "检索类门禁不依赖评委分数，不受发布门禁影响"
+    assert release_gate_blocks([v2], ["accuracy<0.99"]) == [], \
+        "旧报告没有 releaseEligible 字段时不走发布门禁（缺指标风险由 check_conditions 承担）"
+    eligible_raw = json.loads(_FIXTURE_V2_JSON)
+    eligible_raw["config"] = dict(eligible_raw["config"])
+    eligible_raw["config"].update({"judgeIndependence": "INDEPENDENT", "releaseEligible": True})
+    eligible = normalize_report(eligible_raw, source="fixture-independent")
+    assert release_gate_blocks([eligible], ["accuracy<0.99"]) == [], \
+        "releaseEligible=true 的独立评委报告不被发布门禁拦截"
+    assert not _is_judge_condition("recallAtK<0.9") and _is_judge_condition("fact.accuracy<0.9") \
+           and _is_judge_condition("meanJudgeScore<4"), "评委分数族指标识别（含题型指标）"
+
     print("self-test OK: v1(50 题, schema v1) / v2(20 题, schema 2.0) / archive 形态全部跑通")
     print("  - fixture 指标从 cases 重算与记录 summary 一致（v1: recall 0.7609/mrr 0.5902/acc 0.86；"
           "v2: recall 0.9474/mrr 0.9211/acc 0.9474）")
     print("  - --fail-if 通过/失败/缺字段/未知指标/非法条件 五种判定方向全部验证")
+    print("  - 发布门禁：self-judge 报告 accuracy 门禁被拦、检索类门禁放行、releaseEligible=true 放行")
     return 0
 
 
@@ -395,6 +463,9 @@ def main(argv):
     parser.add_argument("--fail-if", dest="fail_if", action="append", default=[],
                         metavar="'<metric><op><value>'",
                         help="失败条件，如 'accuracy<0.85'；任一报告命中即以非 0 退出")
+    parser.add_argument("--allow-self-judge", dest="allow_self_judge", action="store_true",
+                        help="放行 releaseEligible=false 的报告继续跑 accuracy/judgeScore 门禁"
+                             "（打印降级说明，结果仅作参考，不得作为发布判定依据）")
     parser.add_argument("--self-test", dest="self_test", action="store_true",
                         help="用内置两份真实结构 fixture 跑通新旧 schema 与门禁判定")
     args = parser.parse_args(argv)
@@ -406,6 +477,25 @@ def main(argv):
 
     reports = [load_report(path) for path in args.reports]
     print(render(reports))
+
+    blocks = release_gate_blocks(reports, args.fail_if)
+    if blocks and not args.allow_self_judge:
+        print()
+        print(f"发布门禁未通过：{len(blocks)} 份报告 releaseEligible=false，"
+              "其评委分数不能用于 accuracy/judgeScore 类发布判定:", file=sys.stderr)
+        for label, independence, reason in blocks:
+            print(f"  [{label}] judgeIndependence={independence or '未知'} — {reason or '报告未记录原因'}",
+                  file=sys.stderr)
+        print("评测缺口修复：self-judge 或评委一致性不达标的报告，accuracy/judgeScore 只能参考，"
+              "不得作为发布依据。", file=sys.stderr)
+        print("确要继续请显式加 --allow-self-judge。", file=sys.stderr)
+        return 2
+    if blocks:
+        print()
+        print(f"降级说明：--allow-self-judge 已放行 {len(blocks)} 份 releaseEligible=false 的报告，"
+              "评委分数不可信，本次 accuracy/judgeScore 结果仅作参考，不得作为发布判定依据：")
+        for label, independence, reason in blocks:
+            print(f"  [{label}] judgeIndependence={independence or '未知'} — {reason or '报告未记录原因'}")
 
     violations = check_conditions(reports, args.fail_if)
     if violations:

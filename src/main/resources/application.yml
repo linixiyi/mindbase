@@ -314,8 +314,9 @@ eval:
   human-agreement:
     # 评委与人工在"是否正确"上的一致率低于该值时，在评测汇总上告警：评分标准或评委模型需要重新校准
     min-agreement-rate: ${EVAL_HUMAN_AGREEMENT_MIN_RATE:0.8}
-    # Cohen's kappa 下限，为空时不检查；正确率很高或很低时一致率会虚高，kappa 能扣掉碰巧一致的部分
-    min-kappa: ${EVAL_HUMAN_AGREEMENT_MIN_KAPPA:}
+    # Cohen's kappa 下限（默认 0.6：扣掉碰巧一致后的一致性低于它说明评委不可信）；
+    # env 可覆盖为空表示不启用 κ 检查，但不代表可发布——报告 releaseEligible 仍按其余门禁规则判定
+    min-kappa: ${EVAL_HUMAN_AGREEMENT_MIN_KAPPA:0.6}
     # 可比较的用例（评委和人工都给了结论）少于该数量时只提示样本不足，不下结论
     min-comparable-cases: ${EVAL_HUMAN_AGREEMENT_MIN_CASES:5}
 

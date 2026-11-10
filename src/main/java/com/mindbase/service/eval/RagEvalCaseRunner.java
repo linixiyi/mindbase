@@ -58,6 +58,12 @@ public class RagEvalCaseRunner {
      */
     public static final String SELF_JUDGE = "SELF_JUDGE";
 
+    /**
+     * 评委来源标记（独立）：eval.judge.provider 配置了非空供应商编码，评委走独立供应商定向调用。
+     * 与 {@link #SELF_JUDGE} 一起写入报告 config.judgeIndependence，发布门禁只放行 INDEPENDENT 的报告。
+     */
+    public static final String INDEPENDENT = "INDEPENDENT";
+
     static final String JUDGE_SYSTEM_PROMPT = """
             你是 RAG 问答评测的评委。输入是一个 JSON 对象，字段含义：
             - question：用户问题
@@ -322,6 +328,14 @@ public class RagEvalCaseRunner {
         return judge.getModel() == null || judge.getModel().isBlank()
                 ? judge.getProvider().trim()
                 : judge.getProvider().trim() + "/" + judge.getModel().trim();
+    }
+
+    /**
+     * 评委独立性标记（写入报告 config.judgeIndependence）：配置 eval.judge.provider 时为 {@link #INDEPENDENT}，
+     * 否则为 {@link #SELF_JUDGE}。发布门禁（{@link EvalReportAggregator#releaseGate}）只放行独立评委的报告。
+     */
+    public String judgeIndependence() {
+        return independentJudgeConfigured() ? INDEPENDENT : SELF_JUDGE;
     }
 
     /** eval.judge.provider 是否配置了非空供应商编码 */

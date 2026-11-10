@@ -1,0 +1,11 @@
+{"cmd": "cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=JudgeIndependenceGateTest test", "duration": 6.206, "exit": 1, "expect": "red", "kind": "baseline", "task": "task-0001", "ts": "2026-11-10T15:29:38+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=EvalCostAccountingTest test", "duration": 6.675, "exit": 1, "expect": "red", "kind": "baseline", "task": "task-0002", "ts": "2026-11-10T15:29:44+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && python3 scripts/eval_backfill_gold.py --check && ./mvnw -q -B -Dtest=EvalGoldFieldsTest test", "duration": 0.017, "exit": 2, "expect": "red", "kind": "baseline", "task": "task-0003", "ts": "2026-11-10T15:29:44+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && bash scripts/eval_real_smoke.sh --dry-run", "duration": 0.005, "exit": 127, "expect": "red", "kind": "baseline", "task": "task-0004", "ts": "2026-11-10T15:29:44+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && python3 scripts/eval_threshold_curve.py --self-test", "duration": 0.014, "exit": 2, "expect": "red", "kind": "baseline", "task": "task-0005", "ts": "2026-11-10T15:29:44+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=ChatContextBudgetTest test", "duration": 6.81, "exit": 1, "expect": "red", "kind": "baseline", "task": "task-0006", "ts": "2026-11-10T15:29:51+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=CitationVerificationSemanticsTest test", "duration": 7.08, "exit": 1, "expect": "red", "kind": "baseline", "task": "task-0007", "ts": "2026-11-10T15:29:58+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=ChunkOverlapMetadataTest test", "duration": 7.01, "exit": 1, "expect": "red", "kind": "baseline", "task": "task-0008", "ts": "2026-11-10T15:30:05+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=KafkaTrustAndFetchGuardTest test", "duration": 7.061, "exit": 1, "expect": "red", "kind": "baseline", "task": "task-0009", "ts": "2026-11-10T15:30:13+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=ChatPipelineParityTest test", "duration": 7.223, "exit": 1, "expect": "red", "kind": "baseline", "task": "task-0010", "ts": "2026-11-10T15:30:20+00:00"}
+{"dirty": [".zcode/config.json"], "head": "29406fe23fa6d16fa8a9d6911db69d98d5c3fe83", "kind": "baseline", "task": "package", "ts": "2026-11-10T15:30:20+00:00"}
