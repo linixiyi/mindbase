@@ -56,3 +56,4 @@ if [ "$(python3 -c "print(1 if float('$ACC_LOWER') >= 0.70 else 0)")" != "1" ]; 
 fi
 
 echo "eval_gate: PASS（20 题 fixture + 7 条阈值 + Wilson 下界全部满足）"
+echo "真机冒烟（可选，默认不跑；需本机后端/ES/MinIO 与管理员凭据）：先 bash scripts/eval_real_smoke.sh --dry-run 静态预检，真跑与排查见 docs/eval/real-smoke.md"

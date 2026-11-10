@@ -44,7 +44,7 @@
   - 成功判定：`--check` 退出 0 且测试绿。
   - 失败处理：manifest 缺 md5 的文档写 null 并在 `--check` 报出，不得猜测或用文件名哈希顶替。
 
-- [ ] task-0004 真机冒烟门禁
+- [x] task-0004 真机冒烟门禁
   - id: task-0004
   - boundary: scripts/eval_gate.sh, new:scripts/eval_real_smoke.sh, new:docs/eval/real-smoke.md
   - verify: `cd /Users/linyixi/PaiSmart && bash scripts/eval_real_smoke.sh --dry-run`
