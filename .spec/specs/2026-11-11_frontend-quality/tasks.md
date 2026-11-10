@@ -11,7 +11,7 @@
 
 ## 任务
 
-- [ ] task-0001 流式归约抽纯函数并补 7 类帧测试
+- [x] task-0001 流式归约抽纯函数并补 7 类帧测试
   - id: task-0001
   - boundary: frontend/src/views/chat/modules/input-box.vue, new:frontend/src/views/chat/stream/reducer.ts, new:frontend/src/views/chat/stream/__tests__/reducer.spec.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/views/chat/stream/__tests__/reducer.spec.ts`
@@ -24,7 +24,7 @@
 
 - [ ] task-0002 chunk 批量 flush，消除逐帧全量重渲染
   - id: task-0002
-  - boundary: frontend/src/views/chat/modules/input-box.vue, new:frontend/src/views/chat/stream/reducer.ts, new:frontend/src/views/chat/stream/buffer.ts, new:frontend/src/views/chat/stream/__tests__/buffer.spec.ts
+  - boundary: frontend/src/views/chat/modules/input-box.vue, frontend/src/views/chat/modules/chat-list.vue, new:frontend/src/views/chat/stream/reducer.ts, new:frontend/src/views/chat/stream/buffer.ts, new:frontend/src/views/chat/stream/__tests__/buffer.spec.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/views/chat/stream/__tests__/buffer.spec.ts`
   - expect: red
   - depends-on: task-0001
@@ -94,7 +94,7 @@
 
 - [ ] task-0008 聊天请求收口 service/api + WS 帧判别联合
   - id: task-0008
-  - boundary: new:frontend/src/service/api/chat.ts, new:frontend/src/service/api/__tests__/streamFrame.spec.ts, frontend/src/store/modules/chat/index.ts, frontend/src/views/chat/modules/input-box.vue, frontend/src/views/knowledge-base/index.vue
+  - boundary: new:frontend/src/service/api/chat.ts, new:frontend/src/service/api/__tests__/streamFrame.spec.ts, frontend/src/store/modules/chat/index.ts, frontend/src/views/chat/modules/input-box.vue, frontend/src/views/knowledge-base/index.vue, frontend/src/typings/api.d.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/service/api/__tests__/streamFrame.spec.ts`
   - expect: red
   - depends-on: task-0003, task-0007
@@ -129,7 +129,7 @@
 
 - [ ] task-0011 Playwright 冒烟：config、去硬编码、2 条用例
   - id: task-0011
-  - boundary: new:frontend/playwright.config.ts, new:frontend/e2e/layout-smoke.spec.ts, frontend/playwright-kb-column.spec.ts
+  - boundary: new:frontend/playwright.config.ts, new:frontend/e2e/layout-smoke.spec.ts, frontend/playwright-kb-column.spec.ts, new:frontend/e2e/kb-column.spec.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec playwright test --list e2e`
   - expect: red
   - 背景：现有 `playwright-kb-column.spec.ts` 在根目录、硬编码 `http://127.0.0.1:9529`、token 读 `PAI_TOKEN`，没有 `playwright.config.*`，无法稳定复跑；CI 不接 e2e（本轮也不接）。

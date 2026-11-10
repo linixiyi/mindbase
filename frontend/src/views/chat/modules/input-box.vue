@@ -1,31 +1,13 @@
 <script setup lang="ts">
-import { getChatFailureFallbackMessage } from '@/constants/chat-failure';
+import { reduceStreamFrame } from '../stream/reducer';
 
 const chatStore = useChatStore();
 const { connectionStatus, connectionEscalated, input, isRateLimited, list, rateLimitRemainingSeconds, wsData } =
   storeToRefs(chatStore);
 
-function buildWsErrorMessage(data: Record<string, any>) {
-  if (data.code === 429) {
-    const retryAfterSeconds = Number(data.retryAfterSeconds || 0);
-    const baseMessage = data.message || '聊天请求过于频繁';
-
-    if (retryAfterSeconds > 0) {
-      return `${baseMessage}，请在 ${retryAfterSeconds} 秒后重试`;
-    }
-
-    return `${baseMessage}，请稍后再试`;
-  }
-
-  if (typeof data.error === 'string' && data.error.trim()) {
-    return data.error.trim();
-  }
-
-  if (typeof data.message === 'string' && data.message.trim()) {
-    return data.message.trim();
-  }
-
-  return getChatFailureFallbackMessage();
+/** reducer 是纯函数（不修改入参、返回新消息对象）；这里把归约结果原地合并回响应式消息， 保持列表项引用稳定——生成状态监控闭包依赖 list.includes(assistant) 判断。 */
+function applyReducedStreamState(assistant: Api.Chat.Message, next: Api.Chat.Message) {
+  Object.assign(assistant, next);
 }
 
 const latestMessage = computed(() => {
@@ -98,29 +80,28 @@ function findAssistantMessage(generationId?: string, payloadConversationId?: str
 }
 
 function handleStartPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
-  assistant.generationId = payload.generationId || assistant.generationId;
-  assistant.conversationId = payload.conversationId || assistant.conversationId;
-  if (!assistant.timestamp && payload.timestamp) {
-    assistant.timestamp = new Date(payload.timestamp).toISOString();
-  }
-  // 重复提交同一问题时后端复用进行中的回答，start 里带上已经生成的内容
-  if (payload.resumed && typeof payload.content === 'string' && payload.content.length > assistant.content.length) {
-    assistant.content = payload.content;
-    assistant.status = 'loading';
-  }
+  applyReducedStreamState(
+    assistant,
+    reduceStreamFrame(assistant, {
+      type: 'start',
+      generationId: payload.generationId,
+      conversationId: payload.conversationId,
+      timestamp: payload.timestamp,
+      resumed: payload.resumed,
+      content: payload.content
+    })
+  );
 }
 
 async function handleCompletionPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
-  if (payload.status === 'finished' && assistant.status !== 'error') {
-    assistant.status = 'finished';
-  } else if (payload.status === 'failed') {
-    assistant.status = 'error';
-  }
-
-  if (payload.referenceMappings) {
-    assistant.referenceMappings = payload.referenceMappings;
-  }
-  markExecutingToolsAsSuccess(assistant);
+  applyReducedStreamState(
+    assistant,
+    reduceStreamFrame(assistant, {
+      type: 'completion',
+      status: payload.status,
+      referenceMappings: payload.referenceMappings
+    })
+  );
   stopGenerationStatusMonitor();
   // Reconcile any chunks missed while reconnecting with the final server snapshot.
   if (assistant.generationId && payload.status === 'finished') {
@@ -132,44 +113,40 @@ async function handleCompletionPayload(assistant: Api.Chat.Message, payload: Rec
 }
 
 function handleStopPayload(assistant: Api.Chat.Message) {
-  if (assistant.status !== 'error') {
-    assistant.status = 'finished';
-  }
-  markExecutingToolsAsSuccess(assistant);
+  // 本卡保持 finished（停止语义与独立停止按钮由 task-0004 落地）
+  applyReducedStreamState(assistant, reduceStreamFrame(assistant, { type: 'stop' }));
   stopGenerationStatusMonitor();
 }
 
 function handleErrorPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
   const rateLimited = Number(payload.code) === 429;
+  const next = reduceStreamFrame(assistant, {
+    type: 'error',
+    code: payload.code,
+    retryAfterSeconds: payload.retryAfterSeconds,
+    error: payload.error,
+    message: payload.message,
+    errorCategory: payload.errorCategory
+  });
+  applyReducedStreamState(assistant, next);
+
   if (rateLimited) {
     chatStore.startRateLimitCountdown(Number(payload.retryAfterSeconds || 0));
   }
-
-  const message = buildWsErrorMessage(payload);
-  assistant.status = 'error';
-  assistant.content = message;
-  // 失败类别码（pm-001）：429 走限流类别，其余透传后端 errorCategory；错误卡片按类别分层文案
-  if (rateLimited) {
-    assistant.errorCategory = 'RATE_LIMIT';
-  } else if (typeof payload.errorCategory === 'string' && payload.errorCategory) {
-    assistant.errorCategory = payload.errorCategory;
-  } else {
-    assistant.errorCategory = undefined;
-  }
-  markExecutingToolsAsFailed(assistant);
   stopGenerationStatusMonitor();
 
+  // error 帧归约后 content 即用户话术（429/error/message/字典兜底），直接用于提示
   if (rateLimited) {
-    window.$message?.warning(message);
+    window.$message?.warning(next.content);
   } else {
-    window.$message?.error(message);
+    window.$message?.error(next.content);
   }
 }
 
 function handleChunkPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
-  assistant.status = 'loading';
-  assistant.content += payload.chunk;
-  lastStreamContentLength = assistant.content.length;
+  const next = reduceStreamFrame(assistant, { type: 'chunk', chunk: payload.chunk });
+  applyReducedStreamState(assistant, next);
+  lastStreamContentLength = next.content.length;
   lastStreamContentChangedAt = Date.now();
 }
 

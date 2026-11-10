@@ -73,6 +73,7 @@
 - D2 | 不改后端 WS 协议：0001 的帧类型只描述前端已消费的字段；seq/去重留给后端轮次。
 - D3 | 0005 与 0009 的 a11y/键位门禁用 grep 脚本而不是引入 eslint 插件，避免依赖变更。
 - D4 | 0006 只锁定基线，不做全量翻译；`--update-baseline` 需人工在 PR 说明里写理由。
+- D5 | 包定义勘误（同评测包 D9 先例）：0002 交付与成功判定明文要求改 chat-list.vue 滚动 watch、0008 交付④明文要求 typings 增帧类型（实际路径 frontend/src/typings/api.d.ts）、0011 交付③明文要求旧 spec 移到 e2e/kb-column.spec.ts，三者均未列于各自 boundary 清单——按交付补入对应卡 boundary，非扩权 | by: V2 | reversal: checkpoint revert
 
 ## Deferred
 - 虚拟滚动/历史分页：需要后端分页参数，当前一次拉全量，单独立卡。
@@ -84,3 +85,7 @@
 - R1 | e2e 真跑依赖 dev server 与登录态；0011 的 verify 只用 `--list`，真跑由 0012 文档标注为可选，不纳入默认门禁。
 - R2 | 中文行数基线会随正常开发波动；0006 的脚本只拦"增长"，删注释导致的下降允许。
 - R3 | 0002 的批量 flush 可能改变"首字出现时间"的观感；以 50ms 为上限并在测试里断言顺序与最终内容不变。
+
+## Binding
+- branch: `spec/2026-11-11_frontend-quality`
+- frozen: 2026-11-10T22:23:18+00:00
