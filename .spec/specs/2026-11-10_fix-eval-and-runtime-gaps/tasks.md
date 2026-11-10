@@ -163,7 +163,7 @@ task-0008, task-0009 可并行
   - 成功判定：`--self-test` 退出 0；对当前数据集 `--check` 能跑通（允许 warn）。
   - 失败处理：manifest 缺条目时报出而不是跳过。
 
-- [ ] task-0013 人工复核导出/回填 CLI
+- [x] task-0013 人工复核导出/回填 CLI
   - id: task-0013
   - boundary: new:scripts/eval_human_review.py, new:docs/eval/human-review.md
   - verify: `cd /Users/linyixi/PaiSmart && python3 -B scripts/eval_human_review.py --self-test`
