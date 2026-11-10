@@ -86,6 +86,8 @@
 - D3 | task-0008 交付（正文不再带重叠前缀）与既有断言 ParseServiceUnitTest.testSplitTextIntoChunksWithSemantics_AddsSentenceOverlap:173 互斥；授权迁移该单测断言到新语义，扩边由 emergent task-0023 承接该文件 | by: V2 | reversal: checkpoint revert
 - D4 | task-0002 交付（case 级 tokenUsage 改为生成 + 评委合并口径，EvalCaseResult.TokenUsage.merged + RagEvalCaseRunner 合并写入）与既有断言 EvalReActPipelineTest.java:146/:193、EvalSmokeFixtureTest.java:219-222（旧口径"评委调用不计入"）互斥；授权按新口径迁移这三处断言（case 级含评委：reactModeRunsProductionLoop 33/18/51、reactModeAccumulates 33/23、冒烟首例 51，报告级 19 题重算 627/342/969），扩边由 emergent task-0024 承接 EvalReActPipelineTest 与 EvalSmokeFixtureTest 两个测试文件 | by: V2 | reversal: checkpoint revert
 - D5 | eval_gate.sh 离线门禁对 fixture 报告（SELF_JUDGE/releaseEligible=false）加 --allow-self-judge 放行：沿用 task-0001 既有显式降级通道，定位为离线回归检测而非发布判定；A/B 实测确认 7 条 --fail-if 阈值与 Wilson 门禁未放宽（不加旗标则 done 标准"eval_gate.sh 全绿"在桩评委前提下无解） | by: V2 | reversal: checkpoint revert
+- D6 | task-0011 卡面 repeat"默认 true"若落在 Java 字段默认，会使 11 个直接构造 RagEvalProperties 的既有用例（单评委回复队列，跨 5 文件）失败；裁决 Java 字段默认 false、application.yml ${EVAL_JUDGE_REPEAT:true} 一字不动——生产默认仍 true（卡面生产语义由 yml 承担），单测走单采样路径，双采样由 JudgeRepeatConsistencyTest 专测（显式 setRepeat(true)）；5 个 boundary 外测试文件不动 | by: V2 | reversal: checkpoint revert
+- D7 | task-0011 卡面"两次一致取均值（1 位小数）"与 Integer score 字段（JudgeVerdict/EvalCaseResult，均在 boundary 外）冲突；裁决：先按 1 位小数求均值，再四舍五入（half-up）落 Integer judgeScore；"一致但分数不同"的样本 judgeReason 写 A=…/correct; B=…/correct; mean=x.x→N 自文档化（原始样本完整可复核）；不改报告 JSON schema（V6 keep-public-api） | by: V2 | reversal: checkpoint revert
 
 ## Parked
 

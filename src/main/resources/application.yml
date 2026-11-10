@@ -316,6 +316,11 @@ eval:
   max-retry-tokens: ${EVAL_MAX_RETRY_TOKENS:8000}
   generation-timeout-seconds: ${EVAL_GENERATION_TIMEOUT_SECONDS:90}
   judge-timeout-seconds: ${EVAL_JUDGE_TIMEOUT_SECONDS:60}
+  # 评委双采样：同一 prompt 同一模型连调两次；两次 correct 一致 → 取分数均值，
+  # 不一致或单侧解析失败 → judgeScore/judgeCorrect 置空并强制人工复核（reviewReason=judge-disagree / judge-unstable）；
+  # 置 false 时评委只调一次，报告不产生一致性数字
+  judge:
+    repeat: ${EVAL_JUDGE_REPEAT:true}
   max-evidence-chars: 800
   requester-id: system-eval
   # 模型单价（每 1000 tokens）：inputPer1k/outputPer1k 需同时配置才折算，报告 cost.amount =

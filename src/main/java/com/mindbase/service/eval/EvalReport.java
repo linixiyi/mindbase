@@ -177,7 +177,17 @@ public record EvalReport(
             /* v2 并列新增：引用指向相关分块比例的用例级平均；没有任何回答带引用编号时为 null */
             Double citationPrecision,
             /* v2 并列新增：相关分块被引用比例的用例级平均；证据里没有任何相关分块时为 null */
-            Double citationRecall
+            Double citationRecall,
+            /* task-0011 评委双采样：本次运行是否实际发生了双采样（由用例明细的 judge-unstable/judge-disagree
+               复核原因或 judgeReason 末尾的 A/B 一致轨迹推出）；false 时以下三个一致性字段全部为 null（不产生一致性数字） */
+            boolean judgeRepeatEnabled,
+            /* 两次采样都成功解析且 correct 一致的用例数；repeat 未生效时为 null */
+            Integer judgeAgreementCases,
+            /* 两次采样都成功解析但 correct 相反的用例数；repeat 未生效时为 null */
+            Integer judgeDisagreementCases,
+            /* 一致率 = judgeAgreementCases /（judgeAgreementCases + judgeDisagreementCases），
+               分母即"两次都成功解析"的用例数（单侧解析失败不计入分母）；分母为 0 时为 null（不冒充稳定） */
+            Double judgeAgreementRate
     ) {
     }
 }

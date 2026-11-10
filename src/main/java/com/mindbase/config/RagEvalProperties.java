@@ -62,6 +62,15 @@ public class RagEvalProperties {
         private String provider;
         /** 评委模型名；为空时使用该供应商配置里的默认模型 */
         private String model;
+        /**
+         * 评委双采样：同一 prompt、同一模型连调两次，按合并规则落盘——
+         * 两次 correct 一致 → 分数取均值；不一致或单侧解析失败 → judgeScore/judgeCorrect 置空并强制人工复核；
+         * 两次都解析失败 → 按既有评委失败通道处理。关闭时评委只调一次，报告一致性数字为 null（不产生一致性结论）。
+         * <p>
+         * Java 字段默认 false（直接 new RagEvalProperties() 的单测路径走单采样，不污染既有断言口径）；
+         * 生产默认 true 由 application.yml 的 {@code eval.judge.repeat: ${EVAL_JUDGE_REPEAT:true}} 承担（裁决 D6）。
+         */
+        private boolean repeat = false;
     }
 
     @Data

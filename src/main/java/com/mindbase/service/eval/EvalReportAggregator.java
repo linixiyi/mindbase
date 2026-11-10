@@ -70,6 +70,10 @@ public final class EvalReportAggregator {
         int citationPrecisionCases = 0;
         double citationRecallSum = 0d;
         int citationRecallCases = 0;
+        /* 评委双采样一致性（task-0011）：一致/相反按用例明细计数，单侧解析失败（judge-unstable）不计入分母 */
+        int judgeAgreement = 0;
+        int judgeDisagreement = 0;
+        boolean judgeRepeatSampled = false;
         List<EvalCaseResult> labeledResults = new ArrayList<>();
         Map<String, Long> modes = new TreeMap<>();
         Map<String, Long> diagnoses = new LinkedHashMap<>();
@@ -121,6 +125,19 @@ public final class EvalReportAggregator {
                 }
             }
             review += result.needsHumanReview() ? 1 : 0;
+            // 评委双采样一致性计数：相反（judge-disagree）与单侧失败（judge-unstable）由强制复核原因识别，
+            // 一致由 judgeReason 末尾的 A/B 轨迹识别（repeat 关闭的普通评审判定不含该轨迹，不计入）
+            String reviewReason = result.reviewReason();
+            if (RagEvalCaseRunner.REASON_JUDGE_DISAGREE.equals(reviewReason)) {
+                judgeDisagreement++;
+                judgeRepeatSampled = true;
+            } else if (RagEvalCaseRunner.REASON_JUDGE_UNSTABLE.equals(reviewReason)) {
+                judgeRepeatSampled = true;
+            } else if (result.judged() && result.judgeReason() != null
+                    && RagEvalCaseRunner.REPEAT_AGREEMENT_TRACE.matcher(result.judgeReason()).find()) {
+                judgeAgreement++;
+                judgeRepeatSampled = true;
+            }
             if (result.diagnosis() != null) {
                 failed += FAILURES.contains(result.diagnosis()) ? 1 : 0;
                 retrievalErrors += result.diagnosis() == EvalDiagnosis.RETRIEVAL_FAILED ? 1 : 0;
@@ -156,7 +173,11 @@ public final class EvalReportAggregator {
                 refusedAsExpected,
                 ratio(faithfulnessSum, faithfulnessCases),
                 ratio(citationPrecisionSum, citationPrecisionCases),
-                ratio(citationRecallSum, citationRecallCases));
+                ratio(citationRecallSum, citationRecallCases),
+                judgeRepeatSampled,
+                judgeRepeatSampled ? judgeAgreement : null,
+                judgeRepeatSampled ? judgeDisagreement : null,
+                ratio(judgeAgreement, judgeAgreement + judgeDisagreement));
     }
 
     /**

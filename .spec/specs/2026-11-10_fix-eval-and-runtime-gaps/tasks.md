@@ -139,7 +139,7 @@ task-0008, task-0009 可并行
 
 ## 任务
 
-- [ ] task-0011 评委双采样与一致性判定
+- [x] task-0011 评委双采样与一致性判定
   - id: task-0011
   - boundary: src/main/java/com/mindbase/service/eval/RagEvalCaseRunner.java, src/main/java/com/mindbase/config/RagEvalProperties.java, src/main/java/com/mindbase/service/eval/EvalReport.java, src/main/java/com/mindbase/service/eval/EvalReportAggregator.java, src/main/resources/application.yml, new:src/test/java/com/mindbase/service/eval/JudgeRepeatConsistencyTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=JudgeRepeatConsistencyTest test`
