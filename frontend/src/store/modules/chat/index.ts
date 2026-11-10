@@ -1,6 +1,7 @@
 import { useWebSocket } from '@vueuse/core';
 import { getChatFailureCopy } from '@/constants/chat-failure';
 import { request } from '@/service/request';
+import { createHistoryLoader } from './historyLoader';
 
 export const useChatStore = defineStore(SetupStoreId.Chat, () => {
   const NON_RETRYABLE_CLOSE_CODES = new Set([1002, 1003, 1007, 1008]);
@@ -250,26 +251,74 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
     await loadMessages(targetConversationId);
   }
 
+  // task-0003：历史消息加载单源。此前本函数与 chat-list.vue 的 getList 各有一套守卫，切会话会
+  // 对同一参数发两次 GET，且请求层没有取消机制，慢的旧响应可能覆盖新会话。现在统一经
+  // historyLoader 发起：同 cid 在途去重、切换 cid 自动 abort 上一笔、只有最新 cid 的结果可提交；
+  // AbortSignal 经 request 选项透传到 axios（1.9 原生支持，ERR_CANCELED 在 request 层已静默）
+  const historyLoader = createHistoryLoader<Api.Chat.Message[]>(async (cid, signal) => {
+    const { error, data } = await request<Api.Chat.Message[]>({
+      url: 'users/conversation',
+      params: { conversationId: cid },
+      signal
+    });
+    if (error) {
+      // 后端业务文案优先，其次传输层错误信息；归一化后供 historyError 横幅直接渲染
+      throw new Error(error.response?.data?.message || error.message);
+    }
+    return data || [];
+  });
+
+  /** 历史加载失败提示（task-0003）：chat-list 顶部横幅渲染，重试按钮回调 loadMessages */
+  const historyError = ref<string | null>(null);
+  /** 历史加载进行中：chat-list 的 NSpin 与空态判定改从 store 取，getList 删除后加载态不再有第二个写入方 */
+  const historyLoading = ref(false);
+
+  // 切换/清空会话时立即归位历史加载状态：上一会话的加载态与错误不带到新会话。
+  // flush:'sync' 保证在 switchSession 里 conversationId 赋值后、loadMessages 置 loading 前先归位
+  watch(
+    conversationId,
+    () => {
+      historyLoading.value = false;
+      historyError.value = null;
+    },
+    { flush: 'sync' }
+  );
+
   async function loadMessages(targetConversationId?: string) {
     const cid = targetConversationId || conversationId.value;
     if (!cid) {
       return;
     }
     const messagesBeforeRequest = [...list.value];
-    const { error, data } = await request<Api.Chat.Message[]>({
-      url: 'users/conversation',
-      params: { conversationId: cid }
-    });
-    if (
-      !error &&
-      data &&
-      cid === conversationId.value &&
-      list.value.length === messagesBeforeRequest.length &&
-      list.value.every((message, index) => message === messagesBeforeRequest[index]) &&
-      !list.value.some(message => ['pending', 'loading'].includes(message.status || ''))
-    ) {
-      list.value = data;
+    historyLoading.value = true;
+    const result = await historyLoader.load(cid);
+    // 结果已不属于当前会话（切换后旧请求迟到、或会话被删除/归档清空）：一切交由最新一笔收尾
+    if (cid !== conversationId.value) {
+      return;
     }
+    if (result.aborted) {
+      // 被更新的加载取代：不算错误也不提交，loading 由最新一笔收尾
+      return;
+    }
+    historyLoading.value = false;
+    if (result.error) {
+      historyError.value = result.error.message || '加载历史消息失败';
+      return;
+    }
+    // 请求成功即解除错误态（即便下方守卫拦截提交，错误横幅也不应残留）
+    historyError.value = null;
+    if (!result.data) {
+      return;
+    }
+    // 保留原守卫：请求期间列表被写入（如用户已发问）或存在进行中的生成时不覆盖
+    const messagesUnchanged =
+      list.value.length === messagesBeforeRequest.length &&
+      list.value.every((message, index) => message === messagesBeforeRequest[index]);
+    const hasPending = list.value.some(message => ['pending', 'loading'].includes(message.status || ''));
+    if (!messagesUnchanged || hasPending) {
+      return;
+    }
+    list.value = result.data;
   }
 
   async function archiveSession(targetConversationId: string) {
@@ -579,6 +628,8 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
     list,
     sessions,
     sessionsLoading,
+    historyError,
+    historyLoading,
     activeTab,
     filteredSessions,
     connectionStatus,

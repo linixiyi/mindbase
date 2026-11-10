@@ -10,9 +10,9 @@ defineOptions({
 
 const chatStore = useChatStore();
 const router = useRouter();
-const { list, sessionId, conversationId } = storeToRefs(chatStore);
+// task-0003：历史加载单源化——列表、加载态、错误态全部订阅 store，本组件不再自己发请求
+const { list, sessionId, conversationId, historyLoading, historyError } = storeToRefs(chatStore);
 
-const loading = ref(false);
 const scrollbarRef = ref<InstanceType<typeof NScrollbar>>();
 
 // pm-018：流式生成期间尊重用户滚动位置。此前对消息数组浅拷贝的 watch 在任何一次 chunk
@@ -182,17 +182,6 @@ function applySuggestion(q: string) {
   chatStore.input = { message: q, conversationId: chatStore.conversationId || undefined };
 }
 
-// pm-006：日期筛选改义为「过滤当前已加载消息」。此前日期与会话 ID 同发，后端 conversationId
-// 分支恒丢弃日期参数，控件恒无效；现在会话消息整段载入（该分支本就无分页）后在前端按日期过滤，
-// 无会话选中时 list 为全量历史，同样适用。请求参数不再携带日期
-const params = computed(() => {
-  const p: Record<string, string> = {};
-  if (conversationId.value) {
-    p.conversationId = conversationId.value;
-  }
-  return p;
-});
-
 const filterActive = computed(() => Array.isArray(range.value));
 
 const visibleMessages = computed(() => {
@@ -218,34 +207,11 @@ function getRetrievalQueryFallback(index: number) {
   return '';
 }
 
-let historyRequestId = 0;
-watch(params, getList, { immediate: true });
-
-async function getList() {
-  historyRequestId += 1;
-  const requestId = historyRequestId;
-  // 快照用 slice 等价替换数组的 spread 浅拷贝（task-0002 门禁；getList 本体由 task-0003 收口删除）
-  const messagesBeforeRequest = list.value.slice();
-  // 无选中会话不回填全量历史（pm-016）：删除/归档当前会话清选中态后，消息区停在欢迎区；
-  // 选中会话后 params 变化会再次触发本次加载
-  if (!conversationId.value) {
-    loading.value = false;
-    return;
-  }
-  loading.value = true;
-  const { error, data } = await request<Api.Chat.Message[]>({
-    url: 'users/conversation',
-    params: params.value
-  });
-  if (requestId !== historyRequestId) return;
-  const messagesUnchanged =
-    list.value.length === messagesBeforeRequest.length &&
-    list.value.every((message, index) => message === messagesBeforeRequest[index]);
-  const hasPending = list.value.some(message => ['pending', 'loading'].includes(message.status || ''));
-  if (!error && messagesUnchanged && !hasPending) {
-    list.value = data;
-  }
-  loading.value = false;
+// task-0003：本组件的旧加载器（请求 ID 守卫 + 自发 GET）已删除——历史加载收敛到 store.loadMessages
+// （经 historyLoader 去重与取消），会话切换由 store 的 switchSession 触发，本组件只订阅渲染。
+// 错误重试同样只回调 store，不自带请求逻辑
+function retryLoadHistory() {
+  chatStore.loadMessages();
 }
 
 onMounted(() => {
@@ -260,13 +226,22 @@ onActivated(() => {
   }
 });
 
-const showEmpty = computed(() => !loading.value && list.value.length === 0);
+const showEmpty = computed(() => !historyLoading.value && list.value.length === 0);
 </script>
 
 <template>
   <Suspense>
     <!-- relative：pm-018 的「回到底部」chip 与日期筛选钮共同的本组件定位上下文（浮层锚在本列内，不越到输入框之下） -->
     <div class="relative h-0 flex flex-col flex-1">
+      <!--
+        task-0003：历史加载失败可见错误态——顶部横幅 + 重试按钮。只提示本次加载失败，
+        不清空已渲染消息；重试回调 store.loadMessages，成功加载或切换会话后错误由 store 清除。
+        左右 margin 让出右上角日期筛选钮（right-3 top-3，36px）的位置
+      -->
+      <div v-if="historyError" class="chat-history-error" role="alert">
+        <span class="chat-history-error__text">历史消息加载失败：{{ historyError }}</span>
+        <button type="button" class="chat-history-error__retry" @click="retryLoadHistory">重试</button>
+      </div>
       <!--
         日期筛选：默认隐藏，收进右上角图标触发的浮层（overlay 材质由 global.scss 的 .n-popover 承担）；
         pm-006 改义：range 只驱动前端过滤（visibleMessages），不再进请求参数
@@ -330,7 +305,7 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
 
       <!-- Message list -->
       <NScrollbar v-else ref="scrollbarRef" class="flex-1" @scroll="handleScroll">
-        <NSpin :show="loading">
+        <NSpin :show="historyLoading">
           <div v-if="filterActive && visibleMessages.length === 0" class="chat-filter-empty">
             所选日期范围内没有消息，可调整范围或清除筛选
           </div>
@@ -401,6 +376,51 @@ const showEmpty = computed(() => !loading.value && list.value.length === 0);
   line-height: 1.55;
   color: var(--app-text-secondary);
   text-align: center;
+}
+
+/* task-0003：历史加载失败横幅——错误面走 --error-color 系 token（与 global.scss 的
+   .app-state-badge--error 同源），轻底色不抢消息区；左右 margin 躲开右上角筛选钮 */
+.chat-history-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 12px 56px 0;
+  padding: 8px 12px;
+  border: 1px solid rgb(var(--error-color) / 0.35);
+  border-radius: 10px;
+  background: rgb(var(--error-color) / 0.08);
+}
+
+.chat-history-error__text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgb(var(--error-700-color));
+}
+
+.chat-history-error__retry {
+  flex-shrink: 0;
+  padding: 3px 12px;
+  border: 1px solid rgb(var(--error-color) / 0.4);
+  border-radius: 9999px;
+  font-size: 12px;
+  color: rgb(var(--error-700-color));
+  cursor: pointer;
+  transition: background-color var(--app-dur-fast, 150ms) var(--app-ease-standard, ease);
+}
+
+.chat-history-error__retry:hover {
+  background: rgb(var(--error-color) / 0.12);
+}
+
+.chat-history-error__retry:focus-visible {
+  outline: 2px solid rgb(var(--error-color) / 0.6);
+  outline-offset: 2px;
+}
+
+.dark .chat-history-error__text,
+.dark .chat-history-error__retry {
+  color: rgb(var(--error-400-color));
 }
 
 /* pm-018「回到底部」浮层：容器只负责居中与不挡点击（pointer-events-none），button 自己恢复

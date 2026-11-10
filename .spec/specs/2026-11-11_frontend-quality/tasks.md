@@ -34,7 +34,7 @@
   - 成功判定：vitest 绿；`grep -c "content += payload.chunk" input-box.vue` 为 0；`grep -c "\[...list.value\]" chat-list.vue` 为 0。
   - 失败处理：若 50ms 合并导致首字延迟可感知，降到 16ms 但不得回到逐条渲染；测试断言内容顺序与最终长度不变。
 
-- [ ] task-0003 历史加载单源 + 在途请求取消
+- [x] task-0003 历史加载单源 + 在途请求取消
   - id: task-0003
   - boundary: frontend/src/store/modules/chat/index.ts, frontend/src/views/chat/modules/chat-list.vue, frontend/src/service/request/index.ts, new:frontend/src/store/modules/chat/historyLoader.ts, new:frontend/src/store/modules/chat/__tests__/historyLoader.spec.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/store/modules/chat/__tests__/historyLoader.spec.ts`
