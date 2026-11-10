@@ -4,12 +4,12 @@ import com.mindbase.client.resilience.ModelCallPriority;
 import com.mindbase.client.resilience.ModelWebClientFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mindbase.config.ChatDeadlineProperties;
 import com.mindbase.config.RagEvalProperties;
 import com.mindbase.entity.SearchResult;
 import com.mindbase.service.AgentToolRegistry;
 import com.mindbase.service.ChatHandler;
 import com.mindbase.service.ChatPipeline;
+import com.mindbase.service.ChatPipelineFactory;
 import com.mindbase.service.HybridSearchService;
 import com.mindbase.service.LlmProviderRouter;
 import com.mindbase.service.ModelProviderConfigService;
@@ -86,7 +86,7 @@ public class RagEvalCaseRunner {
     private final RagEvalProperties properties;
     private final ObjectMapper objectMapper;
     private final Executor llmExecutor;
-    /** react 模式使用的 headless 编排实例；rag 模式为 null。会话/持久化基础设施为空：headless 不做会话与落库 */
+    /** react 模式使用的 headless 编排实例（经 {@link ChatPipelineFactory#createHeadlessPipeline()} 统一装配）；rag 模式为 null */
     private final ChatPipeline reactPipeline;
     /** 评委独立供应商解析；未注入或 eval.judge.provider 未配置时评委走主链路（SELF_JUDGE） */
     private final ModelProviderConfigService modelProviderConfigService;
@@ -101,9 +101,10 @@ public class RagEvalCaseRunner {
                              @Qualifier("evalLlmExecutor") Executor llmExecutor,
                              AgentToolRegistry agentToolRegistry,
                              ModelProviderConfigService modelProviderConfigService,
-                             ModelWebClientFactory modelWebClientFactory) {
+                             ModelWebClientFactory modelWebClientFactory,
+                             ChatPipelineFactory chatPipelineFactory) {
         this(hybridSearchService, llmProviderRouter, parentContextExpander, properties, objectMapper, llmExecutor,
-                buildReactPipeline(hybridSearchService, llmProviderRouter, agentToolRegistry, objectMapper),
+                chatPipelineFactory.createHeadlessPipeline(),
                 modelProviderConfigService, modelWebClientFactory);
     }
 
@@ -117,6 +118,11 @@ public class RagEvalCaseRunner {
                 (ChatPipeline) null, null, null);
     }
 
+    /**
+     * @deprecated headless 装配已统一走 {@link ChatPipelineFactory#createHeadlessPipeline()}；
+     * 本重载仅为既有测试保留，内部同样经由 {@link ChatPipelineFactory#offline} 装配，评测链路不得再调用。
+     */
+    @Deprecated
     public RagEvalCaseRunner(HybridSearchService hybridSearchService,
                              LlmProviderRouter llmProviderRouter,
                              ParentContextExpander parentContextExpander,
@@ -125,16 +131,29 @@ public class RagEvalCaseRunner {
                              @Qualifier("evalLlmExecutor") Executor llmExecutor,
                              AgentToolRegistry agentToolRegistry) {
         this(hybridSearchService, llmProviderRouter, parentContextExpander, properties, objectMapper, llmExecutor,
-                buildReactPipeline(hybridSearchService, llmProviderRouter, agentToolRegistry, objectMapper),
+                ChatPipelineFactory.offline(hybridSearchService, llmProviderRouter, agentToolRegistry, objectMapper)
+                        .createHeadlessPipeline(),
                 null, null);
     }
 
-    private static ChatPipeline buildReactPipeline(HybridSearchService hybridSearchService,
-                                                   LlmProviderRouter llmProviderRouter,
-                                                   AgentToolRegistry agentToolRegistry,
-                                                   ObjectMapper objectMapper) {
-        return new ChatPipeline(null, hybridSearchService, llmProviderRouter, null, null, null, null,
-                agentToolRegistry, null, objectMapper, null, new ChatDeadlineProperties());
+    /**
+     * @deprecated 生产/评测装配走 {@link ChatPipelineFactory}（见带 {@code ChatPipelineFactory} 参数的构造器）；
+     * 本重载仅为既有测试保留，内部同样经由 {@link ChatPipelineFactory#offline} 装配。
+     */
+    @Deprecated
+    public RagEvalCaseRunner(HybridSearchService hybridSearchService,
+                             LlmProviderRouter llmProviderRouter,
+                             ParentContextExpander parentContextExpander,
+                             RagEvalProperties properties,
+                             ObjectMapper objectMapper,
+                             @Qualifier("evalLlmExecutor") Executor llmExecutor,
+                             AgentToolRegistry agentToolRegistry,
+                             ModelProviderConfigService modelProviderConfigService,
+                             ModelWebClientFactory modelWebClientFactory) {
+        this(hybridSearchService, llmProviderRouter, parentContextExpander, properties, objectMapper, llmExecutor,
+                ChatPipelineFactory.offline(hybridSearchService, llmProviderRouter, agentToolRegistry, objectMapper)
+                        .createHeadlessPipeline(),
+                modelProviderConfigService, modelWebClientFactory);
     }
 
     private RagEvalCaseRunner(HybridSearchService hybridSearchService,

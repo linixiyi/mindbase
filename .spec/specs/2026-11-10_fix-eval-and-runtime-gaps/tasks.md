@@ -111,7 +111,7 @@
   - 成功判定：测试绿。
   - 失败处理：历史消息类型不在白名单导致反序列化失败时，把该类包补进白名单并在测试固化清单，不得回退 `*`。
 
-- [ ] task-0010 生产与评测共用 ChatPipeline 装配
+- [x] task-0010 生产与评测共用 ChatPipeline 装配
   - id: task-0010
   - boundary: src/main/java/com/mindbase/service/ChatPipeline.java, src/main/java/com/mindbase/service/ChatHandler.java, src/main/java/com/mindbase/service/eval/RagEvalCaseRunner.java, new:src/test/java/com/mindbase/service/ChatPipelineParityTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=ChatPipelineParityTest test`

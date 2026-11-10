@@ -43,12 +43,12 @@ import java.util.function.Consumer;
 /**
  * 聊天编排核心：ReAct 轮次、工具调用、引用装配，以及生成收尾（引用校验、落库、完成推送）。
  * 与 {@code WebSocketSession} 完全无关——连接相关的绑定与直接发送都通过 {@link SessionSink} 适配，
- * 由 {@link ChatHandler}（生产 WS 链路）和 {@code RagEvalCaseRunner}（离线评测 react 链路）各自实例化。
+ * 由 {@link ChatHandler}（生产 WS 链路）和 {@code RagEvalCaseRunner}（离线评测 react 链路）各自实例化，
+ * 两条链路的装配统一经 {@link ChatPipelineFactory}（工具注册表/最大轮数/提示词/模型路由/截止时间一致）。
  * <p>
  * 实例内的状态全部按 generationId 隔离，两个适配器各持一个实例互不影响。
- * 会话基础设施（redis/session 注册表/会话服务/生成快照/引用校验）允许为 null：
- * 离线评测以 headless 方式运行（{@link #runHeadless}），null 分支在生产装配下永远不会走到，
- * 生产行为与抽取前完全一致。
+ * 会话基础设施（redis/session 注册表/会话服务/生成快照）在 headless 装配下为空（显式 SessionInfra.none()）：
+ * 离线评测以 headless 方式运行（{@link #runHeadless}），空分支在生产装配下永远不会走到。
  */
 public class ChatPipeline {
 
@@ -57,7 +57,6 @@ public class ChatPipeline {
     private static final int MAX_MATCHED_CHUNK_LEN = 800;
     private static final int MAX_EVIDENCE_SNIPPET_LEN = 160;
     private static final int GENERATION_COMPLETION_TIMEOUT_SECONDS = 120;
-    private static final int MAX_REACT_ROUNDS = 4;
     private static final int MAX_REACT_TOOL_CALLS = 8;
     private static final int REACT_MAX_COMPLETION_TOKENS = 2000;
     /** chat.react.max-context-tokens 缺省值：预算读不到（无 router/非法值）时的兜底，与 yml 默认一致 */
@@ -74,6 +73,14 @@ public class ChatPipeline {
     private final ThreadPoolTaskExecutor chatMonitorExecutor;
     private final ObjectMapper objectMapper;
     private final ChatDeadlineProperties deadlineProperties;
+    /** ReAct 最大轮数：由 ChatPipelineFactory 统一装配传入，生产与评测两条链路取同一来源 */
+    private final int maxReactRounds;
+    /**
+     * 引用校验是否随装配开启（task-0010 显式建模）：生产装配 true，评测 headless 装配 false。
+     * 两链路的这个差异是装配参数，不允许用 null 隐式表达；实际生效还取决于
+     * citationVerificationService 与 ai.citation-verification.enabled
+     */
+    private final boolean citationVerificationEnabled;
 
     // 用于存储每次生成任务的完整响应
     private final Map<String, StringBuilder> responseBuilders = new ConcurrentHashMap<>();
@@ -97,6 +104,41 @@ public class ChatPipeline {
     // 引用校验整体状态（PASSED/TRUNCATED/UNVERIFIED/NO_CITATIONS）：生产链路写入回答元数据与完成帧，headless 随 ReActRunResult 带回
     private final Map<String, String> generationCitationStatuses = new ConcurrentHashMap<>();
 
+    /**
+     * 工厂装配构造器：{@link ChatPipelineFactory} 的两条链路都从这里实例化。
+     * 会话基础设施打包成 {@link ChatPipelineFactory.SessionInfra}（headless 显式 none()），
+     * 轮数与引用校验开关作为显式装配参数传入。
+     */
+    ChatPipeline(HybridSearchService searchService,
+                 LlmProviderRouter llmProviderRouter,
+                 AgentToolRegistry agentToolRegistry,
+                 ObjectMapper objectMapper,
+                 ChatDeadlineProperties deadlineProperties,
+                 int maxReactRounds,
+                 boolean citationVerificationEnabled,
+                 CitationVerificationService citationVerificationService,
+                 ChatPipelineFactory.SessionInfra sessionInfra) {
+        this.searchService = searchService;
+        this.llmProviderRouter = llmProviderRouter;
+        this.agentToolRegistry = agentToolRegistry;
+        this.objectMapper = objectMapper;
+        this.deadlineProperties = deadlineProperties == null ? new ChatDeadlineProperties() : deadlineProperties;
+        this.maxReactRounds = Math.max(maxReactRounds, 1);
+        this.citationVerificationEnabled = citationVerificationEnabled;
+        this.citationVerificationService = citationVerificationService;
+        this.redisTemplate = sessionInfra.redisTemplate();
+        this.rateLimitService = sessionInfra.rateLimitService();
+        this.conversationService = sessionInfra.conversationService();
+        this.chatGenerationStateService = sessionInfra.chatGenerationStateService();
+        this.chatSessionRegistry = sessionInfra.chatSessionRegistry();
+        this.chatMonitorExecutor = sessionInfra.chatMonitorExecutor();
+    }
+
+    /**
+     * @deprecated 生产装配走 {@link ChatPipelineFactory#createProductionPipeline()}，评测装配走
+     * {@link ChatPipelineFactory#createHeadlessPipeline()}；本重载仅为既有测试保留，生产与评测链路不得再调用。
+     */
+    @Deprecated
     public ChatPipeline(RedisTemplate<String, String> redisTemplate,
                         HybridSearchService searchService,
                         LlmProviderRouter llmProviderRouter,
@@ -109,18 +151,10 @@ public class ChatPipeline {
                         ObjectMapper objectMapper,
                         @Qualifier("chatMonitorExecutor") ThreadPoolTaskExecutor chatMonitorExecutor,
                         ChatDeadlineProperties deadlineProperties) {
-        this.redisTemplate = redisTemplate;
-        this.searchService = searchService;
-        this.llmProviderRouter = llmProviderRouter;
-        this.rateLimitService = rateLimitService;
-        this.conversationService = conversationService;
-        this.chatGenerationStateService = chatGenerationStateService;
-        this.chatSessionRegistry = chatSessionRegistry;
-        this.agentToolRegistry = agentToolRegistry;
-        this.citationVerificationService = citationVerificationService;
-        this.objectMapper = objectMapper;
-        this.chatMonitorExecutor = chatMonitorExecutor;
-        this.deadlineProperties = deadlineProperties == null ? new ChatDeadlineProperties() : deadlineProperties;
+        this(searchService, llmProviderRouter, agentToolRegistry, objectMapper, deadlineProperties,
+                ChatPipelineFactory.MAX_REACT_ROUNDS, citationVerificationService != null, citationVerificationService,
+                new ChatPipelineFactory.SessionInfra(redisTemplate, rateLimitService, conversationService,
+                        chatGenerationStateService, chatSessionRegistry, chatMonitorExecutor));
     }
 
     /**
@@ -195,6 +229,34 @@ public class ChatPipeline {
             int droppedChunks,
             String citationVerificationStatus
     ) {
+    }
+
+    // —— 装配一致性只读视图：供 ChatPipelineParityTest 断言两条链路装配一致 ——
+    // （包私有：pipeline 不在 Spring 容器里，这些值只能来自 ChatPipelineFactory 装配）
+
+    /** 两条链路统一的 ReAct 最大轮数 */
+    int maxReactRounds() {
+        return maxReactRounds;
+    }
+
+    /** 引用校验是否随装配开启：生产 true / headless false，差异显式建模而非 null 占位 */
+    boolean citationVerificationEnabled() {
+        return citationVerificationEnabled;
+    }
+
+    /** 两条链路统一的工具注册表 */
+    AgentToolRegistry agentToolRegistry() {
+        return agentToolRegistry;
+    }
+
+    /** 两条链路统一的提示词与模型路由入口 */
+    LlmProviderRouter llmProviderRouter() {
+        return llmProviderRouter;
+    }
+
+    /** 两条链路统一的截止时间配置 */
+    ChatDeadlineProperties deadlineProperties() {
+        return deadlineProperties;
     }
 
     /** ReAct 循环的过程计数，生产链路忽略，headless 链路写入评测报告 */
@@ -378,7 +440,7 @@ public class ChatPipeline {
         int totalPromptTokens = 0;
         int totalCompletionTokens = 0;
 
-        for (int round = 1; round <= MAX_REACT_ROUNDS; round++) {
+        for (int round = 1; round <= maxReactRounds; round++) {
             if (finishCancelledGeneration(generationId, responseFuture, responseBuilders.get(generationId))) {
                 return;
             }
@@ -980,8 +1042,8 @@ public class ChatPipeline {
      */
     private Map<Integer, ChatHandler.ReferenceInfo> verifyCitations(String userId, String generationId, String answer,
                                                         Map<Integer, ChatHandler.ReferenceInfo> referenceMappings) {
-        if (referenceMappings == null || referenceMappings.isEmpty() || citationVerificationService == null
-                || !citationVerificationService.isEnabled()) {
+        if (referenceMappings == null || referenceMappings.isEmpty() || !citationVerificationEnabled
+                || citationVerificationService == null || !citationVerificationService.isEnabled()) {
             return referenceMappings;
         }
         Map<Integer, String> referenceTexts = new HashMap<>();
