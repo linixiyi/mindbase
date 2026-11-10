@@ -116,7 +116,7 @@
   - 成功判定：verify 退出 0。
   - 失败处理：无 generationId 的历史消息允许回退到 timestamp+index，但不得直接用 index 作为唯一键。
 
-- [ ] task-0010 引用链接抽纯函数并补转义回归测试
+- [x] task-0010 引用链接抽纯函数并补转义回归测试
   - id: task-0010
   - boundary: frontend/src/views/chat/modules/chat-message.vue, new:frontend/src/views/chat/citation.ts, new:frontend/src/views/chat/__tests__/citation.spec.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/views/chat/__tests__/citation.spec.ts`
