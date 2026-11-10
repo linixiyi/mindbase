@@ -33,7 +33,7 @@
   - 成功判定：测试绿；金额与手算一致。
   - 失败处理：评委 usage 拿不到时只计生成侧并在 note 标 partial，禁止用字符数估算 token。
 
-- [ ] task-0003 gold 文件级 md5 与分块级 id
+- [x] task-0003 gold 文件级 md5 与分块级 id
   - id: task-0003
   - boundary: src/main/java/com/mindbase/service/eval/EvalCase.java, src/main/java/com/mindbase/service/eval/EvalDatasetParser.java, src/main/java/com/mindbase/service/eval/RetrievalMetrics.java, src/main/resources/eval/eval-v2.jsonl, eval-datasets/manifest.json, new:scripts/eval_backfill_gold.py, new:src/test/java/com/mindbase/service/eval/EvalGoldFieldsTest.java
   - verify: `cd /Users/linyixi/PaiSmart && python3 scripts/eval_backfill_gold.py --check && ./mvnw -q -B -Dtest=EvalGoldFieldsTest test`

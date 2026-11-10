@@ -21,7 +21,7 @@ import java.util.Set;
  * <pre>{@code
  * {"id": "可选", "question": "...", "split": "dev|test", "type": "fact", "difficulty": 1,
  *  "expectedRefusal": false, "expectedFileMd5s": ["..."], "expectedFileNames": ["..."],
- *  "expectedEvidence": ["答案分块里的关键短语"], "referenceAnswer": "..."}
+ *  "expectedChunkIds": ["..."], "expectedEvidence": ["答案分块里的关键短语"], "referenceAnswer": "..."}
  * }</pre>
  * <p>
  * v2 字段规则：
@@ -30,10 +30,14 @@ import java.util.Set;
  *       旧数据缺省时按 {@code dev} 处理，并记 warn、把数据集标为 legacy；</li>
  *   <li>{@code type}：自由文本题型标签；</li>
  *   <li>{@code difficulty}：1-3 的整数，越界或非整数解析失败；</li>
- *   <li>{@code expectedRefusal}：布尔值，非布尔解析失败。</li>
+ *   <li>{@code expectedRefusal}：布尔值，非布尔解析失败；</li>
+ *   <li>{@code expectedFileMd5s} / {@code expectedChunkIds}：可选列表。{@code expectedChunkIds} 与
+ *       {@code expectedFileNames} 平行（第 i 个 chunkId 属于第 i 个期望文件）；两者长度不一致时记 warn
+ *       但不崩——分块级 gold 按不可用处理，命中判定回退证据短语（用例标 {@code goldFallback=phrase}）。</li>
  * </ul>
- * 任一 v2 字段缺省（旧数据集兼容）时，{@link ParseResult#legacyDataset()} 为 true，
- * 报告层应据此在报告里标注 {@code legacyDataset=true}；缺省字段明细见 {@link ParseResult#warnings()}。
+ * 任一 v2 结构字段缺省（旧数据集兼容）时，{@link ParseResult#legacyDataset()} 为 true，
+ * 报告层应据此在报告里标注 {@code legacyDataset=true}；缺省字段与 gold 标注问题明细见
+ * {@link ParseResult#warnings()}。
  * <p>
  * id 重复（显式 id 撞车，或显式 id 与缺省 id {@code line-<行号>} 撞车）解析失败。
  * 空行和以 # 或 // 开头的注释行会被跳过；格式错误时报出行号。
@@ -58,7 +62,7 @@ public final class EvalDatasetParser {
      * @param cases         用例列表（保持文件顺序）
      * @param legacyDataset true 表示至少有一条用例缺省 v2 字段（旧数据集兼容口径），
      *                      报告层应据此在报告里标注 {@code legacyDataset=true}
-     * @param warnings     人读的缺省字段明细（含行号），供报告/日志引用
+     * @param warnings     人读的缺省字段与 gold 标注问题明细（含行号），供报告/日志引用
      */
     public record ParseResult(List<EvalCase> cases, boolean legacyDataset, List<String> warnings) {
     }
@@ -89,6 +93,9 @@ public final class EvalDatasetParser {
                         + String.join(", ", parsed.missingV2Fields)
                         + (parsed.missingV2Fields.contains("split") ? "；缺省 split 按 dev 处理" : ""));
             }
+            for (String annotationWarning : parsed.annotationWarnings) {
+                warnings.add("第 " + lineNo + " 行（id=" + evalCase.id() + "）" + annotationWarning);
+            }
             Integer firstLine = seenIds.putIfAbsent(evalCase.id(), lineNo);
             if (firstLine != null) {
                 throw new IllegalArgumentException("第 " + lineNo + " 行 id 重复（首次出现在第 " + firstLine
@@ -103,10 +110,19 @@ public final class EvalDatasetParser {
             logger.warn("数据集包含缺省 v2 字段的用例（legacyDataset=true，报告需标注 legacyDataset=true）共 {} 条，"
                     + "明细: {}", warnings.size(), warnings);
         }
+        List<String> annotationWarnings = warnings.stream()
+                .filter(w -> w.contains(CHUNK_ID_LENGTH_MISMATCH)).toList();
+        if (!annotationWarnings.isEmpty()) {
+            logger.warn("数据集存在 gold 标注问题（不阻断解析，命中判定回退证据短语）共 {} 条，明细: {}",
+                    annotationWarnings.size(), annotationWarnings);
+        }
         return new ParseResult(List.copyOf(cases), legacy, List.copyOf(warnings));
     }
 
-    record ParsedCase(EvalCase evalCase, Set<String> missingV2Fields) {
+    /** chunkIds 与文件名长度失配的 warn 前缀，供调用方与测试识别 */
+    static final String CHUNK_ID_LENGTH_MISMATCH = "expectedChunkIds 与 expectedFileNames 长度不一致";
+
+    record ParsedCase(EvalCase evalCase, Set<String> missingV2Fields, List<String> annotationWarnings) {
     }
 
     static ParsedCase parseLine(String line, int lineNo, ObjectMapper objectMapper) {
@@ -169,10 +185,18 @@ public final class EvalDatasetParser {
         }
 
         String id = text(node, "id");
+        List<String> expectedFileNames = strings(node, "expectedFileNames");
+        List<String> expectedChunkIds = strings(node, "expectedChunkIds");
+        List<String> annotationWarnings = new ArrayList<>();
+        if (!expectedChunkIds.isEmpty() && expectedChunkIds.size() != expectedFileNames.size()) {
+            // warn 不崩：分块级 gold 与文件失配后无法逐文件对位，按不可用处理（用例标 goldFallback=phrase）
+            annotationWarnings.add(CHUNK_ID_LENGTH_MISMATCH + "（chunkIds=" + expectedChunkIds.size()
+                    + ", files=" + expectedFileNames.size() + "），分块级 gold 按不可用处理，命中判定回退证据短语");
+        }
         EvalCase evalCase = new EvalCase(id == null ? "line-" + lineNo : id, question,
-                strings(node, "expectedFileMd5s"), strings(node, "expectedFileNames"), reference,
-                strings(node, "expectedEvidence"), split, type, difficulty, expectedRefusal);
-        return new ParsedCase(evalCase, missingV2Fields);
+                strings(node, "expectedFileMd5s"), expectedFileNames, reference,
+                strings(node, "expectedEvidence"), split, type, difficulty, expectedRefusal, expectedChunkIds);
+        return new ParsedCase(evalCase, missingV2Fields, List.copyOf(annotationWarnings));
     }
 
     private static String text(JsonNode node, String field) {

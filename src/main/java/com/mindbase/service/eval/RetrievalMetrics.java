@@ -19,10 +19,16 @@ import java.util.stream.Collectors;
  *   理想 DCG 只用前 K 内的相关分块数（检索侧只拿到 topK 列表）。
  * - 期望项覆盖率：前 K 条覆盖了多少比例的期望项。标注了 expectedEvidence 的用例按证据短语算
  *   （命中的短语数 / 短语总数，两证据题只命中一条即 0.5，不再按"命中过一次"记满）；
- *   否则按期望文档算（命中的期望文档数 / 期望文档总数）。
+ *   否则按期望文档算（命中的期望文档数 / 期望文档总数）。覆盖率口径不受 chunkId 标注影响
+ *   （chunkId 只升级"是否命中"的判定）。
  * 期望文档优先按 MD5 匹配，其次按文件名（忽略大小写）匹配。
  * 用例标注了 expectedEvidence 时，相关分块还要求分块文本包含其中任意一个短语（分块级）；
  * 否则同一文件的任何分块都算相关（文件级）。文件级命中另外单独记录，用来对比两种口径的差距。
+ * <p>
+ * 分块级 gold（expectedChunkIds，与 expectedFileNames 平行）：标注且可用时相关分块按 chunkId 判定，
+ * 证据短语不再参与（chunkId 是比短语更精确的分块标注）；该用例的检索结果整体未带 chunkId（未索引）
+ * 或标注不可用（未标注/与文件数失配）时回退证据短语判定，运行期口径可用
+ * {@link #goldFallback(EvalCase, List, int)} 读出（回退时为 {@code goldFallback=phrase}）。
  */
 public final class RetrievalMetrics {
 
@@ -33,13 +39,9 @@ public final class RetrievalMetrics {
      * @return 第一条相关结果的排名（从 1 开始），前 K 条都不相关时返回 0
      */
     public static int firstRelevantRank(List<SearchResult> results, EvalCase evalCase, int k) {
-        Set<String> md5s = lower(evalCase.expectedFileMd5s());
-        Set<String> names = lower(evalCase.expectedFileNames());
-        List<String> evidence = normalizedEvidence(evalCase);
         int limit = limit(results, k);
         for (int i = 0; i < limit; i++) {
-            SearchResult result = results.get(i);
-            if (isDocRelevant(result, md5s, names) && containsEvidence(result, evidence)) {
+            if (isRelevant(results.get(i), evalCase)) {
                 return i + 1;
             }
         }
@@ -160,9 +162,83 @@ public final class RetrievalMetrics {
         return (double) covered / evidence.size();
     }
 
+    /**
+     * 相关分块判定：文档命中（MD5 或文件名）为前提。
+     * 分块级 gold（expectedChunkIds）标注且可用时按 chunkId 判命中（短语不参与）；
+     * 未标注、标注失配或该结果未带 chunkId（未索引）时回退证据短语判定。
+     */
     public static boolean isRelevant(SearchResult result, EvalCase evalCase) {
-        return isDocRelevant(result, lower(evalCase.expectedFileMd5s()), lower(evalCase.expectedFileNames()))
-                && containsEvidence(result, normalizedEvidence(evalCase));
+        if (!isDocRelevant(result, lower(evalCase.expectedFileMd5s()), lower(evalCase.expectedFileNames()))) {
+            return false;
+        }
+        if (evalCase.hasUsableChunkGold()) {
+            String expectedChunkId = expectedChunkIdFor(result, evalCase);
+            if (expectedChunkId != null && result.getChunkId() != null) {
+                return chunkIdEquals(result.getChunkId(), expectedChunkId);
+            }
+            // 找不到结果对应的期望文件位次（如仅按 MD5 命中且 MD5 与文件名不平行），
+            // 或检索结果未带 chunkId（未索引）→ 回退证据短语判定
+        }
+        return containsEvidence(result, normalizedEvidence(evalCase));
+    }
+
+    /**
+     * 该用例在给定检索结果上的 gold 判定口径：分块级 gold 不可用（未标注/失配，标注了证据短语），
+     * 或 gold 可用但 top-K 结果整体未带 chunkId（未索引，标注了证据短语）时返回
+     * {@code phrase}（goldFallback=phrase）；按 chunkId 判定、文件级判定（无短语）或结果为空时返回 null。
+     * 部分结果缺 chunkId 的混合态不在此标记（缺 chunkId 的那条在 {@link #isRelevant} 里逐条回退）。
+     */
+    public static String goldFallback(EvalCase evalCase, List<SearchResult> results, int k) {
+        if (!evalCase.hasUsableChunkGold()) {
+            return evalCase.goldFallback();
+        }
+        List<SearchResult> top = results == null ? List.of() : results.subList(0, limit(results, k));
+        if (top.isEmpty() || top.stream().anyMatch(result -> result.getChunkId() != null)) {
+            return null;
+        }
+        return evalCase.hasExpectedEvidence() ? EvalCase.GOLD_FALLBACK_PHRASE : null;
+    }
+
+    /**
+     * 结果对应的期望 chunkId：按文件名对位（expectedChunkIds 与 expectedFileNames 平行），
+     * 文件名对不上且 MD5 数与文件名数一致时按 MD5 对位；都对不上返回 null（调用方回退短语）。
+     */
+    private static String expectedChunkIdFor(SearchResult result, EvalCase evalCase) {
+        List<String> names = evalCase.expectedFileNames();
+        String name = lower(result.getFileName());
+        if (name != null) {
+            for (int i = 0; i < names.size(); i++) {
+                if (name.equals(lower(names.get(i)))) {
+                    return evalCase.expectedChunkIds().get(i);
+                }
+            }
+        }
+        List<String> md5s = evalCase.expectedFileMd5s();
+        String md5 = lower(result.getFileMd5());
+        if (md5 != null && md5s.size() == names.size()) {
+            for (int i = 0; i < md5s.size(); i++) {
+                if (md5.equals(lower(md5s.get(i)))) {
+                    return evalCase.expectedChunkIds().get(i);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** chunkId 比对：字符串相等优先，标注带前导零（如 "03"）时按数值兜底 */
+    private static boolean chunkIdEquals(Integer chunkId, String expectedChunkId) {
+        String expected = expectedChunkId == null ? "" : expectedChunkId.trim();
+        if (chunkId == null || expected.isEmpty()) {
+            return false;
+        }
+        if (String.valueOf(chunkId).equals(expected)) {
+            return true;
+        }
+        try {
+            return Integer.parseInt(expected) == chunkId;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     static boolean isDocRelevant(SearchResult result, Set<String> expectedMd5s, Set<String> expectedNames) {
