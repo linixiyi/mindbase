@@ -141,11 +141,11 @@ class EvalReActPipelineTest {
         assertTrue(reference.relevant(), "引用编号对应的命中按用例标注判为相关");
         assertFalse(trace.references().get(1).relevant(), "非期望文件的相关性为 false");
 
-        // react 循环的 LLM 用量写入 tokenUsage（评委调用不计入生成用量）
+        // case 级 tokenUsage 为生成 + 评委合并口径（task-0002 新契约）：生成侧 10 + 20，评委 3 + 3
         assertNotNull(result.tokenUsage());
-        assertEquals(30, result.tokenUsage().promptTokens(), "10 + 20");
-        assertEquals(15, result.tokenUsage().completionTokens(), "5 + 10");
-        assertEquals(45, result.tokenUsage().totalTokens());
+        assertEquals(33, result.tokenUsage().promptTokens(), "30 生成 + 3 评委");
+        assertEquals(18, result.tokenUsage().completionTokens(), "15 生成 + 3 评委");
+        assertEquals(51, result.tokenUsage().totalTokens());
 
         // 第二轮模型消息带上了工具结果与 [N] 编号：与线上一致的 tool message
         List<Map<String, Object>> secondRound = streamRequests.get(1);
@@ -190,8 +190,8 @@ class EvalReActPipelineTest {
         assertEquals("m1", trace.references().get(0).fileMd5());
         assertEquals("m2", trace.references().get(1).fileMd5());
         assertTrue(trace.references().get(1).relevant());
-        assertEquals(30, result.tokenUsage().promptTokens(), "生成 token 只计流式回合（评委调用不计入）");
-        assertEquals(20, result.tokenUsage().completionTokens());
+        assertEquals(33, result.tokenUsage().promptTokens(), "30 生成（只计流式回合）+ 3 评委");
+        assertEquals(23, result.tokenUsage().completionTokens());
     }
 
     @Test

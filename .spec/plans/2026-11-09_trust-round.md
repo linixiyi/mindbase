@@ -23,9 +23,10 @@
 
 | 轮次 | slug | 主题 | 任务数 | 状态 |
 | --- | --- | --- | --- | --- |
-| R1 | `2026-11-09_fix-p0-isolation` | 跨租户隔离 / 令牌撤销 / 渲染安全 / 空结果语义 | 5 | **active**（分支 `spec/2026-11-09_fix-p0-isolation`） |
-| R2 | `2026-11-09_add-eval-harness-v2` | 评测接生产路径、报告可复核、指标与统计、评委校准、本地门禁 | 10 | planned |
-| R3 | `2026-11-09_fix-rag-runtime-quality` | ReAct 预算、引用校验、分块重叠、阈值曲线、ES 字段、可观测性 | 6 | planned |
+| R1 | `2026-11-09_fix-p0-isolation` | 跨租户隔离 / 令牌撤销 / 渲染安全 / 空结果语义 | 5 | **done**（已归档） |
+| R2 | `2026-11-09_add-eval-harness-v2` | 评测接生产路径、报告可复核、指标与统计、评委校准、本地门禁 | 10 | **done**（已归档） |
+| R3a | `2026-11-10_fix-eval-and-runtime-gaps` | 评测真机通电、成本与 gold 口径、ReAct 预算与引用语义、分块重叠、Kafka/SSRF、契约测试 | 10 | **active**（分支 `spec/2026-11-10_fix-eval-and-runtime-gaps`） |
+| R3.5 | 待建包 | 可观测性与安全收口：ES 权限字段、Flyway、WS token、Admin 密钥、Micrometer、graceful shutdown | 待估 | planned |
 | R4 | `2026-11-09_add-eval-observability` | trace span、feedback 持久化、在线 5 信号、看板 | 4 | planned |
 | R5 | `2026-11-09_add-eval-closeout` | 失败 trace 标签、周度人工抽检、全量基线、评测方法论 | 4 | planned |
 | R6（可选） | `2026-11-09_fix-chat-ux` | Enter/停止分离、双历史加载器、流式渲染 O(n²)、前端测试 | 4 | planned |
@@ -83,7 +84,10 @@
 
 ---
 
-## R3 · RAG 运行时质量（`2026-11-09_fix-rag-runtime-quality`）
+## R3a · 评测通电与 RAG 运行时质量（`2026-11-10_fix-eval-and-runtime-gaps`，active）
+
+> 已物化为 10 任务的 v3 包：`.spec/specs/2026-11-10_fix-eval-and-runtime-gaps/`。
+> 与原 R3 计划的差异：原第 4 项"阈值曲线"并入本包（`scripts/eval_threshold_curve.py`，原第 5/6 项 ES 字段与可观测性顺延到 R3.5；本包另外新增评测真机冒烟、成本记账、gold md5、Kafka 白名单与 SSRF 收口、生产/评测契约测试。以下保留原始证据与任务表作历史参考。
 
 ### 背景证据
 - H1 ReAct 无上下文预算：`LlmProviderRouter.java:575-602` 的 token 估算只用于计费（`:218/:258`）；父块 1500 字 × 5 命中 × 最多 8 次工具调用无裁剪；`ChatHandler.java:430-465` 引用编号 `max+1` 无 `fileMd5+chunkId` 去重。

@@ -83,6 +83,8 @@
 - D1 | 不引入 Python 评测框架与付费 SaaS，指标与统计继续用 Java 自建，Python 只做离线脚本 | by: V1 | reversal: checkpoint revert
 - D2 | 本轮不改前端、不改 CI workflow、不新增运行时依赖 | by: V5 | reversal: checkpoint revert
 - D3 | task-0008 交付（正文不再带重叠前缀）与既有断言 ParseServiceUnitTest.testSplitTextIntoChunksWithSemantics_AddsSentenceOverlap:173 互斥；授权迁移该单测断言到新语义，扩边由 emergent task-0023 承接该文件 | by: V2 | reversal: checkpoint revert
+- D4 | task-0002 交付（case 级 tokenUsage 改为生成 + 评委合并口径，EvalCaseResult.TokenUsage.merged + RagEvalCaseRunner 合并写入）与既有断言 EvalReActPipelineTest.java:146/:193、EvalSmokeFixtureTest.java:219-222（旧口径"评委调用不计入"）互斥；授权按新口径迁移这三处断言（case 级含评委：reactModeRunsProductionLoop 33/18/51、reactModeAccumulates 33/23、冒烟首例 51，报告级 19 题重算 627/342/969），扩边由 emergent task-0024 承接 EvalReActPipelineTest 与 EvalSmokeFixtureTest 两个测试文件 | by: V2 | reversal: checkpoint revert
+- D5 | eval_gate.sh 离线门禁对 fixture 报告（SELF_JUDGE/releaseEligible=false）加 --allow-self-judge 放行：沿用 task-0001 既有显式降级通道，定位为离线回归检测而非发布判定；A/B 实测确认 7 条 --fail-if 阈值与 Wilson 门禁未放宽（不加旗标则 done 标准"eval_gate.sh 全绿"在桩评委前提下无解） | by: V2 | reversal: checkpoint revert
 
 ## Parked
 

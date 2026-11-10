@@ -49,6 +49,10 @@ public class RagEvalProperties {
     /** 评委模型配置：走独立供应商时的定向参数；provider 未配置时评委与生成共用主链路（SELF_JUDGE） */
     private Judge judge = new Judge();
 
+    /** 模型单价配置：配置后报告 cost.amount 按 promptTokens/1000*inputPer1k + completionTokens/1000*outputPer1k 折算；
+     *  字段默认 null（未配价），报告 cost.amount 保持 null 并在 note 写 unpriced，不做字符数估算 */
+    private Pricing pricing = new Pricing();
+
     /** 评委与人工一致率的告警阈值 */
     private HumanAgreement humanAgreement = new HumanAgreement();
 
@@ -58,6 +62,16 @@ public class RagEvalProperties {
         private String provider;
         /** 评委模型名；为空时使用该供应商配置里的默认模型 */
         private String model;
+    }
+
+    @Data
+    public static class Pricing {
+        /** 每 1000 prompt tokens 的单价；null 表示未配价，报告 cost.amount 保持 null（inputPer1k 与 outputPer1k 需同时配置才折算） */
+        private Double inputPer1k;
+        /** 每 1000 completion tokens 的单价；null 表示未配价 */
+        private Double outputPer1k;
+        /** 计价币种（如 CNY/USD）；未配置或空白时报告不写币种 */
+        private String currency;
     }
 
     @Data

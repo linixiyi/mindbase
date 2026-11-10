@@ -34,7 +34,10 @@ fi
 
 echo "==> 2/3 阈值门禁（python3 scripts/eval_compare.py）"
 echo "报告: $REPORT"
-python3 scripts/eval_compare.py "$REPORT" \
+# fixture 的评委是 Mockito 桩、与生成同源，报告必然 SELF_JUDGE / releaseEligible=false；
+# 本门禁做的是离线回归检测而非发布判定，按 eval_compare.py 约定显式 --allow-self-judge
+# 放行（脚本会打印降级说明），7 条阈值本身不放宽。
+python3 scripts/eval_compare.py "$REPORT" --allow-self-judge \
   --fail-if 'recallAtK<0.90' \
   --fail-if 'docRecallAtK<0.95' \
   --fail-if 'mrr<0.90' \

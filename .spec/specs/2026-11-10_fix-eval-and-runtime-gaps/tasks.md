@@ -284,3 +284,16 @@ task-0008, task-0009 可并行
   - 成功判定：ParseServiceUnitTest 全绿。
   - 失败处理：同文件其他用例若也依赖旧重叠语义，同样迁移断言并记录，不得删测试。
   - origin: emergent
+
+- [ ] task-0024 评测 token 用量断言迁移合并口径
+  - id: task-0024
+  - boundary: src/test/java/com/mindbase/service/eval/EvalReActPipelineTest.java, src/test/java/com/mindbase/service/eval/EvalSmokeFixtureTest.java
+  - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest='EvalReActPipelineTest,EvalSmokeFixtureTest' test`
+  - expect: red
+  - depends-on: task-0002
+  - 背景：task-0002 把评委 usage 与生成 usage 合并写入 case 级 tokenUsage（EvalCaseResult.TokenUsage.merged，RagEvalCaseRunner.java:228 合并、:356-363 judgeUsageOf），既有断言仍按旧口径"评委调用不计入"：EvalReActPipelineTest.java:146（期望 30 实得 33）、:193（期望 30 实得 33）、EvalSmokeFixtureTest.java:219（期望 45 实得 51，:220-222 报告级 570/285/855 同因），不改则终树全量门禁必红。授权见 Decisions D4。
+  - 交付：三处断言按新口径迁移——EvalReActPipelineTest :146-148 case 级 33/18/51（生成 30/15 + 评委 3/3）、:193-194 case 级 33/23（生成 30/20 + 评委 3/3）、EvalSmokeFixtureTest :219 case 级 51 与 :220-222 报告级 19 题 × 33/18/51 = 627/342/969（fact-06 检索失败无 tokenUsage 不计入）；不删除测试、不改生产代码；同文件 headlessPipelineReturnsReferenceDetailsAndToolEvidence 的管线级 30/20 断言保持不动（ChatPipeline.ReActRunResult 无评委，本就是生成侧口径）。
+  - 测试：EvalReActPipelineTest 与 EvalSmokeFixtureTest 自身。
+  - 成功判定：两测试类全绿；`./mvnw -q -B test` 无该三例失败。
+  - 失败处理：同文件其他断言若也依赖旧口径，同样迁移并记录，不得删测试。
+  - origin: emergent
