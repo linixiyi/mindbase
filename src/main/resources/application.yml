@@ -410,6 +410,10 @@ elasticsearch:
 security:
   # WebSocket 与浏览器跨域白名单，支持 Origin pattern，多个来源用逗号分隔
   allowed-origins: ${SECURITY_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
+  # 受信代理列表（逗号分隔，支持 IPv4 CIDR 与 IPv6 精确地址）：
+  # 仅当直连来源（remoteAddr）命中该列表时才采信 X-Forwarded-For / X-Real-IP /
+  # CF-Connecting-IP 转发头；默认空 = 不信任任何直连来源，一律以 remoteAddr 为准
+  trusted-proxies: ${SECURITY_TRUSTED_PROXIES:}
 
 management:
   endpoints:

@@ -10,6 +10,7 @@ import com.mindbase.service.RateLimitService;
 import com.mindbase.service.TokenCacheService;
 import com.mindbase.service.UsageQuotaService;
 import com.mindbase.service.UserService;
+import com.mindbase.security.ClientIpResolver;
 import com.mindbase.service.UserTokenService;
 import com.mindbase.utils.JwtUtils;
 import com.mindbase.utils.LogUtils;
@@ -28,7 +29,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -36,6 +36,9 @@ public class UserController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private ClientIpResolver clientIpResolver;
 
     @Autowired
     private AppAuthProperties appAuthProperties;
@@ -64,7 +67,7 @@ public class UserController {
     public ResponseEntity<?> register(@RequestBody UserRequest request, HttpServletRequest httpServletRequest) {
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("USER_REGISTER");
         try {
-            String clientIp = resolveClientIp(httpServletRequest);
+            String clientIp = clientIpResolver.resolveClientIp(httpServletRequest);
             rateLimitService.checkRegisterByIp(clientIp);
 
             if (request.username() == null || request.username().isEmpty() ||
@@ -116,7 +119,7 @@ public class UserController {
     public ResponseEntity<?> login(@RequestBody UserRequest request, HttpServletRequest httpServletRequest) {
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("USER_LOGIN");
         try {
-            String clientIp = resolveClientIp(httpServletRequest);
+            String clientIp = clientIpResolver.resolveClientIp(httpServletRequest);
             rateLimitService.checkLoginByIp(clientIp);
 
             if (request.username() == null || request.username().isEmpty() ||
@@ -159,39 +162,6 @@ public class UserController {
                 "message", exception.getMessage(),
                 "retryAfterSeconds", exception.getRetryAfterSeconds()
         ));
-    }
-
-    private String resolveClientIp(HttpServletRequest request) {
-        return firstUsableIp(
-                request.getHeader("CF-Connecting-IP"),
-                request.getHeader("True-Client-IP"),
-                extractForwardedForIp(request.getHeader("X-Forwarded-For")),
-                request.getHeader("X-Real-IP"),
-                request.getHeader("Proxy-Client-IP"),
-                request.getHeader("WL-Proxy-Client-IP"),
-                request.getRemoteAddr()
-        ).orElse("unknown");
-    }
-
-    private String extractForwardedForIp(String xForwardedFor) {
-        if (xForwardedFor == null || xForwardedFor.isBlank()) {
-            return null;
-        }
-        return Arrays.stream(xForwardedFor.split(","))
-                .map(String::trim)
-                .filter(this::isUsableIp)
-                .findFirst()
-                .orElse(null);
-    }
-
-    private Optional<String> firstUsableIp(String... candidates) {
-        return Arrays.stream(candidates)
-                .filter(this::isUsableIp)
-                .findFirst();
-    }
-
-    private boolean isUsableIp(String ip) {
-        return ip != null && !ip.isBlank() && !"unknown".equalsIgnoreCase(ip);
     }
 
     // 获取当前用户信息

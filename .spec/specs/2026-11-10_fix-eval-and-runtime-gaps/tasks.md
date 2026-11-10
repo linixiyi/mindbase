@@ -229,7 +229,7 @@ task-0008, task-0009 可并行
   - 成功判定：测试绿；合法 PDF 上传路径不被误杀。
   - 失败处理：读不到字节时按扩展名放行但记 warn，不得 500。
 
-- [ ] task-0019 客户端 IP 信任策略
+- [x] task-0019 客户端 IP 信任策略
   - id: task-0019
   - boundary: new:src/main/java/com/mindbase/security/ClientIpResolver.java, src/main/java/com/mindbase/utils/HttpRequestUtil.java, src/main/java/com/mindbase/controller/UserController.java, src/main/resources/application.yml, new:src/test/java/com/mindbase/security/ClientIpResolverTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=ClientIpResolverTest test`
