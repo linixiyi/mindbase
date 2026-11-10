@@ -184,6 +184,13 @@ function applySuggestion(q: string) {
 
 const filterActive = computed(() => Array.isArray(range.value));
 
+// task-0005：消息列表 aria-busy 的「生成中」信号——与 input-box.vue 的 isSending 同一判定
+// （最后一条消息是处于 pending/loading 的 assistant 消息），不受日期筛选影响：流式期间恒为 true
+const isGenerating = computed(() => {
+  const last = list.value[list.value.length - 1];
+  return last?.role === 'assistant' && ['loading', 'pending'].includes(last?.status || '');
+});
+
 const visibleMessages = computed(() => {
   if (!filterActive.value || !range.value) return list.value;
   const [start, end] = range.value;
@@ -309,7 +316,11 @@ const showEmpty = computed(() => !historyLoading.value && list.value.length === 
           <div v-if="filterActive && visibleMessages.length === 0" class="chat-filter-empty">
             所选日期范围内没有消息，可调整范围或清除筛选
           </div>
-          <div v-else class="mx-auto max-w-[800px] w-full px-4 pb-6 pt-12">
+          <!--
+            task-0005：消息列表容器对辅助技术可感——aria-live="polite" 让新增/更新的消息可被播报；
+            流式生成期间 aria-busy 置 true，避免 screen reader 在 50ms 级 chunk 间隙反复打断播报
+          -->
+          <div v-else class="mx-auto max-w-[800px] w-full px-4 pb-6 pt-12" aria-live="polite" :aria-busy="isGenerating">
             <VueMarkdownItProvider>
               <ChatMessage
                 v-for="(item, index) in visibleMessages"

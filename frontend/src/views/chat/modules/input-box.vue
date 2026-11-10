@@ -481,6 +481,7 @@ onUnmounted(() => {
       <textarea
         ref="inputRef"
         v-model.trim="input.message"
+        aria-label="输入消息"
         placeholder="给 MindBase 发送消息，Enter 发送，Shift+Enter 换行"
         class="text-body max-h-32 min-h-6 w-full flex-1 resize-none border-none bg-transparent py-1 text-16px caret-[rgb(var(--primary-color))] outline-none"
         @keydown="handShortcut"
@@ -499,6 +500,7 @@ onUnmounted(() => {
           <icon-lucide:square class="text-icon-small" />
         </template>
       </NButton>
+      <!-- task-0005：发送按钮是纯图标按钮，补可读名称（aria-label 经 attrs 透传落到原生 button 上） -->
       <NButton
         v-else
         :disabled="sendDisabled"
@@ -506,6 +508,7 @@ onUnmounted(() => {
         size="small"
         circle
         type="primary"
+        aria-label="发送"
         @click="handleSend"
       >
         <template #icon>

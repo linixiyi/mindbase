@@ -57,7 +57,7 @@
   - 成功判定：vitest 绿；`grep -c "已停止" chat-message.vue` ≥1；`grep -c "aria-label=\"停止生成\"" input-box.vue` =1。
   - 失败处理：后端停止失败时不得本地假装 stopped；保持 loading 并提示重试。
 
-- [ ] task-0005 无障碍：键盘可达、aria-live、按钮名称
+- [x] task-0005 无障碍：键盘可达、aria-live、按钮名称
   - id: task-0005
   - boundary: frontend/src/views/chat/modules/conversation-sidebar.vue, frontend/src/views/chat/modules/input-box.vue, frontend/src/views/chat/modules/chat-list.vue, new:scripts/frontend_a11y_gate.sh
   - verify: `cd /Users/linyixi/PaiSmart && bash scripts/frontend_a11y_gate.sh --check`
