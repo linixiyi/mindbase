@@ -62,8 +62,59 @@ public record EvalCaseResult(
     public record ClaimVerdict(String claim, String verdict, String reason) {
     }
 
-    /** 本例 LLM 用量；来源缺失的维度为 null */
-    public record TokenUsage(Integer promptTokens, Integer completionTokens, Integer totalTokens) {
+    /**
+     * 本例 LLM 用量（生成 + 评委合并口径）；来源缺失的维度为 null。
+     * <p>
+     * note 记录用量的完整度：两侧（生成/评委）都有用量时为 null；缺失一侧时标 partial 并说明只计了哪一侧，
+     * 禁止用字符数估算缺失侧的 token（见 {@link #merged}）。
+     */
+    public record TokenUsage(Integer promptTokens, Integer completionTokens, Integer totalTokens, String note) {
+
+        /** 评委 usage 不可得（评委调用失败/输出为空/供应商未回填 usage）：用例只记录生成侧用量并标 partial */
+        public static final String PARTIAL_JUDGE_MISSING =
+                "partial: judge usage unavailable, counted generation side only";
+        /** 生成 usage 不可得：用例只记录评委侧用量并标 partial */
+        public static final String PARTIAL_GENERATION_MISSING =
+                "partial: generation usage unavailable, counted judge side only";
+
+        /** 兼容旧调用方的 3 字段构造：note 为 null（两侧用量齐全或未记录完整度说明） */
+        public TokenUsage(Integer promptTokens, Integer completionTokens, Integer totalTokens) {
+            this(promptTokens, completionTokens, totalTokens, null);
+        }
+
+        /**
+         * 生成与评委两侧用量合并（评测成本记账）：评委 usage 缺失时只计生成侧并标 partial，
+         * 反之亦然；两侧齐全时 note 为 null。任何一侧都没有记录时返回 null。
+         */
+        public static TokenUsage merged(TokenUsage generation, TokenUsage judge) {
+            if (generation == null && judge == null) {
+                return null;
+            }
+            if (generation == null) {
+                return new TokenUsage(judge.promptTokens(), judge.completionTokens(), judge.totalTokens(),
+                        PARTIAL_GENERATION_MISSING);
+            }
+            if (judge == null) {
+                return new TokenUsage(generation.promptTokens(), generation.completionTokens(), generation.totalTokens(),
+                        PARTIAL_JUDGE_MISSING);
+            }
+            Integer prompt = add(generation.promptTokens(), judge.promptTokens());
+            Integer completion = add(generation.completionTokens(), judge.completionTokens());
+            Integer total = prompt != null && completion != null
+                    ? prompt + completion
+                    : add(generation.totalTokens(), judge.totalTokens());
+            return new TokenUsage(prompt, completion, total, null);
+        }
+
+        private static Integer add(Integer left, Integer right) {
+            if (left == null) {
+                return right;
+            }
+            if (right == null) {
+                return left;
+            }
+            return left + right;
+        }
     }
 
     /**

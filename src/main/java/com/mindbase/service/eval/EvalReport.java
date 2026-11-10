@@ -1,5 +1,7 @@
 package com.mindbase.service.eval;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -81,12 +83,50 @@ public record EvalReport(
     }
 
     /**
-     * 费用。amount/currency 只有在配置了模型单价时才有值；note 说明取值来源（当前恒为未定价）。
+     * 费用。amount/currency 只有在配置了模型单价（eval.pricing.*）时才有值；note 说明取值来源：
+     * unpriced（未配价，写明在哪里配置）/ priced（已配价，附单价与币种，金额可由报告 config 复算）/ 无用量记录的说明。
      */
     public record Cost(Double amount, String currency, String note) {
 
+        /** 未配价时的说明：写明配置位置，不做字符数估算 */
+        public static final String UNPRICED_NOTE = "unpriced: set eval.pricing.*";
+
         public static Cost unpriced() {
-            return new Cost(null, null, "unpriced: 模型单价未配置，不做估算");
+            return new Cost(null, null, UNPRICED_NOTE);
+        }
+
+        /**
+         * 按配置单价折算费用：promptTokens/1000*inputPer1k + completionTokens/1000*outputPer1k，四舍五入到 6 位。
+         * 任一单价未配置 → {@link #unpriced()}（amount 保持 null，不做估算）；配置了单价但没有任何 token 用量
+         * 记录时 amount 同样为 null（不编造），note 说明无用量；只有一侧维度有值时按有值侧折算。
+         */
+        public static Cost of(EvalCaseResult.TokenUsage usage, Double inputPer1k, Double outputPer1k, String currency) {
+            if (inputPer1k == null || outputPer1k == null) {
+                return unpriced();
+            }
+            String normalizedCurrency = currency == null || currency.isBlank() ? null : currency.trim();
+            if (usage == null || (usage.promptTokens() == null && usage.completionTokens() == null)) {
+                return new Cost(null, normalizedCurrency,
+                        "priced: eval.pricing.* 已配置单价，但本次没有记录任何 token 用量，无可折算金额");
+            }
+            double amount = 0d;
+            if (usage.promptTokens() != null) {
+                amount += usage.promptTokens() / 1000d * inputPer1k;
+            }
+            if (usage.completionTokens() != null) {
+                amount += usage.completionTokens() / 1000d * outputPer1k;
+            }
+            return new Cost(round6(amount), normalizedCurrency, pricedNote(inputPer1k, outputPer1k, normalizedCurrency));
+        }
+
+        /** 四舍五入保留 6 位小数（HALF_UP） */
+        private static Double round6(double value) {
+            return BigDecimal.valueOf(value).setScale(6, RoundingMode.HALF_UP).doubleValue();
+        }
+
+        private static String pricedNote(Double inputPer1k, Double outputPer1k, String currency) {
+            return "priced: eval.pricing.* inputPer1k=" + inputPer1k + ", outputPer1k=" + outputPer1k
+                    + (currency == null ? "" : ", currency=" + currency);
         }
     }
 

@@ -310,6 +310,13 @@ eval:
   judge-timeout-seconds: ${EVAL_JUDGE_TIMEOUT_SECONDS:60}
   max-evidence-chars: 800
   requester-id: system-eval
+  # 模型单价（每 1000 tokens）：inputPer1k/outputPer1k 需同时配置才折算，报告 cost.amount =
+  # promptTokens/1000*input-per-1k + completionTokens/1000*output-per-1k（四舍五入到 6 位）；
+  # 默认不配价 → cost.amount=null 且 note 写 unpriced: set eval.pricing.*，不做字符数估算
+  pricing:
+    input-per-1k: ${EVAL_PRICING_INPUT_PER_1K:}
+    output-per-1k: ${EVAL_PRICING_OUTPUT_PER_1K:}
+    currency: ${EVAL_PRICING_CURRENCY:}
   # 评委与人工一致率：POST /api/v1/admin/eval/runs/{runId}/human-reviews 录入人工判定后计算
   human-agreement:
     # 评委与人工在"是否正确"上的一致率低于该值时，在评测汇总上告警：评分标准或评委模型需要重新校准

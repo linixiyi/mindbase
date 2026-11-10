@@ -191,20 +191,27 @@ public class RagEvalCaseRunner {
             draft.error = "生成失败: " + rootMessage(e);
         }
 
-        JudgeVerdict verdict = null;
+        JudgeOutcome judgeOutcome = null;
         if (draft.answer != null) {
             // react 模式评委看模型 search_knowledge 实际命中的片段（编造判定与生成证据一致）；rag 模式沿用 topK 直接检索结果
             List<SearchResult> judgeEvidence = draft.reactEvidence != null ? draft.reactEvidence : results;
-            verdict = judge(evalCase, draft.answer, judgeEvidence);
-            draft.verdict = verdict;
+            judgeOutcome = judge(evalCase, draft.answer, judgeEvidence);
+            draft.verdict = judgeOutcome.verdict();
             // 生成与引用指标与评委用同一份证据："有据"/"引用指向"始终相对于模型生成时实际看到的片段
             GenerationMetrics.Evaluation generation =
                     GenerationMetrics.evaluateCase(evalCase, draft.answer, judgeEvidence);
             draft.claimVerdicts = generation.claimVerdicts();
             draft.generation = generation.metrics();
         }
-        draft.diagnosis = EvalDiagnosis.classify(draft.retrievalHit, draft.answer != null, verdict);
-        boolean judgeFailed = draft.answer != null && (verdict == null || verdict.parseFailed());
+        // 评委 usage 与生成 usage 合并写入用例 tokenUsage（评委缺失时只计生成侧并标 partial）；
+        // rag 模式不记录生成用量，保持历史口径（不记录 tokenUsage）
+        if (reactMode()) {
+            draft.tokenUsage = EvalCaseResult.TokenUsage.merged(draft.tokenUsage,
+                    judgeOutcome == null ? null : judgeOutcome.usage());
+        }
+        draft.diagnosis = EvalDiagnosis.classify(draft.retrievalHit, draft.answer != null, judgeOutcome == null ? null : judgeOutcome.verdict());
+        boolean judgeFailed = draft.answer != null
+                && (judgeOutcome == null || judgeOutcome.verdict() == null || judgeOutcome.verdict().parseFailed());
         return draft.build(sampler.decide(judgeFailed), System.currentTimeMillis() - start);
     }
 
@@ -223,6 +230,7 @@ public class RagEvalCaseRunner {
                 .sorted(Map.Entry.comparingByKey())
                 .map(Map.Entry::getValue)
                 .toList();
+        // 生成侧用量；评委 usage 在 run() 里与此合并成用例 tokenUsage
         draft.tokenUsage = new EvalCaseResult.TokenUsage(react.promptTokens(), react.completionTokens(),
                 react.promptTokens() + react.completionTokens());
         List<Integer> referenceNumbers = react.references().keySet().stream().sorted().toList();
@@ -290,7 +298,14 @@ public class RagEvalCaseRunner {
         return turn.content().trim();
     }
 
-    JudgeVerdict judge(EvalCase evalCase, String answer, List<SearchResult> results) {
+    /**
+     * 评委调用结果：判定 + 本次评委调用的 token 用量（写用例 tokenUsage 时与生成侧合并）。
+     * 调用失败、输出为空或 usage 不可得时 usage 为 null，用例侧只计生成侧并标 partial（禁止字符数估算）。
+     */
+    record JudgeOutcome(JudgeVerdict verdict, EvalCaseResult.TokenUsage usage) {
+    }
+
+    JudgeOutcome judge(EvalCase evalCase, String answer, List<SearchResult> results) {
         try {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("question", evalCase.question());
@@ -307,13 +322,24 @@ public class RagEvalCaseRunner {
                     : completeAllowingOneRetry(messages, properties.getJudgeMaxTokens(),
                             properties.getJudgeTimeoutSeconds(), "评委");
             if (isEmpty(turn)) {
-                return JudgeVerdict.failed("评委输出为空（finish_reason=" + finishReason(turn) + "）", null);
+                return new JudgeOutcome(JudgeVerdict.failed("评委输出为空（finish_reason=" + finishReason(turn) + "）", null),
+                        null);
             }
-            return JudgeOutputParser.parse(turn.content(), objectMapper);
+            // 解析失败但评委调用真实发生：token 照记，费用照算（parseFailed 只影响 score/correct）
+            return new JudgeOutcome(JudgeOutputParser.parse(turn.content(), objectMapper), judgeUsageOf(turn));
         } catch (Exception e) {
             logger.warn("评委调用失败: case={}, error={}", evalCase.id(), e.getMessage());
-            return JudgeVerdict.failed("评委调用失败: " + rootMessage(e), null);
+            return new JudgeOutcome(JudgeVerdict.failed("评委调用失败: " + rootMessage(e), null), null);
         }
+    }
+
+    /** 评委回合的 token 用量；两侧都为 0 视为供应商未回填 usage（不可得），返回 null 不编数字 */
+    private static EvalCaseResult.TokenUsage judgeUsageOf(LlmProviderRouter.ReActTurn turn) {
+        if (turn == null || (turn.promptTokens() == 0 && turn.completionTokens() == 0)) {
+            return null;
+        }
+        return new EvalCaseResult.TokenUsage(turn.promptTokens(), turn.completionTokens(),
+                turn.promptTokens() + turn.completionTokens());
     }
 
     /**
