@@ -161,7 +161,15 @@ async function getList() {
       <NSpin :show="loading" class="h-full">
         <div class="history-messages">
           <VueMarkdownItProvider>
-            <ChatMessage v-for="(item, index) in list" :key="index" :msg="item" />
+            <!--
+              task-0009：稳定键——生成中的消息以 generationId 为唯一键，重生成/替换时不复用旧实例；
+              历史消息无 generationId 时回退 role+timestamp+index 组合键，index 仅兜底不作唯一键
+            -->
+            <ChatMessage
+              v-for="(item, index) in list"
+              :key="item.generationId || `${item.role}-${item.timestamp}-${index}`"
+              :msg="item"
+            />
           </VueMarkdownItProvider>
         </div>
         <div v-if="!list.length" class="history-state">

@@ -104,7 +104,7 @@
   - 成功判定：vitest 绿；`grep -rn "url: 'users/conversation'" src/store src/views` 为 0；`grep -rn "JSON.parse" src/views/chat/modules/input-box.vue` 为 0。
   - 失败处理：新 service 只做参数与返回类型包装，不改后端 URL、方法、错误码约定。
 
-- [ ] task-0009 列表稳定 key 与滚动回调清理
+- [x] task-0009 列表稳定 key 与滚动回调清理
   - id: task-0009
   - boundary: frontend/src/views/chat/modules/chat-list.vue, frontend/src/views/chat-history/index.vue, frontend/src/store/modules/chat/index.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && ! grep -q ':key="index"' src/views/chat/modules/chat-list.vue && ! grep -q ':key="index"' src/views/chat-history/index.vue && grep -q "onUnmounted" src/views/chat/modules/chat-list.vue`

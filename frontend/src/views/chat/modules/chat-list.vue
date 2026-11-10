@@ -226,6 +226,15 @@ onMounted(() => {
   checkKnowledgeBaseEmpty();
 });
 
+// task-0009：卸载时清理 store 里的滚动回调——此前 scrollToBottom 赋给 store 后卸载不清理，
+// store 会一直持有已销毁组件的闭包（引用 scrollbarRef/定时器等，阻止回收且可能操作死实例）。
+// 仅当仍指向本组件注册的 scrollToBottom 时置 null：避免误清 keep-alive 换入新实例后的注册
+onUnmounted(() => {
+  if (chatStore.scrollToBottom === scrollToBottom) {
+    chatStore.scrollToBottom = null;
+  }
+});
+
 onActivated(() => {
   // keep-alive 回到本页时重查一次：上传完文档回来，冷启动引导应收起、恢复建议问法
   if (knowledgeBaseChecked.value) {
@@ -324,7 +333,7 @@ const showEmpty = computed(() => !historyLoading.value && list.value.length === 
             <VueMarkdownItProvider>
               <ChatMessage
                 v-for="(item, index) in visibleMessages"
-                :key="index"
+                :key="item.generationId || `${item.role}-${item.timestamp}-${index}`"
                 :msg="item"
                 :session-id="sessionId"
                 :retrieval-query-fallback="getRetrievalQueryFallback(index)"
