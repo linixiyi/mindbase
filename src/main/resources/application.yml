@@ -335,6 +335,11 @@ chat:
     final-answer-reserve-seconds: ${CHAT_DEADLINE_FINAL_ANSWER_RESERVE_SECONDS:30}
     # 剩余时间不够"一轮工具调用 + 最终回答预留"时，不再调用工具，直接让模型回答
     min-tool-round-seconds: ${CHAT_DEADLINE_MIN_TOOL_ROUND_SECONDS:15}
+  react:
+    # ReAct 工具结果（search_knowledge 检索片段）拼入模型消息前的上下文 token 预算：
+    # 超预算时首条命中始终保留，其余按分数从低到高丢弃；裁剪数量计入 ReActRunResult.droppedChunks
+    # （评测链路带回 reactTrace）；token 估算不可用时退回字符数上限（tokens×4）并记 warn
+    max-context-tokens: ${CHAT_REACT_MAX_CONTEXT_TOKENS:6000}
 
 search:
   hybrid:

@@ -66,7 +66,7 @@
   - 成功判定：`--self-test` 退出 0。
   - 失败处理：旧 v1 报告没有逐例分数时明确报错，不做兼容猜测。
 
-- [ ] task-0006 ReAct 上下文预算与引用去重
+- [x] task-0006 ReAct 上下文预算与引用去重
   - id: task-0006
   - boundary: src/main/java/com/mindbase/service/ChatPipeline.java, src/main/java/com/mindbase/service/LlmProviderRouter.java, src/main/resources/application.yml, new:src/test/java/com/mindbase/service/ChatContextBudgetTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=ChatContextBudgetTest test`

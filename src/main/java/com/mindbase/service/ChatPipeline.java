@@ -23,6 +23,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -59,6 +60,8 @@ public class ChatPipeline {
     private static final int MAX_REACT_ROUNDS = 4;
     private static final int MAX_REACT_TOOL_CALLS = 8;
     private static final int REACT_MAX_COMPLETION_TOKENS = 2000;
+    /** chat.react.max-context-tokens 缺省值：预算读不到（无 router/非法值）时的兜底，与 yml 默认一致 */
+    private static final int DEFAULT_MAX_CONTEXT_TOKENS = 6000;
     private final RedisTemplate<String, String> redisTemplate;
     private final HybridSearchService searchService;
     private final LlmProviderRouter llmProviderRouter;
@@ -89,6 +92,8 @@ public class ChatPipeline {
     private final Map<String, Map<Integer, String>> generationParentContexts = new ConcurrentHashMap<>();
     // ReAct search_knowledge 实际命中的检索结果（引用编号 → 结果），供评测链路读取模型真实使用的证据
     private final Map<String, Map<Integer, SearchResult>> generationToolResults = new ConcurrentHashMap<>();
+    // 上下文预算裁剪：本次生成中因超出 chat.react.max-context-tokens 被丢弃的检索分块累计数
+    private final Map<String, Integer> generationDroppedChunks = new ConcurrentHashMap<>();
 
     public ChatPipeline(RedisTemplate<String, String> redisTemplate,
                         HybridSearchService searchService,
@@ -151,22 +156,25 @@ public class ChatPipeline {
         ReactRunStats stats = new ReactRunStats();
         Map<Integer, ChatHandler.ReferenceInfo> references;
         Map<Integer, SearchResult> toolRetrieved;
+        int droppedChunks;
         try (RequestDeadline.Scope ignored = RequestDeadline.open(RequestDeadline.after(budget))) {
             runReActLoop(toolUserId, llmRequesterId, userMessage, null, generationId,
                     history == null ? List.of() : history, responseFuture, stats, true);
         } finally {
             references = Map.copyOf(generationReferenceMappings.getOrDefault(generationId, Map.of()));
             toolRetrieved = Map.copyOf(generationToolResults.getOrDefault(generationId, Map.of()));
+            droppedChunks = generationDroppedChunks.getOrDefault(generationId, 0);
             cleanupGenerationState(generationId, null);
         }
         // 正常收尾时 future 已被 finalizeResponse 完成；循环中途异常时异常已向上抛出
         String answer = responseFuture.get(5, TimeUnit.SECONDS);
         return new ReActRunResult(answer, stats.modelRounds, stats.toolCallRounds, stats.toolCalls,
-                stats.promptTokens, stats.completionTokens, references, toolRetrieved);
+                stats.promptTokens, stats.completionTokens, references, toolRetrieved, droppedChunks);
     }
 
     /**
-     * headless 运行的可观测结果：回答、ReAct 轮次与工具调用次数、引用编号装配结果、模型实际检索到的片段
+     * headless 运行的可观测结果：回答、ReAct 轮次与工具调用次数、引用编号装配结果、模型实际检索到的片段，
+     * 以及上下文预算裁剪丢弃的分块数（droppedChunks，0 表示没有裁剪；评测链路据此写 reactTrace.droppedChunks）
      */
     public record ReActRunResult(
             String answer,
@@ -176,7 +184,8 @@ public class ChatPipeline {
             int promptTokens,
             int completionTokens,
             Map<Integer, ChatHandler.ReferenceInfo> references,
-            Map<Integer, SearchResult> toolRetrieved
+            Map<Integer, SearchResult> toolRetrieved,
+            int droppedChunks
     ) {
     }
 
@@ -493,7 +502,7 @@ public class ChatPipeline {
             // 必须把它落到 generationReferenceMappings 里，否则前端点击引用拿不到 MD5/页码。
             String content = toolResult.content();
             if ("search_knowledge".equals(toolCall.name())) {
-                content = appendReferencesFromSearchTool(generationId, userMessage, toolResult);
+                content = appendReferencesFromSearchTool(generationId, userMessage, toolResult, toolCall.id());
             }
             if (content == null || content.isBlank()) {
                 content = "工具 " + toolCall.name() + " 执行成功，但没有返回可展示内容。";
@@ -521,6 +530,13 @@ public class ChatPipeline {
     String appendReferencesFromSearchTool(String generationId,
                                           String userMessage,
                                           AgentToolRegistry.ToolExecutionResult toolResult) {
+        return appendReferencesFromSearchTool(generationId, userMessage, toolResult, "");
+    }
+
+    String appendReferencesFromSearchTool(String generationId,
+                                          String userMessage,
+                                          AgentToolRegistry.ToolExecutionResult toolResult,
+                                          String toolCallId) {
         if (toolResult == null || toolResult.data() == null) {
             return toolResult == null ? null : toolResult.content();
         }
@@ -528,43 +544,255 @@ public class ChatPipeline {
         if (!(resultsObj instanceof List<?> rawList) || rawList.isEmpty()) {
             return toolResult.content();
         }
-
-        Map<Integer, ChatHandler.ReferenceInfo> mapping = new HashMap<>(
-                generationReferenceMappings.getOrDefault(generationId, Map.of()));
-        int firstReferenceNumber = mapping.keySet().stream().mapToInt(Integer::intValue).max().orElse(0) + 1;
-        for (int i = 0; i < rawList.size(); i++) {
-            Object item = rawList.get(i);
-            if (!(item instanceof SearchResult result) || result.getFileMd5() == null) {
-                continue;
-            }
-            String fileLabel = result.getFileName() != null ? result.getFileName() : "unknown";
-            mapping.put(firstReferenceNumber + i, buildReferenceInfo(result, fileLabel, userMessage));
-            if (result.getParentContext() != null && !result.getParentContext().isBlank()) {
-                generationParentContexts.computeIfAbsent(generationId, key -> new ConcurrentHashMap<>())
-                        .put(firstReferenceNumber + i, result.getParentContext());
-            }
-        }
-        if (mapping.isEmpty()) {
+        List<SearchResult> results = rawList.stream().filter(SearchResult.class::isInstance)
+                .map(SearchResult.class::cast).toList();
+        if (results.isEmpty() || results.stream().noneMatch(result -> result.getFileMd5() != null)) {
+            // 没有可编号的命中（无结果或全部缺 fileMd5）：不进入引用编号流程（与改造前一致）
             return toolResult.content();
         }
+
+        Map<Integer, ChatHandler.ReferenceInfo> existingMapping =
+                new HashMap<>(generationReferenceMappings.getOrDefault(generationId, Map.of()));
+        int firstReferenceNumber = existingMapping.keySet().stream()
+                .mapToInt(Integer::intValue).max().orElse(0) + 1;
+        SearchOutcome outcome = resolveSearchOutcome(toolResult);
+
+        // 上下文预算（chat.react.max-context-tokens）：工具结果拼入消息前按 token 估算裁剪，
+        // 首条命中始终保留，其余按分数从低到高丢弃；丢弃数量累计随 runHeadless 带回（droppedChunks）
+        ContextTrim trim = trimSearchResultsToContextBudget(
+                generationId, toolCallId, results, outcome, firstReferenceNumber);
+        if (trim.dropped() > 0) {
+            generationDroppedChunks.merge(generationId, trim.dropped(), Integer::sum);
+        }
+
+        // 引用编号按 (fileMd5, chunkId) 去重：重复分块复用首个编号，正文不重复进 prompt
+        ReferenceAssignment assignment =
+                assignReferenceNumbers(generationId, existingMapping, trim.kept(), firstReferenceNumber, userMessage);
+        Map<Integer, ChatHandler.ReferenceInfo> mapping = assignment.mapping();
         generationReferenceMappings.put(generationId, mapping);
         if (chatGenerationStateService != null) {
             chatGenerationStateService.updateReferenceMappings(generationId, toSerializableReferenceMappings(mapping));
         }
-        logger.info("ReAct search_knowledge 引用映射已追加: generationId={}, count={}", generationId, mapping.size());
-        List<SearchResult> results = rawList.stream().filter(SearchResult.class::isInstance)
-                .map(SearchResult.class::cast).toList();
+        logger.info("ReAct search_knowledge 引用映射已追加: generationId={}, count={}, droppedChunks={}",
+                generationId, mapping.size(), trim.dropped());
+
         // 评测链路读取模型实际检索证据用：引用编号与结果一一对应，生成结束随 runHeadless 返回
         Map<Integer, SearchResult> numbered = generationToolResults.computeIfAbsent(generationId,
                 key -> new java.util.LinkedHashMap<>());
-        for (int i = 0; i < rawList.size(); i++) {
-            if (rawList.get(i) instanceof SearchResult numberedResult) {
-                numbered.put(firstReferenceNumber + i, numberedResult);
+        // 父块上下文只挂本次新分配的编号；重复分块的父块已在首个编号下存在
+        Map<Integer, String> parentContexts = generationParentContexts.computeIfAbsent(generationId,
+                key -> new ConcurrentHashMap<>());
+        for (int i = 0; i < trim.kept().size(); i++) {
+            SearchResult result = trim.kept().get(i);
+            Integer novelNumber = assignment.novelNumberByIndex().get(i);
+            if (novelNumber != null) {
+                numbered.put(novelNumber, result);
+                if (result.getFileMd5() != null && result.getParentContext() != null
+                        && !result.getParentContext().isBlank()) {
+                    parentContexts.put(novelNumber, result.getParentContext());
+                }
+            } else {
+                numbered.putIfAbsent(assignment.reusedNumberByIndex().get(i), result);
             }
         }
-        // task_0005 调用适配：把 search_knowledge 工具数据里的检索分类传给格式化，
-        // 引用编号与映射构建逻辑不变；未带 outcome 的旧数据按 HIT 处理，输出与改造前一致
-        return AgentToolRegistry.formatSearchResults(results, resolveSearchOutcome(toolResult), firstReferenceNumber);
+
+        // 工具消息文本：新分块按分配编号连续格式化；重复分块只附编号复用说明，正文不再重复发送
+        String content;
+        if (assignment.novelResults().isEmpty()) {
+            content = buildReusedChunkNote(assignment.reused());
+        } else {
+            // task_0005 调用适配：把 search_knowledge 工具数据里的检索分类传给格式化，
+            // 引用编号与映射构建逻辑不变；未带 outcome 的旧数据按 HIT 处理，输出与改造前一致
+            content = AgentToolRegistry.formatSearchResults(assignment.novelResults(), outcome, firstReferenceNumber);
+            if (!assignment.reused().isEmpty()) {
+                content = content + "\n\n" + buildReusedChunkNote(assignment.reused());
+            }
+        }
+        return content;
+    }
+
+    /** 一次 search_knowledge 结果的上下文预算裁剪结果：保留的检索结果与丢弃数量 */
+    private record ContextTrim(List<SearchResult> kept, int dropped) {
+    }
+
+    /**
+     * search_knowledge 结果按 chat.react.max-context-tokens 预算裁剪：首条命中始终保留，
+     * 其余按分数从低到高丢弃（null 分数视为最低）。估算用 LlmProviderRouter.estimateObjectMessagesTokens
+     * （与计费同源）；估算不可用（router 缺失、返回 0、抛异常）时退回字符数上限（tokens×4）并记 warn，不静默放行。
+     */
+    private ContextTrim trimSearchResultsToContextBudget(String generationId,
+                                                         String toolCallId,
+                                                         List<SearchResult> results,
+                                                         SearchOutcome outcome,
+                                                         int firstReferenceNumber) {
+        if (results.size() <= 1) {
+            return new ContextTrim(List.copyOf(results), 0);
+        }
+        int budgetTokens = resolveMaxContextTokens();
+        boolean[] alive = new boolean[results.size()];
+        Arrays.fill(alive, true);
+        // 候选丢弃顺序：跳过首条（始终保留），其余按分数升序（分数相同按检索顺序，稳定）
+        List<Integer> dropOrder = new ArrayList<>();
+        for (int i = 1; i < results.size(); i++) {
+            dropOrder.add(i);
+        }
+        dropOrder.sort(Comparator.comparing((Integer index) -> scoreOrZero(results.get(index)))
+                .thenComparing(index -> index));
+        int dropPtr = 0;
+        int dropped = 0;
+        boolean charFallback = false;
+        while (true) {
+            List<SearchResult> current = aliveResults(results, alive);
+            String content = AgentToolRegistry.formatSearchResults(current, outcome, firstReferenceNumber);
+            int estimated = charFallback ? -1 : estimateToolMessageTokens(generationId, toolCallId, content);
+            if (estimated <= 0) {
+                charFallback = true;
+            }
+            boolean overBudget = charFallback
+                    ? content.length() > (long) budgetTokens * 4
+                    : estimated > budgetTokens;
+            if (!overBudget || dropPtr >= dropOrder.size()) {
+                if (charFallback) {
+                    logger.warn("ReAct 上下文 token 估算不可用，退回字符数上限（tokens×4={} 字符）: generationId={}, contentChars={}, droppedChunks={}",
+                            (long) budgetTokens * 4, generationId, content.length(), dropped);
+                }
+                break;
+            }
+            alive[dropOrder.get(dropPtr++)] = false;
+            dropped++;
+        }
+        return new ContextTrim(aliveResults(results, alive), dropped);
+    }
+
+    /** ReAct 工具结果上下文预算（chat.react.max-context-tokens）：读不到有效值时用默认 6000 */
+    private int resolveMaxContextTokens() {
+        if (llmProviderRouter == null) {
+            return DEFAULT_MAX_CONTEXT_TOKENS;
+        }
+        try {
+            int configured = llmProviderRouter.reactMaxContextTokenBudget();
+            return configured > 0 ? configured : DEFAULT_MAX_CONTEXT_TOKENS;
+        } catch (Exception exception) {
+            logger.warn("读取 chat.react.max-context-tokens 失败，使用默认值 {}: {}",
+                    DEFAULT_MAX_CONTEXT_TOKENS, exception.getMessage());
+            return DEFAULT_MAX_CONTEXT_TOKENS;
+        }
+    }
+
+    /**
+     * 按 LlmProviderRouter.estimateObjectMessagesTokens 估算 tool message 的 tokens；
+     * 估算抛异常时返回 -1（调用方退回字符数上限并已记 warn）
+     */
+    private int estimateToolMessageTokens(String generationId, String toolCallId, String content) {
+        if (llmProviderRouter == null) {
+            return -1;
+        }
+        try {
+            return llmProviderRouter.estimateObjectMessagesTokens(List.of(toolMessage(toolCallId, content)));
+        } catch (Exception exception) {
+            logger.warn("ReAct 上下文 token 估算失败，退回字符数上限: generationId={}, error={}",
+                    generationId, exception.getMessage());
+            return -1;
+        }
+    }
+
+    private static double scoreOrZero(SearchResult result) {
+        return result.getScore() != null ? result.getScore() : 0.0d;
+    }
+
+    private static List<SearchResult> aliveResults(List<SearchResult> results, boolean[] alive) {
+        List<SearchResult> current = new ArrayList<>();
+        for (int i = 0; i < results.size(); i++) {
+            if (alive[i]) {
+                current.add(results.get(i));
+            }
+        }
+        return current;
+    }
+
+    /** 引用编号分配结果：mapping 为最终引用映射，novel 为本次拿到新编号的结果（含未编号的缺 md5 项），reused 为复用既有编号的重复分块 */
+    private record ReferenceAssignment(Map<Integer, ChatHandler.ReferenceInfo> mapping,
+                                       List<SearchResult> novelResults,
+                                       List<ReusedReference> reused,
+                                       Map<Integer, Integer> novelNumberByIndex,
+                                       Map<Integer, Integer> reusedNumberByIndex) {
+    }
+
+    private record ReusedReference(int number, SearchResult result) {
+    }
+
+    /**
+     * 引用编号按 (fileMd5, chunkId) 去重：已在映射中的键复用其最早编号，重复分块正文不重复进 prompt；
+     * 新分块从 firstReferenceNumber 起按顺序连续编号（与 formatSearchResults 的位置编号一致）。
+     * 缺 fileMd5 的结果沿用旧行为：占据一个位置编号，但不进入引用映射。
+     */
+    private ReferenceAssignment assignReferenceNumbers(String generationId,
+                                                       Map<Integer, ChatHandler.ReferenceInfo> existingMapping,
+                                                       List<SearchResult> results,
+                                                       int firstReferenceNumber,
+                                                       String userMessage) {
+        // 既有 (fileMd5, chunkId) → 最早分配的编号：同键出现多个编号时取最小（"复用首个编号"）
+        Map<String, Integer> numberByKey = new HashMap<>();
+        List<Integer> existingNumbers = new ArrayList<>(existingMapping.keySet());
+        existingNumbers.sort(Integer::compareTo);
+        for (Integer number : existingNumbers) {
+            ChatHandler.ReferenceInfo info = existingMapping.get(number);
+            String key = referenceKey(info.fileMd5(), info.chunkId());
+            if (key != null) {
+                numberByKey.putIfAbsent(key, number);
+            }
+        }
+
+        Map<Integer, ChatHandler.ReferenceInfo> mapping = new HashMap<>(existingMapping);
+        List<SearchResult> novel = new ArrayList<>();
+        List<ReusedReference> reused = new ArrayList<>();
+        Map<Integer, Integer> novelNumberByIndex = new HashMap<>();
+        Map<Integer, Integer> reusedNumberByIndex = new HashMap<>();
+        int nextNumber = firstReferenceNumber;
+        for (int i = 0; i < results.size(); i++) {
+            SearchResult result = results.get(i);
+            String key = referenceKey(result.getFileMd5(), result.getChunkId());
+            Integer existing = key != null ? numberByKey.get(key) : null;
+            if (existing != null) {
+                reused.add(new ReusedReference(existing, result));
+                reusedNumberByIndex.put(i, existing);
+                continue;
+            }
+            if (key != null) {
+                numberByKey.put(key, nextNumber);
+            }
+            novel.add(result);
+            novelNumberByIndex.put(i, nextNumber);
+            if (result.getFileMd5() != null) {
+                String fileLabel = result.getFileName() != null ? result.getFileName() : "unknown";
+                mapping.put(nextNumber, buildReferenceInfo(result, fileLabel, userMessage));
+            }
+            nextNumber++;
+        }
+        return new ReferenceAssignment(mapping, novel, reused, novelNumberByIndex, reusedNumberByIndex);
+    }
+
+    /** 引用去重键：fileMd5#chunkId；缺 fileMd5 的结果无法标识，返回 null 不参与去重 */
+    private static String referenceKey(String fileMd5, Integer chunkId) {
+        if (fileMd5 == null) {
+            return null;
+        }
+        return fileMd5 + "#" + chunkId;
+    }
+
+    /** 重复分块的编号复用说明：正文不重复发送，只告诉模型这些分块对应哪个既有编号 */
+    private static String buildReusedChunkNote(List<ReusedReference> reused) {
+        StringBuilder note = new StringBuilder("以下 ").append(reused.size())
+                .append(" 个分块与此前结果重复，正文不重复提供：");
+        for (ReusedReference reusedRef : reused) {
+            String fileLabel = reusedRef.result().getFileName() != null
+                    && !reusedRef.result().getFileName().isBlank() ? reusedRef.result().getFileName() : "unknown";
+            note.append("\n[").append(reusedRef.number()).append("] ").append(fileLabel)
+                    .append(" (fileMd5=").append(reusedRef.result().getFileMd5())
+                    .append(", chunkId=").append(reusedRef.result().getChunkId())
+                    .append(") 复用编号 [").append(reusedRef.number()).append("] 中已提供的内容");
+        }
+        return note.toString();
     }
 
     /**
@@ -788,6 +1016,7 @@ public class ChatPipeline {
         generationReferenceMappings.remove(generationId);
         generationParentContexts.remove(generationId);
         generationToolResults.remove(generationId);
+        generationDroppedChunks.remove(generationId);
         stopFlags.remove(generationId);
         activeStreams.remove(generationId);
         cancelledGenerations.remove(generationId);
