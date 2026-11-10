@@ -185,7 +185,7 @@ task-0008, task-0009 可并行
   - 成功判定：测试绿。
   - 失败处理：不改变 RRF 的 k 语义与同分稳定排序。
 
-- [ ] task-0015 RerankClient WebClient 复用
+- [x] task-0015 RerankClient WebClient 复用
   - id: task-0015
   - boundary: src/main/java/com/mindbase/client/RerankClient.java, new:src/test/java/com/mindbase/client/RerankClientReuseTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=RerankClientReuseTest test`
