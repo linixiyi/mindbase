@@ -285,7 +285,7 @@ task-0008, task-0009 可并行
   - 失败处理：同文件其他用例若也依赖旧重叠语义，同样迁移断言并记录，不得删测试。
   - origin: emergent
 
-- [ ] task-0024 评测 token 用量断言迁移合并口径
+- [x] task-0024 评测 token 用量断言迁移合并口径
   - id: task-0024
   - boundary: src/test/java/com/mindbase/service/eval/EvalReActPipelineTest.java, src/test/java/com/mindbase/service/eval/EvalSmokeFixtureTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest='EvalReActPipelineTest,EvalSmokeFixtureTest' test`
