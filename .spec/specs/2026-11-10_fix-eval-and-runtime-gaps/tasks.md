@@ -196,7 +196,7 @@ task-0008, task-0009 可并行
   - 成功判定：测试绿。
   - 失败处理：不引入新依赖，不改 rerank 请求/响应结构。
 
-- [ ] task-0016 JWT 日志脱敏
+- [x] task-0016 JWT 日志脱敏
   - id: task-0016
   - boundary: src/main/java/com/mindbase/utils/JwtUtils.java, new:src/main/java/com/mindbase/utils/TokenRedactor.java, new:src/test/java/com/mindbase/utils/JwtLogRedactionTest.java
   - verify: `cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=JwtLogRedactionTest test`
