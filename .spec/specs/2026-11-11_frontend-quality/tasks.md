@@ -127,7 +127,7 @@
   - 成功判定：vitest 7 用例绿；`chat-message.vue` 行数下降且 `grep -c "function createSourceLink" chat-message.vue` 为 0。
   - 失败处理：DOMPurify 仍保留在 markdown 渲染链，不得因为抽函数而移除。
 
-- [ ] task-0011 Playwright 冒烟：config、去硬编码、2 条用例
+- [x] task-0011 Playwright 冒烟：config、去硬编码、2 条用例
   - id: task-0011
   - boundary: new:frontend/playwright.config.ts, new:frontend/e2e/layout-smoke.spec.ts, frontend/playwright-kb-column.spec.ts, new:frontend/e2e/kb-column.spec.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec playwright test --list e2e`
