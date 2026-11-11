@@ -138,7 +138,7 @@
   - 成功判定：verify 绿；`grep -c "9529" frontend/e2e/*.spec.ts` 为 0。
   - 失败处理：本机未装浏览器时只保证 `--list` 与 typecheck，不把 e2e 真跑纳入 0012 的默认门禁。
 
-- [ ] task-0012 前端本地门禁脚本与执行文档
+- [x] task-0012 前端本地门禁脚本与执行文档
   - id: task-0012
   - boundary: new:scripts/frontend_gate.sh, new:docs/frontend-quality.md
   - verify: `cd /Users/linyixi/PaiSmart && bash scripts/frontend_gate.sh --check`
