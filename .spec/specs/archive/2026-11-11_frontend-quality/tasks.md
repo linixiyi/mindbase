@@ -11,7 +11,7 @@
 
 ## 任务
 
-- [ ] task-0001 流式归约抽纯函数并补 7 类帧测试
+- [x] task-0001 流式归约抽纯函数并补 7 类帧测试
   - id: task-0001
   - boundary: frontend/src/views/chat/modules/input-box.vue, new:frontend/src/views/chat/stream/reducer.ts, new:frontend/src/views/chat/stream/__tests__/reducer.spec.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/views/chat/stream/__tests__/reducer.spec.ts`
@@ -22,9 +22,9 @@
   - 成功判定：vitest 7 用例全绿；`grep -c "content += payload.chunk" input-box.vue` 为 0。
   - 失败处理：后端帧字段拿不准时以现有 `input-box.vue` 消费的字段为准，不得改后端协议。
 
-- [ ] task-0002 chunk 批量 flush，消除逐帧全量重渲染
+- [x] task-0002 chunk 批量 flush，消除逐帧全量重渲染
   - id: task-0002
-  - boundary: frontend/src/views/chat/modules/input-box.vue, new:frontend/src/views/chat/stream/reducer.ts, new:frontend/src/views/chat/stream/buffer.ts, new:frontend/src/views/chat/stream/__tests__/buffer.spec.ts
+  - boundary: frontend/src/views/chat/modules/input-box.vue, frontend/src/views/chat/modules/chat-list.vue, new:frontend/src/views/chat/stream/reducer.ts, new:frontend/src/views/chat/stream/buffer.ts, new:frontend/src/views/chat/stream/__tests__/buffer.spec.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/views/chat/stream/__tests__/buffer.spec.ts`
   - expect: red
   - depends-on: task-0001
@@ -34,7 +34,7 @@
   - 成功判定：vitest 绿；`grep -c "content += payload.chunk" input-box.vue` 为 0；`grep -c "\[...list.value\]" chat-list.vue` 为 0。
   - 失败处理：若 50ms 合并导致首字延迟可感知，降到 16ms 但不得回到逐条渲染；测试断言内容顺序与最终长度不变。
 
-- [ ] task-0003 历史加载单源 + 在途请求取消
+- [x] task-0003 历史加载单源 + 在途请求取消
   - id: task-0003
   - boundary: frontend/src/store/modules/chat/index.ts, frontend/src/views/chat/modules/chat-list.vue, frontend/src/service/request/index.ts, new:frontend/src/store/modules/chat/historyLoader.ts, new:frontend/src/store/modules/chat/__tests__/historyLoader.spec.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/store/modules/chat/__tests__/historyLoader.spec.ts`
@@ -45,9 +45,9 @@
   - 成功判定：vitest 绿；`grep -c "historyRequestId" chat-list.vue` 为 0；`grep -c "url: 'users/conversation'" chat-list.vue` 为 0。
   - 失败处理：`@sa/axios` 不支持 signal 时在 request 包装层用 `AbortController` + `axios.CancelToken` 等价实现，不改调用方语义。
 
-- [ ] task-0004 停止语义与独立停止按钮
+- [x] task-0004 停止语义与独立停止按钮
   - id: task-0004
-  - boundary: frontend/src/views/chat/modules/input-box.vue, frontend/src/views/chat/modules/chat-message.vue, new:frontend/src/views/chat/stream/reducer.ts, new:frontend/src/views/chat/stream/__tests__/stop.spec.ts
+  - boundary: frontend/src/views/chat/modules/input-box.vue, frontend/src/views/chat/modules/chat-message.vue, new:frontend/src/views/chat/stream/reducer.ts, new:frontend/src/views/chat/stream/__tests__/stop.spec.ts, frontend/src/views/chat/stream/__tests__/reducer.spec.ts（D6：:85 过渡断言迁移 stopped）, frontend/src/typings/api.d.ts（D6：status 联合仅追加 'stopped'）
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/views/chat/stream/__tests__/stop.spec.ts`
   - expect: red
   - depends-on: task-0001
@@ -57,7 +57,7 @@
   - 成功判定：vitest 绿；`grep -c "已停止" chat-message.vue` ≥1；`grep -c "aria-label=\"停止生成\"" input-box.vue` =1。
   - 失败处理：后端停止失败时不得本地假装 stopped；保持 loading 并提示重试。
 
-- [ ] task-0005 无障碍：键盘可达、aria-live、按钮名称
+- [x] task-0005 无障碍：键盘可达、aria-live、按钮名称
   - id: task-0005
   - boundary: frontend/src/views/chat/modules/conversation-sidebar.vue, frontend/src/views/chat/modules/input-box.vue, frontend/src/views/chat/modules/chat-list.vue, new:scripts/frontend_a11y_gate.sh
   - verify: `cd /Users/linyixi/PaiSmart && bash scripts/frontend_a11y_gate.sh --check`
@@ -69,7 +69,7 @@
   - 成功判定：`bash scripts/frontend_a11y_gate.sh --check` 退出 0 且 `--self-test` 通过。
   - 失败处理：NButton 不透传 aria-label 时改用 `aria-label` 属性透传或外层 `<span role="button">` 包装，不改组件库。
 
-- [ ] task-0006 i18n 止血：fallback 改 zh-CN + 中文硬编码基线门禁
+- [x] task-0006 i18n 止血：fallback 改 zh-CN + 中文硬编码基线门禁
   - id: task-0006
   - boundary: frontend/src/locales/index.ts, new:frontend/i18n-baseline.txt, new:scripts/i18n_gate.sh
   - verify: `cd /Users/linyixi/PaiSmart && bash scripts/i18n_gate.sh --check`
@@ -80,7 +80,7 @@
   - 成功判定：`bash scripts/i18n_gate.sh --check` 退出 0；`grep -n "fallbackLocale" frontend/src/locales/index.ts` 为 zh-CN。
   - 失败处理：基线文件必须与当前树一致；首次生成后不得手改数字，只能通过 `--update-baseline` 并说明原因。
 
-- [ ] task-0007 请求层清污：移除模板 token 与生产调试日志
+- [x] task-0007 请求层清污：移除模板 token 与生产调试日志
   - id: task-0007
   - boundary: frontend/src/service/request/index.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && ! grep -q "apifoxToken" src/service/request/index.ts && ! grep -q "console.log(" src/service/request/index.ts`
@@ -92,9 +92,9 @@
   - 成功判定：verify 退出 0；`pnpm typecheck` 绿。
   - 失败处理：若某条日志对排障必要，改为 DEV 下 `console.debug`，不得保留 `console.log`。
 
-- [ ] task-0008 聊天请求收口 service/api + WS 帧判别联合
+- [x] task-0008 聊天请求收口 service/api + WS 帧判别联合
   - id: task-0008
-  - boundary: new:frontend/src/service/api/chat.ts, new:frontend/src/service/api/__tests__/streamFrame.spec.ts, frontend/src/store/modules/chat/index.ts, frontend/src/views/chat/modules/input-box.vue, frontend/src/views/knowledge-base/index.vue
+  - boundary: new:frontend/src/service/api/chat.ts, new:frontend/src/service/api/__tests__/streamFrame.spec.ts, frontend/src/store/modules/chat/index.ts, frontend/src/views/chat/modules/input-box.vue, frontend/src/views/knowledge-base/index.vue, frontend/src/typings/api.d.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/service/api/__tests__/streamFrame.spec.ts`
   - expect: red
   - depends-on: task-0003, task-0007
@@ -104,7 +104,7 @@
   - 成功判定：vitest 绿；`grep -rn "url: 'users/conversation'" src/store src/views` 为 0；`grep -rn "JSON.parse" src/views/chat/modules/input-box.vue` 为 0。
   - 失败处理：新 service 只做参数与返回类型包装，不改后端 URL、方法、错误码约定。
 
-- [ ] task-0009 列表稳定 key 与滚动回调清理
+- [x] task-0009 列表稳定 key 与滚动回调清理
   - id: task-0009
   - boundary: frontend/src/views/chat/modules/chat-list.vue, frontend/src/views/chat-history/index.vue, frontend/src/store/modules/chat/index.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && ! grep -q ':key="index"' src/views/chat/modules/chat-list.vue && ! grep -q ':key="index"' src/views/chat-history/index.vue && grep -q "onUnmounted" src/views/chat/modules/chat-list.vue`
@@ -116,7 +116,7 @@
   - 成功判定：verify 退出 0。
   - 失败处理：无 generationId 的历史消息允许回退到 timestamp+index，但不得直接用 index 作为唯一键。
 
-- [ ] task-0010 引用链接抽纯函数并补转义回归测试
+- [x] task-0010 引用链接抽纯函数并补转义回归测试
   - id: task-0010
   - boundary: frontend/src/views/chat/modules/chat-message.vue, new:frontend/src/views/chat/citation.ts, new:frontend/src/views/chat/__tests__/citation.spec.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec vitest run src/views/chat/__tests__/citation.spec.ts`
@@ -127,9 +127,9 @@
   - 成功判定：vitest 7 用例绿；`chat-message.vue` 行数下降且 `grep -c "function createSourceLink" chat-message.vue` 为 0。
   - 失败处理：DOMPurify 仍保留在 markdown 渲染链，不得因为抽函数而移除。
 
-- [ ] task-0011 Playwright 冒烟：config、去硬编码、2 条用例
+- [x] task-0011 Playwright 冒烟：config、去硬编码、2 条用例
   - id: task-0011
-  - boundary: new:frontend/playwright.config.ts, new:frontend/e2e/layout-smoke.spec.ts, frontend/playwright-kb-column.spec.ts
+  - boundary: new:frontend/playwright.config.ts, new:frontend/e2e/layout-smoke.spec.ts, frontend/playwright-kb-column.spec.ts, new:frontend/e2e/kb-column.spec.ts
   - verify: `cd /Users/linyixi/PaiSmart/frontend && pnpm exec playwright test --list e2e`
   - expect: red
   - 背景：现有 `playwright-kb-column.spec.ts` 在根目录、硬编码 `http://127.0.0.1:9529`、token 读 `PAI_TOKEN`，没有 `playwright.config.*`，无法稳定复跑；CI 不接 e2e（本轮也不接）。
@@ -138,7 +138,7 @@
   - 成功判定：verify 绿；`grep -c "9529" frontend/e2e/*.spec.ts` 为 0。
   - 失败处理：本机未装浏览器时只保证 `--list` 与 typecheck，不把 e2e 真跑纳入 0012 的默认门禁。
 
-- [ ] task-0012 前端本地门禁脚本与执行文档
+- [x] task-0012 前端本地门禁脚本与执行文档
   - id: task-0012
   - boundary: new:scripts/frontend_gate.sh, new:docs/frontend-quality.md
   - verify: `cd /Users/linyixi/PaiSmart && bash scripts/frontend_gate.sh --check`
@@ -150,7 +150,7 @@
   - 成功判定：`bash scripts/frontend_gate.sh --check` 退出 0；文档步骤照做可复现。
   - 失败处理：若 lint 因历史 warning 失败，先修或加精确 `eslint-disable-next-line` 并注释原因，不得放宽 `--max-warnings`。
 
-- [ ] task-0013 构建产物分包与体积预算
+- [x] task-0013 构建产物分包与体积预算
   - id: task-0013
   - boundary: frontend/vite.config.ts, new:scripts/frontend_bundle_check.sh
   - verify: `cd /Users/linyixi/PaiSmart && bash scripts/frontend_bundle_check.sh`

@@ -2,6 +2,7 @@
 import type { UploadFileInfo } from 'naive-ui';
 import { NButton, NEllipsis, NModal, NPopconfirm, NProgress, NTag, NUpload } from 'naive-ui';
 import { uploadAccept } from '@/constants/common';
+import { parseStreamFrame } from '@/service/api/chat';
 import { UploadStatus } from '@/enum';
 import SvgIcon from '@/components/custom/svg-icon.vue';
 import FilePreview from '@/components/custom/file-preview.vue';
@@ -631,13 +632,11 @@ function applyDocumentStatus(event: DocumentStatusEvent) {
 
 watch(wsData, val => {
   if (!val) return;
-  try {
-    const payload = JSON.parse(val);
-    if (payload?.type === 'document_status' && payload.fileMd5) {
-      applyDocumentStatus(payload as DocumentStatusEvent);
-    }
-  } catch {
-    // 非 JSON 消息（心跳等）忽略
+  // task-0008：帧解析收口到 parseStreamFrame（判别联合）——非法 JSON（心跳等）/缺 type/未知 type
+  // 统一归 unknown 不抛异常，非本视图消费的帧直接忽略
+  const frame = parseStreamFrame(val);
+  if (frame.type === 'document_status' && frame.fileMd5) {
+    applyDocumentStatus(frame as DocumentStatusEvent);
   }
 });
 

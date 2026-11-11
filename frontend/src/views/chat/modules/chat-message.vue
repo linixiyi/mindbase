@@ -5,8 +5,9 @@ import { getChatFailureCopy } from '@/constants/chat-failure';
 import { router } from '@/router';
 import { request } from '@/service/request';
 import { formatDate } from '@/utils/common';
-import { attachMarkdownSanitization, escapeHtml } from '@/utils/markdown';
+import { attachMarkdownSanitization } from '@/utils/markdown';
 import { VueMarkdownIt } from '@/vendor/vue-markdown-shiki';
+import { type CitationSourceFile, renderCitationLinks } from '../citation';
 defineOptions({ name: 'ChatMessage' });
 
 const props = defineProps<{
@@ -91,11 +92,8 @@ async function handleFeedback(message: Api.Chat.Message, rating: 'good' | 'bad')
   window.$message?.success(rating === 'good' ? '已记录点赞反馈' : '已记录点踩反馈');
 }
 
-// 存储文件名和对应的事件处理
-const sourceFiles = ref<
-  Array<{ fileName: string; id: string; referenceNumber: number; fileMd5?: string; pageNumber?: number }>
->([]);
-const bareUrlPattern = /https?:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]+/g;
+// 存储文件名和对应的事件处理（task-0010：引用解析逻辑抽到 views/chat/citation.ts 纯函数，组件只接收结果）
+const sourceFiles = ref<CitationSourceFile[]>([]);
 const toolNameLabels: Record<string, string> = {
   search_knowledge: '检索知识库',
   generate_summary: '生成知识摘要',
@@ -118,128 +116,19 @@ function getToolStatusLabel(status: Api.Chat.AgentToolEvent['status']) {
   return toolStatusLabels[status] || status;
 }
 
-function splitTrailingUrlPunctuation(rawUrl: string) {
-  let url = rawUrl;
-  let trailing = '';
-
-  while (url) {
-    const lastChar = url.at(-1);
-    if (!lastChar) break;
-
-    if (/[，。！？；：、,.!?;:]/.test(lastChar)) {
-      trailing = `${lastChar}${trailing}`;
-      url = url.slice(0, -1);
-    } else if (lastChar === ')' || lastChar === '）') {
-      const openingChar = lastChar === ')' ? '(' : '（';
-      const closingChar = lastChar;
-      const openingCount = (url.match(new RegExp(`\\${openingChar}`, 'g')) || []).length;
-      const closingCount = (url.match(new RegExp(`\\${closingChar}`, 'g')) || []).length;
-
-      if (closingCount > openingCount) {
-        trailing = `${lastChar}${trailing}`;
-        url = url.slice(0, -1);
-      } else {
-        break;
-      }
-    } else {
-      break;
-    }
-  }
-
-  return { url, trailing };
-}
-
-function normalizeBareUrls(text: string) {
-  return text.replace(bareUrlPattern, (match, offset: number, source: string) => {
-    const previousChar = source[offset - 1] || '';
-    const previousTwoChars = source.slice(Math.max(0, offset - 2), offset);
-    const previousTenChars = source.slice(Math.max(0, offset - 10), offset).toLowerCase();
-
-    if (previousChar === '<' || previousTwoChars === '](' || /(?:href|src)=["']?$/.test(previousTenChars)) {
-      return match;
-    }
-
-    const { url, trailing } = splitTrailingUrlPunctuation(match);
-    return url ? `<${url}>${trailing}` : match;
-  });
-}
-
-function createSourceLink(
-  sourceNum: string,
-  fileName: string,
-  extras?: { fileMd5?: string; pageNumber?: number; displayName?: string }
-): string {
-  const trimmedFileName = fileName.trim();
-  const fileId = `source-file-${sourceFiles.value.length}`;
-  const referenceNumber = Number.parseInt(sourceNum, 10);
-  const suspicious = props.msg.referenceMappings?.[sourceNum]?.citationStatus === 'SUSPICIOUS';
-  const linkClass = suspicious ? 'source-file-link source-file-link--suspicious' : 'source-file-link';
-
-  sourceFiles.value.push({
-    fileName: trimmedFileName,
-    id: fileId,
-    referenceNumber,
-    fileMd5: extras?.fileMd5,
-    pageNumber: extras?.pageNumber
-  });
-
-  // task_0004：文件名来自 LLM 文本，拼接进 HTML 前显式转义，恶意文件名不再生成标签；
-  // sourceFiles 内保留原始文件名，引用标注数据流零改动
-  const safeDisplayName = escapeHtml(extras?.displayName || trimmedFileName);
-  const link = `来源#${sourceNum}: <span class="${linkClass}" data-file-id="${fileId}">${safeDisplayName}</span>`;
-  // 引用校验判为不支撑的来源降低展示优先级，并提示用户自行核实
-  return suspicious
-    ? `${link}<span class="citation-suspicious-badge" title="引用校验：该片段可能无法支撑这句话">待核实</span>`
-    : link;
-}
-
-// 处理来源文件链接的函数
-function processSourceLinks(text: string): string {
-  // 重置来源文件列表，避免重复
-  sourceFiles.value = [];
-
-  // 支持单个来源，也支持一个括号里包含多个来源：
-  // (来源#1: test.pdf | 第5页; 来源#2: other.pdf | 第8页)
-  const entryBoundary = '(?=\\s*(?:[;；,，、。！？!?\\)）]|$))';
-  const pagePattern = new RegExp(
-    `来源#(\\d+):\\s*([^|;；,，、。！？!?\\n\\r]+?)\\s*\\|\\s*第(\\d+)页${entryBoundary}`,
-    'g'
-  );
-  const md5Pattern = new RegExp(
-    `来源#(\\d+):\\s*([^|;；,，、。！？!?\\n\\r]+?)\\s*\\|\\s*MD5:\\s*([a-fA-F0-9]+)${entryBoundary}`,
-    'g'
-  );
-  const simplePattern = new RegExp(`来源#(\\d+):\\s*([^<>\\n\\r|;；,，、。！？!?]+?)${entryBoundary}`, 'g');
-
-  let processedText = text.replace(pagePattern, (...args: unknown[]) => {
-    const [_match, sourceNum, fileName, pageNum] = args as [string, string, string, string];
-    return createSourceLink(sourceNum, fileName, {
-      pageNumber: Number.parseInt(pageNum, 10),
-      displayName: `${fileName.trim()} (第${pageNum}页)`
-    });
-  });
-
-  processedText = processedText.replace(md5Pattern, (...args: unknown[]) => {
-    const [_match, sourceNum, fileName, fileMd5] = args as [string, string, string, string];
-    return createSourceLink(sourceNum, fileName, {
-      fileMd5: fileMd5.trim()
-    });
-  });
-
-  processedText = processedText.replace(simplePattern, (_match, sourceNum, fileName) => {
-    return createSourceLink(sourceNum, fileName);
-  });
-
-  return processedText;
-}
-
 const content = computed(() => {
   chatStore.scrollToBottom?.();
   const rawContent = props.msg.content ?? '';
 
-  // 只对助手消息处理来源链接
+  // 只对助手消息处理来源链接（task-0010：引用解析已抽为 citation.ts 纯函数，
+  // 组件只负责把返回的来源列表写入本地状态，供点击预览按 data-file-id 查找）
   if (props.msg.role === 'assistant') {
-    return normalizeBareUrls(processSourceLinks(rawContent));
+    const { text, sourceFiles: parsedSourceFiles } = renderCitationLinks(rawContent, {
+      sources: [],
+      mappings: props.msg.referenceMappings
+    });
+    sourceFiles.value = parsedSourceFiles;
+    return text;
   }
 
   return rawContent;
@@ -486,6 +375,11 @@ async function handleSourceFileClick(fileInfo: {
           </template>
           重试本问
         </NButton>
+      </div>
+      <!-- task-0004：用户主动停止——渲染停止标记并保留已生成内容（引用点击行为不变），不并入错误卡片 -->
+      <div v-else-if="msg.status === 'stopped'" class="chat-answer" @click="handleContentClick">
+        <div class="chat-stopped-marker">已停止</div>
+        <VueMarkdownIt ref="markdownRef" :content="content" />
       </div>
       <div v-else class="chat-answer" @click="handleContentClick">
         <VueMarkdownIt ref="markdownRef" :content="content" />
@@ -757,6 +651,19 @@ async function handleSourceFileClick(fileInfo: {
   :deep(.vp-doc div[class*='language-']) {
     border-radius: 10px;
   }
+}
+
+/* task-0004：停止标记——muted 弱化胶囊，标记用户主动中断；已生成正文保留在下方可复制 */
+.chat-stopped-marker {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--app-subtle);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--app-muted);
 }
 .dark .chat-answer :deep(.vp-doc) {
   --vp-c-brand: rgb(var(--primary-400-color));

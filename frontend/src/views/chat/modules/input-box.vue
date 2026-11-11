@@ -1,31 +1,15 @@
 <script setup lang="ts">
-import { getChatFailureFallbackMessage } from '@/constants/chat-failure';
+import { parseStreamFrame } from '@/service/api/chat';
+import { createStreamBuffer } from '../stream/buffer';
+import { reduceStreamFrame } from '../stream/reducer';
 
 const chatStore = useChatStore();
 const { connectionStatus, connectionEscalated, input, isRateLimited, list, rateLimitRemainingSeconds, wsData } =
   storeToRefs(chatStore);
 
-function buildWsErrorMessage(data: Record<string, any>) {
-  if (data.code === 429) {
-    const retryAfterSeconds = Number(data.retryAfterSeconds || 0);
-    const baseMessage = data.message || '聊天请求过于频繁';
-
-    if (retryAfterSeconds > 0) {
-      return `${baseMessage}，请在 ${retryAfterSeconds} 秒后重试`;
-    }
-
-    return `${baseMessage}，请稍后再试`;
-  }
-
-  if (typeof data.error === 'string' && data.error.trim()) {
-    return data.error.trim();
-  }
-
-  if (typeof data.message === 'string' && data.message.trim()) {
-    return data.message.trim();
-  }
-
-  return getChatFailureFallbackMessage();
+/** reducer 是纯函数（不修改入参、返回新消息对象）；这里把归约结果原地合并回响应式消息， 保持列表项引用稳定——生成状态监控闭包依赖 list.includes(assistant) 判断。 */
+function applyReducedStreamState(assistant: Api.Chat.Message, next: Api.Chat.Message) {
+  Object.assign(assistant, next);
 }
 
 const latestMessage = computed(() => {
@@ -37,6 +21,23 @@ let generationStatusTimer: number | null = null;
 let lastStreamContentLength = 0;
 let lastStreamContentChangedAt = 0;
 
+/**
+ * chunk 批量缓冲（task-0002）：chunk 不再逐帧直写 assistant.content（VueMarkdownIt 会整段重渲染，长答案 O(n²)），同窗口（50ms）合并为一次 reducer 更新。 推送目标在
+ * push 时锁定，flush 时校验仍在列表且未到终态再应用——迟到 chunk 不得把已 finished/error 的消息拉回 loading。
+ */
+let streamChunkTarget: Api.Chat.Message | null = null;
+const streamBuffer = createStreamBuffer({
+  flushIntervalMs: 50,
+  onFlush: (_generationId, text) => {
+    const assistant = streamChunkTarget;
+    if (!assistant || !list.value.includes(assistant)) return;
+    if (!['pending', 'loading'].includes(assistant.status || '')) return;
+    applyReducedStreamState(assistant, reduceStreamFrame(assistant, { type: 'chunk', chunk: text }));
+    lastStreamContentLength = assistant.content.length;
+    lastStreamContentChangedAt = Date.now();
+  }
+});
+
 const isSending = computed(() => {
   return (
     latestMessage.value?.role === 'assistant' && ['loading', 'pending'].includes(latestMessage.value?.status || '')
@@ -45,9 +46,8 @@ const isSending = computed(() => {
 
 const sendDisabled = computed(() => {
   if (preparingSession.value) return true;
-  if (isSending.value) {
-    return false;
-  }
+  // 生成中不发送（task-0004）：中断走独立停止按钮，Enter 只提示不发送
+  if (isSending.value) return true;
   if (isRateLimited.value) {
     return true;
   }
@@ -97,30 +97,33 @@ function findAssistantMessage(generationId?: string, payloadConversationId?: str
   return null;
 }
 
-function handleStartPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
-  assistant.generationId = payload.generationId || assistant.generationId;
-  assistant.conversationId = payload.conversationId || assistant.conversationId;
-  if (!assistant.timestamp && payload.timestamp) {
-    assistant.timestamp = new Date(payload.timestamp).toISOString();
-  }
-  // 重复提交同一问题时后端复用进行中的回答，start 里带上已经生成的内容
-  if (payload.resumed && typeof payload.content === 'string' && payload.content.length > assistant.content.length) {
-    assistant.content = payload.content;
-    assistant.status = 'loading';
-  }
+function handleStartPayload(assistant: Api.Chat.Message, payload: Api.Chat.ChatStartFrame) {
+  // start（尤其重连 resumed）前先输出在途 chunk：resumed 内容按长度取大，先落字符避免重复拼接
+  streamBuffer.flush();
+  applyReducedStreamState(
+    assistant,
+    reduceStreamFrame(assistant, {
+      type: 'start',
+      generationId: payload.generationId,
+      conversationId: payload.conversationId,
+      timestamp: payload.timestamp,
+      resumed: payload.resumed,
+      content: payload.content
+    })
+  );
 }
 
-async function handleCompletionPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
-  if (payload.status === 'finished' && assistant.status !== 'error') {
-    assistant.status = 'finished';
-  } else if (payload.status === 'failed') {
-    assistant.status = 'error';
-  }
-
-  if (payload.referenceMappings) {
-    assistant.referenceMappings = payload.referenceMappings;
-  }
-  markExecutingToolsAsSuccess(assistant);
+async function handleCompletionPayload(assistant: Api.Chat.Message, payload: Api.Chat.ChatCompletionFrame) {
+  // 终态前必须 flush（task-0002）：先落在途 chunk，再收敛状态，保证字符不丢、顺序不变
+  streamBuffer.flush();
+  applyReducedStreamState(
+    assistant,
+    reduceStreamFrame(assistant, {
+      type: 'completion',
+      status: payload.status,
+      referenceMappings: payload.referenceMappings
+    })
+  );
   stopGenerationStatusMonitor();
   // Reconcile any chunks missed while reconnecting with the final server snapshot.
   if (assistant.generationId && payload.status === 'finished') {
@@ -132,45 +135,43 @@ async function handleCompletionPayload(assistant: Api.Chat.Message, payload: Rec
 }
 
 function handleStopPayload(assistant: Api.Chat.Message) {
-  if (assistant.status !== 'error') {
-    assistant.status = 'finished';
-  }
-  markExecutingToolsAsSuccess(assistant);
+  // 终态前必须 flush（task-0002）；task-0004 停止语义：后端确认的 stop 帧把生成中消息收敛为 stopped
+  streamBuffer.flush();
+  applyReducedStreamState(assistant, reduceStreamFrame(assistant, { type: 'stop' }));
   stopGenerationStatusMonitor();
 }
 
-function handleErrorPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
+function handleErrorPayload(assistant: Api.Chat.Message, payload: Api.Chat.ChatErrorFrame) {
+  // 终态前必须 flush（task-0002）：先落在途 chunk，再写错误话术覆盖正文
+  streamBuffer.flush();
   const rateLimited = Number(payload.code) === 429;
+  const next = reduceStreamFrame(assistant, {
+    type: 'error',
+    code: payload.code,
+    retryAfterSeconds: payload.retryAfterSeconds,
+    error: payload.error,
+    message: payload.message,
+    errorCategory: payload.errorCategory
+  });
+  applyReducedStreamState(assistant, next);
+
   if (rateLimited) {
     chatStore.startRateLimitCountdown(Number(payload.retryAfterSeconds || 0));
   }
-
-  const message = buildWsErrorMessage(payload);
-  assistant.status = 'error';
-  assistant.content = message;
-  // 失败类别码（pm-001）：429 走限流类别，其余透传后端 errorCategory；错误卡片按类别分层文案
-  if (rateLimited) {
-    assistant.errorCategory = 'RATE_LIMIT';
-  } else if (typeof payload.errorCategory === 'string' && payload.errorCategory) {
-    assistant.errorCategory = payload.errorCategory;
-  } else {
-    assistant.errorCategory = undefined;
-  }
-  markExecutingToolsAsFailed(assistant);
   stopGenerationStatusMonitor();
 
+  // error 帧归约后 content 即用户话术（429/error/message/字典兜底），直接用于提示
   if (rateLimited) {
-    window.$message?.warning(message);
+    window.$message?.warning(next.content);
   } else {
-    window.$message?.error(message);
+    window.$message?.error(next.content);
   }
 }
 
-function handleChunkPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
-  assistant.status = 'loading';
-  assistant.content += payload.chunk;
-  lastStreamContentLength = assistant.content.length;
-  lastStreamContentChangedAt = Date.now();
+function handleChunkPayload(assistant: Api.Chat.Message, payload: Api.Chat.ChatChunkFrame) {
+  // 目标消息在 push 时锁定（chunk 帧可能不带 generationId，watch 已按既有口径解析好目标）
+  streamChunkTarget = assistant;
+  streamBuffer.push(assistant.generationId || '', typeof payload.chunk === 'string' ? payload.chunk : '');
 }
 
 function stopGenerationStatusMonitor() {
@@ -271,7 +272,7 @@ function updateExecutingToolStatus(assistant: Api.Chat.Message, status: Api.Chat
   }
 }
 
-function handleToolCallPayload(assistant: Api.Chat.Message, payload: Record<string, any>) {
+function handleToolCallPayload(assistant: Api.Chat.Message, payload: Api.Chat.ChatToolCallFrame) {
   const id = typeof payload.toolCallId === 'string' ? payload.toolCallId : '';
   const tool = typeof payload.tool === 'string' ? payload.tool : '';
   const status = typeof payload.status === 'string' ? payload.status : 'executing';
@@ -308,74 +309,57 @@ function handleToolCallPayload(assistant: Api.Chat.Message, payload: Record<stri
 watch(wsData, val => {
   if (!val) return;
 
-  let payload: Record<string, any>;
+  // task-0008：帧解析收口到 parseStreamFrame（判别联合）。非法 JSON / 缺 type / 未知 type
+  // 统一归 unknown，不抛异常；后端每帧都带显式 type，error 帧也走 type 分派
+  const frame = parseStreamFrame(val);
 
-  try {
-    payload = JSON.parse(val);
-  } catch {
+  // 知识库文档状态推送和聊天共用一条连接，聊天这边不处理；connection 帧由 store 消费
+  if (frame.type === 'document_status' || frame.type === 'connection' || frame.type === 'unknown') {
     return;
   }
 
-  // 知识库文档状态推送和聊天共用一条连接，聊天这边不处理
-  if (payload.type === 'document_status') return;
-
-  const assistant = findAssistantMessage(payload.generationId, payload.conversationId, payload.type === 'start');
+  // stop 帧不携带 conversationId（后端口径），寻址字段按各帧实际携带取用
+  const generationId = 'generationId' in frame ? frame.generationId : undefined;
+  const conversationId = 'conversationId' in frame ? frame.conversationId : undefined;
+  const assistant = findAssistantMessage(generationId, conversationId, frame.type === 'start');
 
   if (!assistant) return;
 
-  if (payload.type === 'start') {
-    handleStartPayload(assistant, payload);
-    return;
-  }
-
-  if (payload.type === 'completion') {
-    handleCompletionPayload(assistant, payload);
-    return;
-  }
-
-  if (payload.type === 'tool_call') {
-    handleToolCallPayload(assistant, payload);
-    return;
-  }
-
-  if (payload.type === 'stop') {
-    handleStopPayload(assistant);
-    return;
-  }
-
-  if (payload.error || Number(payload.code) >= 400) {
-    handleErrorPayload(assistant, payload);
-    return;
-  }
-
-  if (payload.chunk) {
-    handleChunkPayload(assistant, payload);
+  switch (frame.type) {
+    case 'start':
+      handleStartPayload(assistant, frame);
+      break;
+    case 'completion':
+      handleCompletionPayload(assistant, frame);
+      break;
+    case 'tool_call':
+      handleToolCallPayload(assistant, frame);
+      break;
+    case 'stop':
+      handleStopPayload(assistant);
+      break;
+    case 'error':
+      handleErrorPayload(assistant, frame);
+      break;
+    case 'chunk':
+      if (frame.chunk) {
+        handleChunkPayload(assistant, frame);
+      }
+      break;
+    default:
+      break;
   }
 });
 
 const handleSend = async () => {
+  // 生成中 Enter 不再中断（task-0004）：提示改用停止按钮，不发送
+  if (isSending.value) {
+    window.$message?.warning('生成中，点击停止按钮可中断');
+    return;
+  }
   if (sendDisabled.value) return;
   if (isRateLimited.value) {
     window.$message?.warning(`当前发送受限，${cooldownText.value}`);
-    return;
-  }
-
-  if (isSending.value) {
-    const { error, data: tokenData } = await request<Api.Chat.Token>({
-      url: 'chat/websocket-token'
-    });
-    if (error) return;
-
-    chatStore.wsSend(
-      JSON.stringify({
-        type: 'stop',
-        generationId: latestMessage.value.generationId,
-        _internal_cmd_token: tokenData.cmdToken
-      })
-    );
-
-    list.value[list.value.length - 1].status = 'finished';
-    if (!latestMessage.value.content) list.value.pop();
     return;
   }
 
@@ -404,6 +388,27 @@ const handleSend = async () => {
     JSON.stringify({ type: 'chat', message: input.value.message, conversationId: chatStore.conversationId })
   );
   input.value.message = '';
+};
+
+/**
+ * 停止生成（task-0004）：独立停止按钮触发。后端确认前不得本地假装 stopped——cmd token 获取失败时 保持 loading 并可见报错（不再静默 return）；命令发出后由后端回推的 stop 帧经
+ * handleStopPayload → reducer 收敛为 stopped。
+ */
+const handleStop = async () => {
+  // task-0008：请求收口到 service/api/chat › fetchWebsocketToken；获取失败保持 loading 并可见报错
+  const { error, data: tokenData } = await fetchWebsocketToken();
+  if (error) {
+    window.$message?.error('停止失败，请重试');
+    return;
+  }
+
+  chatStore.wsSend(
+    JSON.stringify({
+      type: 'stop',
+      generationId: latestMessage.value.generationId,
+      _internal_cmd_token: tokenData.cmdToken
+    })
+  );
 };
 
 const inputRef = ref();
@@ -448,6 +453,8 @@ watch(
 );
 
 onUnmounted(() => {
+  // dispose 先输出剩余缓冲（尾部不丢）再清定时器
+  streamBuffer.dispose();
   stopGenerationStatusMonitor();
 });
 </script>
@@ -471,21 +478,38 @@ onUnmounted(() => {
       <textarea
         ref="inputRef"
         v-model.trim="input.message"
+        aria-label="输入消息"
         placeholder="给 MindBase 发送消息，Enter 发送，Shift+Enter 换行"
         class="text-body max-h-32 min-h-6 w-full flex-1 resize-none border-none bg-transparent py-1 text-16px caret-[rgb(var(--primary-color))] outline-none"
         @keydown="handShortcut"
       />
+      <!-- task-0004：发送与停止拆为两个按钮，停止按钮仅生成中显示并带可读名称 -->
       <NButton
+        v-if="isSending"
+        class="shrink-0 self-end"
+        size="small"
+        circle
+        type="warning"
+        aria-label="停止生成"
+        @click="handleStop"
+      >
+        <template #icon>
+          <icon-lucide:square class="text-icon-small" />
+        </template>
+      </NButton>
+      <!-- task-0005：发送按钮是纯图标按钮，补可读名称（aria-label 经 attrs 透传落到原生 button 上） -->
+      <NButton
+        v-else
         :disabled="sendDisabled"
         class="shrink-0 self-end"
         size="small"
         circle
-        :type="isSending ? 'warning' : 'primary'"
+        type="primary"
+        aria-label="发送"
         @click="handleSend"
       >
         <template #icon>
-          <icon-lucide:square v-if="isSending" class="text-icon-small" />
-          <icon-lucide:arrow-up v-else class="text-icon-small" />
+          <icon-lucide:arrow-up class="text-icon-small" />
         </template>
       </NButton>
     </div>

@@ -58,6 +58,14 @@ async function commitRename(session: Api.Chat.ConversationSession) {
   await chatStore.renameSession(session.conversationId, title);
 }
 
+// task-0005 键盘可达：会话行升级为 listbox option 后，鼠标 click 与键盘 Enter/Space 走同一入口。
+// 键盘激活只发生在行自身聚焦时（模板用 .self 挡掉子交互元素冒泡的 Enter/Space），编辑态下点击行
+// 同样不触发选中——守卫返回后交给 NInput 自己的 @keyup.enter 提交 / @keyup.esc 取消逻辑
+function handleRowActivate(cid: string) {
+  if (editingId.value === cid) return;
+  handleSelect(cid);
+}
+
 function handleDelete(cid: string) {
   chatStore.deleteSession(cid);
 }
@@ -129,7 +137,8 @@ function formatDate(dateStr?: string) {
       <!-- List -->
       <div class="flex-1 overflow-y-auto px-3">
         <NSpin :show="sessionsLoading" class="h-full">
-          <TransitionGroup name="session-list" tag="div">
+          <!-- task-0005：列表容器 role="listbox"，会话行为其 option；TransitionGroup 的透传属性落到渲染出的 tag 元素上 -->
+          <TransitionGroup name="session-list" tag="div" role="listbox">
             <div
               v-if="filteredSessions.length === 0 && !sessionsLoading"
               class="flex flex-col items-center justify-center gap-3 py-16"
@@ -138,12 +147,24 @@ function formatDate(dateStr?: string) {
               <span class="text-muted text-14px">{{ activeTab === 'active' ? '暂无对话记录' : '暂无归档对话' }}</span>
             </div>
 
+            <!--
+              task-0005 键盘可达：会话行从 click-only 的 div 升级为可聚焦的 option——
+              role="option" + tabindex="0" 提供语义与焦点，Enter/Space 触发选中（与鼠标 click 同一入口
+              handleRowActivate），aria-selected 标记选中态。行已有 :focus-visible 外描边样式。
+              .self 挡在 .prevent 之前：行内子交互元素（重命名输入框、操作按钮）冒泡上来的
+              Enter/Space 既不激活行，也不被 preventDefault 吞掉——否则重命名输入框打不出空格
+            -->
             <div
               v-for="session in filteredSessions"
               :key="session.conversationId"
               class="chat-session group mx-1 mb-1 flex cursor-pointer items-center gap-2.5"
               :class="{ 'chat-session--active': session.conversationId === conversationId }"
-              @click="handleSelect(session.conversationId)"
+              role="option"
+              tabindex="0"
+              :aria-selected="session.conversationId === conversationId"
+              @click="handleRowActivate(session.conversationId)"
+              @keydown.enter.self.prevent="handleRowActivate(session.conversationId)"
+              @keydown.space.self.prevent="handleRowActivate(session.conversationId)"
             >
               <div
                 class="chat-session__icon h-8 w-8 flex shrink-0 items-center justify-center rounded-10px text-icon-small"
@@ -170,11 +191,18 @@ function formatDate(dateStr?: string) {
                 </template>
               </div>
 
-              <!-- Action buttons（pm-016：重命名 + 删除，随归档/恢复同区收纳） -->
+              <!--
+                Action buttons（pm-016：重命名 + 删除，随归档/恢复同区收纳）。
+                task-0005：非选中行的按钮组原本只随 hover 显形，键盘焦点（Tab）进入时不可见——
+                补 focus-within:opacity-100，焦点在按钮组内时保持常显
+              -->
               <div
                 v-if="editingId !== session.conversationId"
                 class="flex shrink-0 items-center gap-0.5 transition-opacity"
-                :class="{ 'opacity-0 group-hover:opacity-100': session.conversationId !== conversationId }"
+                :class="{
+                  'opacity-0 group-hover:opacity-100 focus-within:opacity-100':
+                    session.conversationId !== conversationId
+                }"
                 @click.stop
               >
                 <NButton
