@@ -150,7 +150,7 @@
   - 成功判定：`bash scripts/frontend_gate.sh --check` 退出 0；文档步骤照做可复现。
   - 失败处理：若 lint 因历史 warning 失败，先修或加精确 `eslint-disable-next-line` 并注释原因，不得放宽 `--max-warnings`。
 
-- [ ] task-0013 构建产物分包与体积预算
+- [x] task-0013 构建产物分包与体积预算
   - id: task-0013
   - boundary: frontend/vite.config.ts, new:scripts/frontend_bundle_check.sh
   - verify: `cd /Users/linyixi/PaiSmart && bash scripts/frontend_bundle_check.sh`
