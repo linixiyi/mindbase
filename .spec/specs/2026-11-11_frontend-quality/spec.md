@@ -81,6 +81,8 @@
 - WS 帧 seq/幂等：需要后端加字段，放在 R3 之后。
 - pdf-document-viewer（1,655 行）与 model-provider（1,058 行）拆分：改动面大，等 0012 门禁稳定后单独立包。
 - 部署层 CSP/HSTS：需要 nginx 与域名配置，归部署轮。
+- 后端 `ChatWebSocketHandler.java:193-195` 的 `sendErrorMessage` 发无 type 的 `{"error":...}` 帧，前端 parseStreamFrame 归 unknown 丢弃（复审终轮实测：仅在 handler 分发层自身抛异常时可达，主链路错误含 429 仍可见）——后续给该帧补 type 或前端 unknown 分支兜底 error 字段，与 WS seq 一起收口。
+- 0002 buffer 当前单 streamChunkTarget：未来支持并行生成时需按 generationId 分桶分发（当前单活跃生成下不可达，复审终轮确认）。
 
 ## Risks
 - R1 | e2e 真跑依赖 dev server 与登录态；0011 的 verify 只用 `--list`，真跑由 0012 文档标注为可选，不纳入默认门禁。
