@@ -46,9 +46,9 @@
   - 成功判定：verify 绿；未就绪时 curl 不发出 `/admin/eval/run`。
   - 失败处理：readiness 脚本不存在时不得静默跳过，报"缺就绪检查"退出 2。
 
-- [ ] task-0004 neg 题退出检索指标分母
+- [x] task-0004 neg 题退出检索指标分母
   - id: task-0004
-  - boundary: src/main/java/com/mindbase/service/eval/EvalReportAggregator.java, src/main/java/com/mindbase/service/eval/EvalReport.java, scripts/eval_compare.py, new:src/test/java/com/mindbase/service/eval/NegRetrievalMetricScopeTest.java
+  - boundary: src/main/java/com/mindbase/service/eval/EvalReportAggregator.java, src/main/java/com/mindbase/service/eval/EvalReport.java, scripts/eval_compare.py, new:src/test/java/com/mindbase/service/eval/NegRetrievalMetricScopeTest.java, src/test/java/com/mindbase/service/eval/EvalSmokeFixtureTest.java（D7：卡面"必要时同步 fixture"的承接文件）
   - verify: `cd /Users/linyixi/PaiSmart/.spec/worktrees/2026-11-12_eval-real-run && ./mvnw -q -B -Dtest=NegRetrievalMetricScopeTest test`
   - expect: red
   - 背景：17 条 `expectedRefusal=true` 的题带 `expectedEvidence`（用于定位"论文没提这个信息"的锚点），[EvalReportAggregator.java:90](src/main/java/com/mindbase/service/eval/EvalReportAggregator.java#L90) 按"有 evidence"计入 `evidenceLabeled`，neg 因此进入 recall/docRecall/coverage/nDCG 分母；审计脚本对 17 条报 warn。生成侧 accuracy 仍应包含 neg（拒答正确率是生成指标）。

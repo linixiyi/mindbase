@@ -21,10 +21,17 @@
 指标名：
   summary 指标：recallAtK / docRecallAtK / mrr / accuracy / meanJudgeScore / meanExpectedDocCoverage /
                 fullCoverageHitRate / retrievalErrorRate / failedCases / totalCases / labeledCases /
+                retrievalCases / negExcludedCases /
                 judgedCases / correctCases / retrievalHits / needsHumanReviewCount / emptyRetrieval /
                 ndcgAtK.3 / ndcgAtK.5 / ndcgAtK.10；
   题型指标：  <type>.<metric>，如 fact.recallAtK、multi.accuracy（type 取用例显式 type 字段或 caseId 前缀）。
 指标缺失（旧 schema 没有该字段）或无法评估时按失败处理——门禁宁可误报也不放行。
+
+neg 口径（task-0004）：task-0004 之后的报告 summary 带 retrievalCases（检索指标分母，只含非 neg）
+与 negExcludedCases（退出分母的 neg 题数），recallAtK/mrr/docRecallAtK/meanExpectedDocCoverage/
+fullCoverageHitRate/nDCG 的分母只含非 neg 用例；accuracy/refusal 等生成侧指标仍包含 neg。
+旧报告缺这两个字段时按旧口径处理（检索分母含 neg 题）并在输出里打印回退说明；
+--fail-if 直接读 summary 数值做阈值比较，两种口径下断言行为一致。
 
 退出码：0 门禁通过；1 报告读取/解析失败；2 发布门禁拦截（releaseEligible=false 且未 --allow-self-judge）；
 3 --fail-if 指标条件未通过。
@@ -158,13 +165,34 @@ def case_type(case):
     return str(explicit) if explicit else str(case["caseId"]).split("-")[0]
 
 
+def _has_neg_scope(summary):
+    """报告是否带 neg 口径新字段（task-0004 后的 v2 报告）：retrievalCases/negExcludedCases 齐全。"""
+    return "retrievalCases" in summary and "negExcludedCases" in summary
+
+
+def _neg_scope_note(report):
+    """检索分母口径说明：新报告按"分母只含非 neg"展示；旧报告缺字段回退旧口径并打印说明。"""
+    if _has_neg_scope(report["summary"]):
+        return None
+    return ("旧报告缺 retrievalCases/negExcludedCases（neg 分母口径加入前的报告）："
+            "检索分母含 neg 题（旧口径），neg 未单独排除")
+
+
 def by_type(report):
     groups = defaultdict(list)
     for case in report["cases"]:
         groups[case_type(case)].append(case)
+    # task-0004 neg 口径：新报告（带 retrievalCases/negExcludedCases）的 ALL 行按"分母只含非 neg"
+    # 重算，neg 题单独在 neg 行展示（neg 检索结果单独计数）；旧报告缺字段回退旧口径（ALL 行含 neg）。
+    exclude_neg_from_all = _has_neg_scope(report["summary"])
     out = {}
     for t in TYPES + ["ALL"]:
-        cases = report["cases"] if t == "ALL" else groups.get(t, [])
+        if t == "ALL":
+            cases = report["cases"]
+            if exclude_neg_from_all:
+                cases = [c for c in cases if case_type(c) != "neg"]
+        else:
+            cases = groups.get(t, [])
         if not cases:
             continue
         labeled = [c for c in cases if c.get("retrievalHit") is not None]
@@ -209,6 +237,10 @@ def evaluate_metric(report, metric):
     if metric == "emptyRetrieval" and summary.get("emptyRetrieval") is None:
         # 归档/部分旧报告没有该汇总字段：从 cases 的检索条数重算
         return sum(1 for c in report["cases"] if (c.get("retrievedCount") or 0) == 0), "由 cases 重算"
+    if metric in ("retrievalCases", "negExcludedCases") and metric not in summary:
+        # neg 口径新字段：旧报告没有也无法从 cases 可靠重算（明细不带 neg 标注），明确回退旧口径说明
+        return None, ("该报告缺 neg 口径字段 retrievalCases/negExcludedCases"
+                      "（neg 分母口径加入前的旧报告，检索分母含 neg 题）")
     if metric in summary:
         return summary[metric], None
     return None, "summary 里没有该指标"
@@ -300,6 +332,10 @@ def render(reports):
                      f"  平均分 {_fmt(s.get('meanJudgeScore'), False)}  失败 {s.get('failedCases')}"
                      f"  检索模式 {s.get('retrievalModeCounts')}")
         lines.append(f"   归因 {s.get('diagnosisCounts')}")
+        # neg 口径（task-0004）：新报告暴露检索题数与 neg 排除数；旧报告缺字段时打印回退说明
+        scope = (f"检索题 {s.get('retrievalCases')}（neg 排除 {s.get('negExcludedCases')}）"
+                 if _has_neg_scope(s) else _neg_scope_note(report))
+        lines.append(f"   {scope}")
         extras = []
         if isinstance(s.get("ndcgAtK"), dict) and s["ndcgAtK"]:
             joined = ", ".join(f"@{k}={_fmt(v)}" for k, v in sorted(s["ndcgAtK"].items()))
@@ -334,8 +370,14 @@ def render(reports):
 # ---------------------------------------------------------------------------
 
 def _recomputed_overview(report):
-    """从 cases 重算三个核心指标，用来证明 fixture 数字内部自洽（不是手写的）。"""
-    labeled = [c for c in report["cases"] if c.get("retrievalHit") is not None]
+    """从 cases 重算三个核心指标，用来证明 fixture 数字内部自洽（不是手写的）。
+    task-0004 neg 口径：带 retrievalCases/negExcludedCases 的新报告按"检索分母只含非 neg"重算
+    （neg 用例按题型识别：显式 type=neg 或 caseId 前缀 neg-，与 case_type 同一约定）；
+    旧报告缺字段回退旧口径（分母含 neg 题）。accuracy 的分母（judged）两种口径都含 neg。"""
+    cases = report["cases"]
+    if _has_neg_scope(report["summary"]):
+        cases = [c for c in cases if case_type(c) != "neg"]
+    labeled = [c for c in cases if c.get("retrievalHit") is not None]
     judged = [c for c in report["cases"] if c.get("judgeCorrect") is not None]
     recall = sum(1 for c in labeled if c["retrievalHit"]) / len(labeled) if labeled else None
     mrr = _ratio([c.get("reciprocalRank") or 0.0 for c in labeled]) if labeled else None
@@ -370,6 +412,31 @@ def _to_archive_shape(v1_fixture):
         "overall": overall,
         "cases": cases,
     }
+
+
+def _to_neg_scope_shape(v2_fixture):
+    """由 v2 fixture 机械变换出 neg 口径（task-0004）后的报告形态：检索分母按"只含非 neg"重算
+    （neg 用例按题型识别，与 case_type 同一约定），summary 补 retrievalCases/negExcludedCases
+    并同步检索侧数值；生成/评委侧数字（accuracy/judged/correctCases/meanJudgeScore/拒答族）与
+    nDCG 原样保留。全部数值从 fixture cases 重算得出，不是手写指标。"""
+    cases = v2_fixture["cases"]
+    neg_cases = [c for c in cases if case_type(c) == "neg"]
+    labeled = [c for c in cases if c.get("retrievalHit") is not None and case_type(c) != "neg"]
+    coverages = [c["expectedDocCoverage"] for c in labeled if c.get("expectedDocCoverage") is not None]
+    summary = dict(v2_fixture["summary"])
+    summary.update({
+        "labeledCases": len(labeled),
+        "retrievalCases": len(labeled),
+        "negExcludedCases": sum(1 for c in neg_cases if c.get("retrievalHit") is not None),
+        "retrievalHits": sum(1 for c in labeled if c["retrievalHit"]),
+        "recallAtK": _ratio([1.0 if c["retrievalHit"] else 0.0 for c in labeled]),
+        "mrr": _ratio([c.get("reciprocalRank") or 0.0 for c in labeled]),
+        "docRecallAtK": _ratio([1.0 if c.get("docHit") else 0.0 for c in labeled]),
+        "evidenceLabeledCases": len(labeled),
+        "meanExpectedDocCoverage": _ratio(coverages),
+        "fullCoverageHitRate": _ratio([1.0 for c in coverages if c >= 1 - 1e-9]) if coverages else None,
+    })
+    return dict(v2_fixture, summary=summary)
 
 
 def self_test():
@@ -447,11 +514,36 @@ def self_test():
     assert not _is_judge_condition("recallAtK<0.9") and _is_judge_condition("fact.accuracy<0.9") \
            and _is_judge_condition("meanJudgeScore<4"), "评委分数族指标识别（含题型指标）"
 
+    # 8) neg 口径（task-0004）：新报告带 retrievalCases/negExcludedCases，检索分母只含非 neg，
+    #    accuracy 仍含 neg；旧报告缺字段回退旧口径并打印说明，用新字段做门禁按违规处理
+    neg_scoped = normalize_report(_to_neg_scope_shape(fixtures["v2"]), source="fixture-neg-scope")
+    value, note = evaluate_metric(neg_scoped, "retrievalCases")
+    assert value == 18, f"neg 口径报告检索题数应为 18（19 标注 − 1 neg）: {value} ({note})"
+    value, note = evaluate_metric(neg_scoped, "negExcludedCases")
+    assert value == 1, f"neg 口径报告应单独计数 1 条 neg: {value} ({note})"
+    recall, mrr, acc = _recomputed_overview(neg_scoped)
+    neg_summary = neg_scoped["summary"]
+    assert abs(recall - neg_summary["recallAtK"]) < 1e-3, \
+        f"neg 口径 recall 重算不一致: {recall} vs {neg_summary['recallAtK']}"
+    assert abs(mrr - neg_summary["mrr"]) < 1e-3, \
+        f"neg 口径 mrr 重算不一致: {mrr} vs {neg_summary['mrr']}"
+    assert abs(acc - neg_summary["accuracy"]) < 1e-3, "neg 口径下 accuracy 分母仍应包含 neg 用例"
+    assert not check_conditions([neg_scoped], ["recallAtK<0.99", "negExcludedCases<1"]), \
+        "neg 口径报告：recall=1.0、negExcludedCases=1 未命中失败条件"
+    assert check_conditions([neg_scoped], ["negExcludedCases>0"]), "negExcludedCases 阈值方向生效"
+    value, note = evaluate_metric(v2, "retrievalCases")
+    assert value is None and "旧报告" in (note or ""), f"旧报告缺新字段要给出回退说明: {note}"
+    assert len(check_conditions([v2], ["retrievalCases>=1"])) == 1, "旧报告用 neg 口径新字段做门禁必须按违规处理"
+    assert "检索题 18（neg 排除 1）" in render([neg_scoped]), "新报告要暴露检索题数与 neg 排除数"
+    assert "旧报告缺 retrievalCases/negExcludedCases" in render([v2]), "旧报告要打印口径回退说明"
+
     print("self-test OK: v1(50 题, schema v1) / v2(20 题, schema 2.0) / archive 形态全部跑通")
     print("  - fixture 指标从 cases 重算与记录 summary 一致（v1: recall 0.7609/mrr 0.5902/acc 0.86；"
           "v2: recall 0.9474/mrr 0.9211/acc 0.9474）")
     print("  - --fail-if 通过/失败/缺字段/未知指标/非法条件 五种判定方向全部验证")
     print("  - 发布门禁：self-judge 报告 accuracy 门禁被拦、检索类门禁放行、releaseEligible=true 放行")
+    print("  - neg 口径：新报告检索分母只含非 neg（检索题 18/neg 排除 1）且 accuracy 仍含 neg，"
+          "旧报告缺字段回退旧口径并打印说明")
     return 0
 
 

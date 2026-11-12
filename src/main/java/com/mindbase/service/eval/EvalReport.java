@@ -134,13 +134,22 @@ public record EvalReport(
      * 汇总指标。没有可计算的样本时对应指标为 null（例如没有任何用例标注期望文档时 recallAtK 为 null）。
      * <p>
      * 检索指标 v2 的三个新字段（ndcgAtK/fullCoverageHitRate/retrievalErrorRate）与旧字段并列输出：
-     * recallAtK 等 old 字段的名称与口径保持不变，历史报告对比不受影响。
+     * recallAtK 等旧字段的名称保持不变；自 neg 口径（task-0004）起 recallAtK/mrr/docRecallAtK/
+     * meanExpectedDocCoverage/fullCoverageHitRate/nDCG 的分母只含非 neg 用例，labeledCases 与之一致
+     * （neg 题退出检索分母是本次修正的目标，检索率数值随之变化是预期行为）。
      * 生成与引用指标（refusalAccuracy/faithfulness/citationPrecision/citationRecall）同为并列新增，
-     * 口径见 {@link GenerationMetrics}；answer 未产出的用例不进生成侧分母。
+     * 口径见 {@link GenerationMetrics}；answer 未产出的用例不进生成侧分母，neg 用例仍在生成侧分母里
+     * （拒答正确率是生成指标，不随检索分母排除）。
      */
     public record EvalSummary(
             int totalCases,
+            /* 检索指标分母：非 neg 且有命中判定的用例数；neg 用例不计入（口径见类注释） */
             int labeledCases,
+            /* neg 口径新增：进入检索指标分母的用例数（= labeledCases，与 neg 排除数并列暴露便于对账） */
+            int retrievalCases,
+            /* neg 口径新增：因 neg 规则退出检索分母的用例数（neg 且有命中判定）；
+               与旧口径对账：labeledCases + negExcludedCases = 旧口径的 labeledCases */
+            int negExcludedCases,
             int retrievalHits,
             Double recallAtK,
             Double mrr,

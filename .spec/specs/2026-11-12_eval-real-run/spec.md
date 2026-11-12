@@ -64,6 +64,7 @@
 - D4 | 人工复核不由脚本伪造；预检只校验 `humanAgreement` 是否已达到可用样本与 κ 阈值（F4）。
 - D5 | 包经 plan-go 从主工作区移入工作树 .spec/worktrees/2026-11-12_eval-real-run 后，卡面 verify 的 `cd /Users/linyixi/PaiSmart` 会打到主工作区错误树——tasks.md 全部 cd 路径已重写到工作树根（含表头说明），属 relocation 机械勘误非扩权 | by: V2 | reversal: checkpoint revert
 - D6 | 卡面 0001/0002/0005/0008 引用的 [runbook](docs/eval/runbook.md) 此前不存在（实际内容散在 docs/runbook.md 与 R3a 归档 runbook）——已在 task-0001 建立该文件（服务表、工作树注意、token 三级、上传/评测端点、通过标准、常见失败），boundary 归 task-0001 | by: V2 | reversal: checkpoint revert
+- D7 | task-0004 卡面测试行明文"必要时同步 fixture"，但 boundary 未列 EvalSmokeFixtureTest.java——neg 退出检索分母使 20 题 fixture 的旧口径精确断言必然失败（实测 labeledCases 19→18、recallAtK 0.9474→1.0 等七项，数字取自实际产出的新报告而非手算）；授权把该文件断言与 4 处口径注释同步到新口径（eval_gate.sh 七条阈值实测不受影响，不改 gate），按交付补入 boundary，非扩权 | by: V2 | reversal: checkpoint revert
 
 ## Parked
 
