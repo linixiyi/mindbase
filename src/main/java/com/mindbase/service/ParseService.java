@@ -10,6 +10,8 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.sax.BodyContentHandler;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +37,7 @@ public class ParseService {
 
     private static final Logger logger = LoggerFactory.getLogger(ParseService.class);
     private static final String PDF_PARSER_LITEPARSE = "liteparse";
+    private static final String PDF_PARSER_TIKA = "tika";
     private static final Pattern LITEPARSE_PAGE_FOOTER_PATTERN = Pattern.compile("(?i)^No\\.\\s*\\d+\\s*/\\s*\\d+%?$");
 
     @Autowired
@@ -302,7 +305,7 @@ public class ParseService {
     }
 
     private void parsePdfAndSave(String fileMd5, InputStream fileStream, String userId, String orgTag, boolean isPublic) throws IOException {
-        List<LiteParsePage> pages = parsePdfWithLiteParse(fileStream);
+        List<LiteParsePage> pages = parsePdfPages(fileStream);
         int savedChunkCount = 0;
 
         for (LiteParsePage page : pages) {
@@ -317,7 +320,7 @@ public class ParseService {
     }
 
     private EmbeddingEstimate estimatePdfEmbeddingUsage(InputStream fileStream) throws IOException {
-        List<LiteParsePage> pages = parsePdfWithLiteParse(fileStream);
+        List<LiteParsePage> pages = parsePdfPages(fileStream);
         long estimatedTokens = 0L;
         int estimatedChunkCount = 0;
 
@@ -333,6 +336,34 @@ public class ParseService {
         }
 
         return new EmbeddingEstimate(estimatedTokens, estimatedChunkCount);
+    }
+
+    /** PDF 解析分发：engine=tika 走 PDFBox 文本层抽取（D10 回退引擎），其余（默认 liteparse）走原有路径。 */
+    private List<LiteParsePage> parsePdfPages(InputStream fileStream) throws IOException {
+        if (PDF_PARSER_TIKA.equalsIgnoreCase(pdfParsingEngine)) {
+            return parsePdfWithPdfBox(fileStream);
+        }
+        return parsePdfWithLiteParse(fileStream);
+    }
+
+    /**
+     * PDFBox 文本层回退解析（D10）：无 OCR 能力，扫描页抽不到文本层时返回空文本由调用方跳过
+     * （与 07 OCR blocked 既有口径一致）。页号语义与 LiteParse 一致（从 1 起）。
+     */
+    private List<LiteParsePage> parsePdfWithPdfBox(InputStream fileStream) throws IOException {
+        try (PDDocument document = PDDocument.load(fileStream)) {
+            List<LiteParsePage> pages = new ArrayList<>();
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setSortByPosition(true);
+            for (int pageNumber = 1; pageNumber <= document.getNumberOfPages(); pageNumber++) {
+                stripper.setStartPage(pageNumber);
+                stripper.setEndPage(pageNumber);
+                String pageText = stripper.getText(document);
+                pages.add(new LiteParsePage(pageNumber, normalizeLiteParseText(pageText)));
+            }
+            logger.info("PDFBox 解析完成：pages={}", document.getNumberOfPages());
+            return pages;
+        }
     }
 
     private List<LiteParsePage> parsePdfWithLiteParse(InputStream fileStream) throws IOException {

@@ -18,6 +18,14 @@ import java.util.TreeMap;
  * 生成与引用指标（拒答正确率、faithfulness、citation precision/recall）按 {@link GenerationMetrics.Result}
  * 在产出回答的用例上计算，口径见 {@link GenerationMetrics}。
  * <p>
+ * neg 口径（task-0004）：应拒答题（expectedRefusal=true，数据集 type=neg）退出检索指标分母——
+ * evidenceLabeledCases、recallAtK、mrr、docRecallAtK、meanExpectedDocCoverage、fullCoverageHitRate
+ * 与 nDCG@K 的分母只含非 neg 用例；neg 用例的检索结果单独计数（summary.negExcludedCases）但不计入
+ * 命中率（检索到"论文没提这个信息"的证据锚点不是检索成功）。accuracy/refusal/faithfulness/citation
+ * 等生成与评委指标仍包含 neg 用例（拒答正确率是生成指标）。summary 新增 retrievalCases 与
+ * negExcludedCases 两个计数字段（additive，schemaVersion 保持 2.0），与旧口径对账：
+ * labeledCases + negExcludedCases = 旧口径 labeledCases。
+ * <p>
  * 统计口径（v2）：比例指标配 {@link EvalStatistics#wilsonInterval} 置信区间，
  * 两次评测的同题对比走 {@link #compareRuns}（McNemar 精确检验 + 配对 bootstrap），
  * 统计实现见 {@link EvalStatistics}。
@@ -47,6 +55,9 @@ public final class EvalReportAggregator {
      */
     public static EvalReport.EvalSummary summarize(List<EvalCaseResult> results, List<Integer> ndcgKs) {
         int labeled = 0;
+        /* neg 口径（task-0004）：检索分母（非 neg）与被排除的 neg 用例分别计数，损失可对账 */
+        int retrievalCases = 0;
+        int negExcludedCases = 0;
         int hits = 0;
         int docHits = 0;
         int evidenceLabeled = 0;
@@ -83,17 +94,24 @@ public final class EvalReportAggregator {
 
         for (EvalCaseResult result : results) {
             if (result.retrievalHit() != null) {
-                labeled++;
-                labeledResults.add(result);
-                hits += result.retrievalHit() ? 1 : 0;
-                docHits += Boolean.TRUE.equals(result.docHit()) ? 1 : 0;
-                evidenceLabeled += result.expectedEvidence() != null && !result.expectedEvidence().isEmpty() ? 1 : 0;
-                rrSum += result.reciprocalRank() == null ? 0d : result.reciprocalRank();
-                Double coverage = result.expectedDocCoverage();
-                if (coverage != null) {
-                    coverageSum += coverage;
-                    // 全命中按覆盖率判定：多证据题只命中一部分（coverage<1）不再算全命中
-                    fullCoverageHits += coverage >= 1d - COVERAGE_EPSILON ? 1 : 0;
+                if (isNegCase(result)) {
+                    // neg 题退出检索分母（task-0004）：单独计数，命中/覆盖率/排序一律不计——
+                    // "检索到了应拒答题的证据锚点"不是检索成功，neg 命中率由生成侧拒答口径承担
+                    negExcludedCases++;
+                } else {
+                    labeled++;
+                    retrievalCases++;
+                    labeledResults.add(result);
+                    hits += result.retrievalHit() ? 1 : 0;
+                    docHits += Boolean.TRUE.equals(result.docHit()) ? 1 : 0;
+                    evidenceLabeled += result.expectedEvidence() != null && !result.expectedEvidence().isEmpty() ? 1 : 0;
+                    rrSum += result.reciprocalRank() == null ? 0d : result.reciprocalRank();
+                    Double coverage = result.expectedDocCoverage();
+                    if (coverage != null) {
+                        coverageSum += coverage;
+                        // 全命中按覆盖率判定：多证据题只命中一部分（coverage<1）不再算全命中
+                        fullCoverageHits += coverage >= 1d - COVERAGE_EPSILON ? 1 : 0;
+                    }
                 }
             }
             if (result.judged()) {
@@ -149,6 +167,8 @@ public final class EvalReportAggregator {
         return new EvalReport.EvalSummary(
                 results.size(),
                 labeled,
+                retrievalCases,
+                negExcludedCases,
                 hits,
                 ratio(hits, labeled),
                 ratio(rrSum, labeled),
@@ -181,8 +201,21 @@ public final class EvalReportAggregator {
     }
 
     /**
+     * neg 用例判定（task-0004）：应拒答题（expectedRefusal=true，数据集 type=neg）退出检索指标分母。
+     * 判定来源是用例明细的 {@code generation.refusalExpected()}——用例执行侧经 {@link GenerationMetrics}
+     * 把数据集标注写入该字段，聚合器从这里识别，不再重复解析数据集。
+     * 已知口径损失：回答未产出（检索/生成失败）的用例没有 generation 明细、无法识别 neg——
+     * 检索失败的用例本来就不进检索分母；检索成功但生成失败的 neg 用例会留在检索分母，
+     * 与普通用例口径一致（数量可从 failedCases/GENERATION_FAILED 侧复核）。
+     */
+    private static boolean isNegCase(EvalCaseResult result) {
+        GenerationMetrics.Result generation = result == null ? null : result.generation();
+        return generation != null && generation.refusalExpected();
+    }
+
+    /**
      * 数据集级 nDCG@K：每个 K 一项（键为 K 值），按用例明细里记录的分块相关性计算，与 Recall@K 同一分母
-     * （只算标注了期望文档的用例）。没有可计算样本或未配置 K 时为 null。
+     * （只算标注了期望文档且非 neg 的用例）。没有可计算样本或未配置 K 时为 null。
      */
     private static Map<String, Double> ndcgByK(List<EvalCaseResult> labeledResults, List<Integer> ks) {
         if (labeledResults.isEmpty() || ks == null || ks.isEmpty()) {

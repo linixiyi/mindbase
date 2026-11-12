@@ -28,7 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>md5/chunkId 解析：{@code expectedFileMd5s} 与 {@code expectedChunkIds} 都被解析器接受；
  *       chunkIds 与 expectedFileNames 长度不一致时 warn 不崩（分块级 gold 不可用，回退短语）；</li>
  *   <li>回填后覆盖率 100%：打包资源 eval-v2.jsonl 的 126 条 gold 全部带与
- *       eval-datasets/manifest.json 一致的 expectedFileMd5s；</li>
+ *       eval-datasets/manifest.json 一致的 expectedFileMd5s；chunkId 回填（task-0005，
+ *       D8）后按实际状态分支断言：分块级 gold 可用 → {@code goldFallback=null}，
+ *       未回填或匹配不到写 [] → 短语回退 {@code goldFallback=phrase}（绝不写空串）；</li>
  *   <li>chunkId 优先于短语：标注 chunkIds 后命中按 chunkId 判定（同文件其他分块即使含证据短语也不算命中），
  *       未标注或检索结果未带 chunkId（未索引）时回退短语判定并标 {@code goldFallback=phrase}。</li>
  * </ul>
@@ -124,8 +126,21 @@ class EvalGoldFieldsTest {
                 assertEquals(expected, md5s.get(i),
                         "用例 " + evalCase.id() + " 的 md5 应与 manifest 一致（" + name + "）");
             }
-            assertEquals(EvalCase.GOLD_FALLBACK_PHRASE, evalCase.goldFallback(),
-                    "当前数据集未标注 chunkIds 且都有证据短语，全部应为 goldFallback=phrase");
+            // 写回后口径（D8，task-0005）：分块级 gold 可用（chunkIds 非空且与文件数平行）→
+            // goldFallback 为 null；不可用（未回填，或匹配不到证据短语写 []）→ 仍回退短语口径。
+            // 按数据集实际状态分支断言，而不是只断言单边。
+            if (evalCase.hasUsableChunkGold()) {
+                assertNull(evalCase.goldFallback(),
+                        "chunkId 已回填的用例 " + evalCase.id() + " 应是分块级 gold 可用口径（goldFallback=null）");
+                for (String chunkId : evalCase.expectedChunkIds()) {
+                    assertFalse(chunkId.isBlank(),
+                            "用例 " + evalCase.id() + " 的 chunkId 不应为空白（匹配不到应写 [] 而不是空串，"
+                                    + "空串在 chunkId 口径下永假且不回退短语）");
+                }
+            } else {
+                assertEquals(EvalCase.GOLD_FALLBACK_PHRASE, evalCase.goldFallback(),
+                        "未回填 chunkId 的用例 " + evalCase.id() + " 应回退短语口径（goldFallback=phrase）");
+            }
         }
     }
 

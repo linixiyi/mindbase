@@ -177,18 +177,21 @@ class EvalSmokeFixtureTest {
         assertTrue(report.get("cases").get(0).has("question") && !report.get("cases").get(0).get("question").asText().isBlank(),
                 "cases 保留问题明细，可离线复核");
 
-        // 检索指标：19 题可评（fact-06 检索异常不计入分母），18 命中；neg-01 命中期望文件但证据短语未命中
+        // 检索指标（task-0004 neg 口径）：分母只含非 neg——18 题可评（fact-06 检索异常不计入分母，
+        // neg-01 应拒答题退出分母单独计数），18 命中；neg-01 检索未命中且不再拉低任何检索率
         JsonNode summary = report.get("summary");
         assertEquals(20, summary.get("totalCases").asInt());
-        assertEquals(19, summary.get("labeledCases").asInt());
+        assertEquals(18, summary.get("labeledCases").asInt(), "neg-01 退出检索分母：18/19");
+        assertEquals(18, summary.get("retrievalCases").asInt(), "检索题数（新口径分母）= 非 neg 可评用例");
+        assertEquals(1, summary.get("negExcludedCases").asInt(), "neg-01 单独计数，不计命中率");
         assertEquals(18, summary.get("retrievalHits").asInt());
-        assertEquals(0.9474, summary.get("recallAtK").asDouble(), 1e-4, "18/19");
-        assertEquals(1.0, summary.get("docRecallAtK").asDouble(), 1e-4, "neg-01 文件级命中，19/19");
-        assertEquals(0.9211, summary.get("mrr").asDouble(), 1e-4, "17 题 rank1 + multi-02 rank2 = 17.5/19");
-        assertEquals(19, summary.get("evidenceLabeledCases").asInt());
-        assertEquals(0.8947, summary.get("meanExpectedDocCoverage").asDouble(), 1e-4, "16 全覆盖 + 2 半覆盖 = 17/19");
-        assertEquals(0.8421, summary.get("fullCoverageHitRate").asDouble(), 1e-4, "半覆盖不算全命中：16/19");
-        assertEquals(0.9279, summary.get("ndcgAtK").get("5").asDouble(), 1e-4, "multi-02 的 1/log2(3) 折损");
+        assertEquals(1.0, summary.get("recallAtK").asDouble(), 1e-4, "18/18（neg 不再拉低 recall）");
+        assertEquals(1.0, summary.get("docRecallAtK").asDouble(), 1e-4, "18/18：neg-01 文件级命中也不进分母");
+        assertEquals(0.9722, summary.get("mrr").asDouble(), 1e-4, "17 题 rank1 + multi-02 rank2 = 17.5/18");
+        assertEquals(18, summary.get("evidenceLabeledCases").asInt(), "neg-01 虽带 expectedEvidence 但不进 evidenceLabeled");
+        assertEquals(0.9444, summary.get("meanExpectedDocCoverage").asDouble(), 1e-4, "16 全覆盖 + 2 半覆盖 = 17/18");
+        assertEquals(0.8889, summary.get("fullCoverageHitRate").asDouble(), 1e-4, "半覆盖不算全命中：16/18");
+        assertEquals(0.9795, summary.get("ndcgAtK").get("5").asDouble(), 1e-4, "multi-02 的 1/log2(3) 折损，neg 不进 nDCG 分母");
         assertEquals(0.05, summary.get("retrievalErrorRate").asDouble(), 1e-4, "1/20 检索异常单列，不从分母消失");
 
         // 评委指标：19 题被判（fact-06 无回答不判评委），neg-01 答错
