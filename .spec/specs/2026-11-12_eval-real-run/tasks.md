@@ -102,3 +102,16 @@
   - 测试：verify 只校验摘要文件（不重复触发评测）；摘要必须通过 0007 的 `--check`。
   - 成功判定：摘要存在且 `totalCases=120`、`retrievalCases>0`、`fullCoverageHitRate` 非 null、`retrievalErrorRate<=0.1`；`docs/eval/first-real-run.md` 的记录与实际命令一致。
   - 失败处理：后端起不来、模型 key 失效、入库卡住时停下并报告具体阶段与日志位置，不得手写或伪造摘要；首跑失败先看 readiness 与报告 `retrievalMode`，不要连续重跑烧 token。
+
+- [x] task-0009 Tika/PDFBox 回退解析引擎
+  - id: task-0009
+  - boundary: src/main/java/com/mindbase/service/ParseService.java, new:src/test/java/com/mindbase/service/ParseTikaFallbackTest.java
+  - verify: `cd /Users/linyixi/PaiSmart/.spec/worktrees/2026-11-12_eval-real-run && ./mvnw -q -B -Dtest=ParseTikaFallbackTest test`
+  - expect: red
+  - depends-on: task-0001
+  - 背景：本机未安装 LiteParse（lit 命令缺失、tesseract 缺失），后端唯一 PDF 引擎不可用，4 篇已上传 PDF 解析失败进死信（vectorization_status=FAILED，Exec failed error 2）。Apache Tika/pdbox 已在 classpath（tika-parsers-standard-package → pdfbox 2.0.29），零新依赖。裁决见 Decisions D10。
+  - 交付：ParseService 增 engine=tika 分支——parsePdfWithPdfBox(InputStream) 用 PDFBox Loader 逐页 PDFTextStripper 抽文本，经 normalizeLiteParseText 同口径归一后构造 LiteParsePage(pageNumber, text)；两处调用点（parsePdfAndSave/estimatePdfEmbeddingUsage）改经统一分发器按 pdfParsingEngine 路由（liteparse 走原路径，tika 走新分支，其他值保持原有报错语义）；LiteParse 默认引擎不变，不改 application.yml，后端以 FILE_PARSING_PDF_ENGINE=tika 环境变量启动。
+  - 测试：ParseTikaFallbackTest 用 PDFBox 在测试内构造 2 页 PDF，断言页号 1/2 与两页文本被抽取出（归一后包含所植关键词）；反射调用私有分支方法，ReflectionTestUtils 设 engine=tika；无外部服务。
+  - 成功判定：测试绿；LiteParse 路径行为不变（既有 ParseServiceUnitTest 不回归）。
+  - 失败处理：PDFBox 解不出文本层的扫描页返回空文本由调用方跳过（与 07 OCR blocked 既有口径一致）；不得为了绕过而删除 LiteParse 路径。
+  - origin: emergent
