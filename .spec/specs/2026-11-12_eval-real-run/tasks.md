@@ -57,7 +57,7 @@
   - 成功判定：测试绿；smoke fixture 报告的 `retrievalCases` 小于 `totalCases`。
   - 失败处理：不得把 neg 从 accuracy/refusal 指标里一并排除；不得改报告 schemaVersion（保持 2.0，只加字段）。
 
-- [ ] task-0005 按证据短语回填 expectedChunkIds
+- [x] task-0005 按证据短语回填 expectedChunkIds
   - id: task-0005
   - boundary: new:scripts/eval_backfill_chunk_ids.py, src/main/resources/eval/eval-v2.jsonl, src/test/java/com/mindbase/service/eval/EvalGoldFieldsTest.java
   - verify: `cd /Users/linyixi/PaiSmart/.spec/worktrees/2026-11-12_eval-real-run && python3 -B scripts/eval_backfill_chunk_ids.py --check --min-coverage 0.9`
