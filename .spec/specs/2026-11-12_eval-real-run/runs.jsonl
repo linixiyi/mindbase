@@ -1,0 +1,9 @@
+{"cmd": "cd /Users/linyixi/PaiSmart && python3 -B scripts/eval_corpus_ingest.py --self-test", "duration": 0.011, "exit": 2, "expect": "red", "kind": "baseline", "task": "task-0001", "ts": "2026-11-12T16:04:51+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && python3 -B scripts/eval_corpus_readiness.py --check", "duration": 0.012, "exit": 2, "expect": "red", "kind": "baseline", "task": "task-0002", "ts": "2026-11-12T16:04:51+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && bash scripts/eval_real_smoke.sh --require-corpus", "duration": 0.007, "exit": 2, "expect": "red", "kind": "baseline", "task": "task-0003", "ts": "2026-11-12T16:04:51+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=NegRetrievalMetricScopeTest test", "duration": 7.184, "exit": 1, "expect": "red", "kind": "baseline", "task": "task-0004", "ts": "2026-11-12T16:04:58+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && python3 -B scripts/eval_backfill_chunk_ids.py --check --min-coverage 0.9", "duration": 0.02, "exit": 2, "expect": "red", "kind": "baseline", "task": "task-0005", "ts": "2026-11-12T16:04:59+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && python3 -B scripts/eval_release_preflight.py --self-test", "duration": 0.014, "exit": 2, "expect": "red", "kind": "baseline", "task": "task-0006", "ts": "2026-11-12T16:04:59+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && python3 -B scripts/eval_report_summary.py --self-test", "duration": 0.014, "exit": 2, "expect": "red", "kind": "baseline", "task": "task-0007", "ts": "2026-11-12T16:04:59+00:00"}
+{"cmd": "cd /Users/linyixi/PaiSmart && python3 -B scripts/eval_report_summary.py --check docs/eval/reports/v2-first-summary.json", "duration": 0.014, "exit": 2, "expect": "red", "kind": "baseline", "task": "task-0008", "ts": "2026-11-12T16:04:59+00:00"}
+{"dirty": [], "head": "1ce1474e15013f298116a178dee5c1e2a3112993", "kind": "baseline", "task": "package", "ts": "2026-11-12T16:04:59+00:00"}
