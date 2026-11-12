@@ -79,3 +79,71 @@ v2 评测数据集 `src/main/resources/eval/eval-v2.jsonl` 换成 `eval-datasets
 ```bash
 cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=EvalDatasetIntegrityTest test
 ```
+
+## 压缩摘要口径（eval-real-run task-0007：`scripts/eval_report_summary.py`）
+
+报告全文（126 题的 question/answer/retrievedText/judgeReason）留在 git 忽略的 `eval-reports/`；
+交付里可审计的证据是本目录下的**压缩摘要** JSON（`summarySchemaVersion=1`，<30KB），
+由 `scripts/eval_report_summary.py` 产出与校验。该脚本只读文件（报告与 sidecar 冻结不改），
+**Python 侧不自产数字**：指标一律原样引用报告，counting 块只记录剔除事实。
+
+### 计数口径（spec D9，2026-11-13 裁决）
+
+后端跑全量数据集：`EvalDatasetParser` 不读数据集的 `status` 字段（`EvalCase` 无该字段），
+`eval-v2.jsonl` 的 126 行全部执行——其中 6 行 `status="blocked"` 的 07 扫描件 OCR 题
+**也会被执行**，所以真机报告 `summary.totalCases=126`。摘要按"计数口径"呈现三个数：
+
+| 字段 | 首跑真机值 | 说明 |
+| --- | --- | --- |
+| `counting.reportTotalCases` | 126 | 报告原样（含 6 条 blocked 执行题） |
+| `counting.blockedExcluded` | 6 | caseId 命中数据集 `status="blocked"` id 集，**不进计数** |
+| `counting.effectiveCases` | 120 | 剔除后，必须 `==120` 否则校验失败并列差集 |
+
+blocked id 集按报告 `datasetSource` 定位数据集文件解析（镜像 `RagEvalService.loadDataset` 的
+解析规则：`classpath:eval/<名>` → `src/main/resources/eval/<名>`，其余按 `eval-datasets/`
+相对、再按工作树根相对）；id 对 id 精确匹配，不猜测。数据集文件定位不到时报
+"无法核对计数口径"退出 2（fail-closed）；数据集没有 blocked 题时按同口径核对
+（有效题数=全部用例数，与 120 不符如实报）。`blockedCaseIds` 清单入摘要，剔除不悄悄消失；
+指标数字仍是报告原值（分母含 blocked 执行题），`metrics.metricsNote` 已注明。
+
+### 命令
+
+```bash
+# 产出摘要：报告缺省自动取 eval-reports/ 最新一份 *.json（*.human-reviews.json 除外）；
+# EVAL_MAX_CASES=20 预热报告会因有效题数 !=120 被拒，防止把预热轮当正式轮归档
+python3 -B scripts/eval_report_summary.py --write docs/eval/reports/v2-first-summary.json
+
+# 校验已有摘要（task-0008 的 verify 就是这一条；自包含，不要求报告/数据集还在）
+python3 -B scripts/eval_report_summary.py --check docs/eval/reports/v2-first-summary.json
+
+python3 -B scripts/eval_report_summary.py --self-test   # 离线 fixture 自检
+```
+
+退出码：0 通过；1 校验失败（不是 v2 报告 / 题数不符 / 覆盖率或错误率为 null / gate 键缺失 /
+摘要含正文 / 超 30KB）；2 环境错误（文件缺失或非法 JSON、数据集无法定位、--write 目标撞上
+报告或 sidecar）。报告缺 `schemaVersion` 时明确报"不是 v2 报告"，不回退猜测。
+
+### 摘要内容与防正文
+
+内容：runId、label、startedAt/finishedAt、datasetSource、topK、generation/judge 模型
+（报告 `config.llm/judge` 原值；没有激活主供应商时 `config.llm=null`，摘要如实记 null）、
+config 关键项（judge/judgeIndependence/rrf/rerank/parentContext）、summary 指标子集
+（33 个指标 + 检索模式/诊断计数）、counting 三数与 blocked id 清单、报告原始 release gate
+（judgeIndependence/releaseEligible/releaseBlockedReason 冻结值）、sidecar 的 κ 与
+effective release gate（复用 `scripts/eval_release_preflight.py` 同一套纯函数，
+"报告 + sidecar"重算，与 task-0006 预检同口径）、cost（含 tokenUsage）。
+
+防正文：摘要不含 question/answer/retrievedText 等（`--check` 深扫全部键与字符串，
+禁止键命中或任何字符串 >500 字符判为疑似正文，一律拒绝）。`--self-test` fixture 覆盖：
+合格（126=120+6 blocked，三数正确且报告只读）、上游已过滤（正好 120 题）、题数不符
+（预热 20 题）、blocked 剔除后 ≠120（差集列出）、数据集无 blocked（126≠120 如实报）、
+覆盖率/错误率 null、缺 schemaVersion、gate 键缺失、数据集无法定位、摘要含正文注入
+（必须拒绝）与 sidecar κ 翻盘/绑定。
+
+### smoke fixture 报告为何产不出摘要
+
+`target/eval-smoke/*.json`（`EvalSmokeFixtureTest` 产出）的 `datasetSource` 是
+`inline-fixture-20.jsonl`——20 题 fixture 走 inline 提交、没有落盘数据集文件，计数口径无法
+核对（退出 2 "无法核对计数口径"），且 20 题本来就不满足 120 计数口径。这是预期行为：
+摘要脚本只归档 120 题真机报告；已实测该路径输出不含报告任何正文片段（60 条
+question/answer/retrievedText 等提取片段 0 命中），也不落盘任何文件。

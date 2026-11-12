@@ -80,7 +80,7 @@
   - 成功判定：`--self-test` 绿；失败输出能让用户直接照做。
   - 失败处理：报告缺字段时报"该报告不能用于发布判定"，不得默认 PASS；不得自动生成人工标签。
 
-- [ ] task-0007 v2 报告校验与压缩摘要
+- [x] task-0007 v2 报告校验与压缩摘要
   - id: task-0007
   - boundary: new:scripts/eval_report_summary.py, docs/eval/reports/README-v2.md
   - verify: `cd /Users/linyixi/PaiSmart/.spec/worktrees/2026-11-12_eval-real-run && python3 -B scripts/eval_report_summary.py --self-test`
