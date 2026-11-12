@@ -91,7 +91,7 @@
   - 成功判定：`--self-test` 绿；摘要文件 <30KB。
   - 失败处理：报告缺 schemaVersion 时明确报"不是 v2 报告"，不回退猜测；不得把 120 题以外的 blocked 题算进计数。
 
-- [ ] task-0008 真机跑通并产出首份 v2 摘要
+- [x] task-0008 真机跑通并产出首份 v2 摘要
   - id: task-0008
   - boundary: new:docs/eval/reports/v2-first-summary.json, new:docs/eval/first-real-run.md
   - verify: `cd /Users/linyixi/PaiSmart/.spec/worktrees/2026-11-12_eval-real-run && python3 -B scripts/eval_report_summary.py --check docs/eval/reports/v2-first-summary.json`

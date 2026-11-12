@@ -1,0 +1,139 @@
+{
+  "summarySchemaVersion": 1,
+  "generatedAt": "2026-11-12T21:47:58Z",
+  "source": {
+    "reportFile": "20261113-045306_real-smoke-1794516786_abe90a03bd59.json",
+    "reportPath": "eval-reports/20261113-045306_real-smoke-1794516786_abe90a03bd59.json",
+    "sidecarFile": null
+  },
+  "runId": "abe90a03bd59",
+  "label": "real-smoke-1794516786",
+  "datasetSource": "classpath:eval/eval-v2.jsonl",
+  "topK": 5,
+  "startedAt": "2026-11-12T20:53:06.745878Z",
+  "finishedAt": "2026-11-12T21:40:54.687756Z",
+  "models": {
+    "generation": "deepseek/cbcn/glm-5.3-flash",
+    "judge": "SELF_JUDGE"
+  },
+  "config": {
+    "judge": "SELF_JUDGE",
+    "judgeIndependence": "SELF_JUDGE",
+    "rrfK": 60,
+    "rerankEnabled": true,
+    "rerankModel": "gte-rerank-v2",
+    "rerankScoreThreshold": 0.1,
+    "parentContextEnabled": true,
+    "parentContextNeighbourChunks": 1,
+    "parentContextMaxCharsPerHit": 1500
+  },
+  "counting": {
+    "datasetFile": "src/main/resources/eval/eval-v2.jsonl",
+    "datasetSourceResolved": "classpath:eval/<名> → src/main/resources/eval/eval-v2.jsonl",
+    "reportTotalCases": 126,
+    "blockedExcluded": 6,
+    "effectiveCases": 120,
+    "blockedCaseIds": [
+      "ocr-07-blocks",
+      "ocr-07-logical-address",
+      "ocr-07-physical-address",
+      "ocr-07-io-exchange",
+      "ocr-07-inode",
+      "ocr-07-cluster"
+    ],
+    "unexpectedCaseIds": [],
+    "missingCountingIds": [],
+    "countingNote": "D9 计数口径：有效题数=报告用例剔除数据集 status=blocked 的 caseId 后必须为 120；指标原样引用报告不重算"
+  },
+  "metrics": {
+    "totalCases": 126,
+    "labeledCases": 109,
+    "retrievalCases": 109,
+    "negExcludedCases": 17,
+    "retrievalHits": 62,
+    "recallAtK": 0.5688,
+    "mrr": 0.3734,
+    "docRecallAtK": 0.9083,
+    "evidenceLabeledCases": 109,
+    "meanExpectedDocCoverage": 0.5329,
+    "judgedCases": 124,
+    "correctCases": 108,
+    "meanJudgeScore": 4.5323,
+    "accuracy": 0.871,
+    "needsHumanReviewCount": 9,
+    "failedCases": 0,
+    "retrievalModeCounts": {
+      "HYBRID_RRF": 126
+    },
+    "diagnosisCounts": {
+      "OK": 68,
+      "PROMPT_OR_MODEL": 4,
+      "RETRIEVAL_MISS": 14,
+      "MISS_BUT_CORRECT": 40,
+      "NOT_LABELED": 0,
+      "RETRIEVAL_FAILED": 0,
+      "GENERATION_FAILED": 0,
+      "JUDGE_FAILED": 0
+    },
+    "ndcgAtK": {
+      "3": 0.3938,
+      "5": 0.4233,
+      "10": 0.4233
+    },
+    "fullCoverageHitRate": 0.4954,
+    "retrievalErrorRate": 0.0,
+    "refusalLabeledCases": 126,
+    "refusalCorrectCases": 88,
+    "refusalAccuracy": 0.6984,
+    "refusalExpectedCases": 17,
+    "refusedAsExpected": 13,
+    "faithfulness": 0.0638,
+    "citationPrecision": 0.5052,
+    "citationRecall": 0.8503,
+    "judgeRepeatEnabled": true,
+    "judgeAgreementCases": 124,
+    "judgeDisagreementCases": 2,
+    "judgeAgreementRate": 0.9841,
+    "metricsNote": "报告原始数字：后端按报告全部用例计算（分母含 blocked 执行题），本摘要原样引用、不重算；有效计数口径见 counting 块（D9）"
+  },
+  "releaseGate": {
+    "judgeIndependence": "SELF_JUDGE",
+    "releaseEligible": false,
+    "releaseBlockedReason": "评委与生成共用同一模型（SELF_JUDGE），自评分数不能用于发布判定；kappa 未计算：无人工复核数据，不伪造 κ"
+  },
+  "effectiveReleaseGate": {
+    "sidecarFile": null,
+    "hasSidecar": false,
+    "agreementSource": "无（同目录未找到 20261113-045306_real-smoke-1794516786_abe90a03bd59.human-reviews.json，报告也无内嵌 agreement）",
+    "cohensKappa": null,
+    "comparableCases": null,
+    "comparableCasesKey": null,
+    "minKappa": 0.6,
+    "minComparableCases": 5,
+    "thresholdSources": {
+      "minKappa": "缺省 0.6（eval.human-agreement.min-kappa）",
+      "minComparableCases": "缺省 5（eval.human-agreement.min-comparable-cases）"
+    },
+    "eligible": false,
+    "codes": [
+      "SELF_JUDGE",
+      "NO_HUMAN_REVIEWS",
+      "UNPRICED"
+    ],
+    "blockedReasons": [
+      "SELF_JUDGE：评委与生成共用同一模型（config.judgeIndependence=SELF_JUDGE），自评分数不能用于发布判定",
+      "无人工判定：没有 sidecar，也没有报告内嵌 agreement，κ 未计算",
+      "未配价：cost.amount=null（note: unpriced: set eval.pricing.*），费用不可折算"
+    ]
+  },
+  "cost": {
+    "amount": null,
+    "currency": null,
+    "note": "unpriced: set eval.pricing.*",
+    "tokenUsage": {
+      "promptTokens": 1834249,
+      "completionTokens": 54346,
+      "totalTokens": 1888595
+    }
+  }
+}

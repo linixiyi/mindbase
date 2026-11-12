@@ -68,6 +68,7 @@
 - D8 | task-0005 卡面成功判定明文"写回后 mvn -Dtest=EvalGoldFieldsTest test 通过"，但 boundary 未列该测试文件——EvalGoldFieldsTest:127-128 是写回前过渡态断言（"当前数据集未标注 chunkIds…全部应为 goldFallback=phrase"），任何符合解析器语义的写回（chunkIds 非空→goldFallback=null）都必然打破它，故意写错长度则触发 parser warn 打破 EvalDatasetIntegrityTest，冲突结构性无两全；授权迁移该断言为"chunkIds 非空→goldFallback 为 null（分块级 gold 可用）；为空→仍 phrase（短语回退）"并同步类 javadoc 与消息文本，按交付补入 boundary，非扩权 | by: V2 | reversal: checkpoint revert
 - D9 | task-0007 "totalCases=120" 口径裁决：后端全量跑 126 行（EvalDatasetParser 不读 status、runAll 全跑），严格 ==120 会使真机报告必败且需越界改后端；裁决为计数口径——--check 接受 126，按 report.datasetSource 定位数据集、取 status=blocked 的 id 集（实测 6 条 ocr-07-*），用报告 case.caseId 精确匹配剔除后要求有效题数==120，摘要显式暴露 reportTotalCases/blockedExcluded；rate 指标原样引用报告（Python 侧不自产数字，与 README-v2 一致）；与 F3"blocked 不进分母"既定意图一致 | by: V2 | reversal: checkpoint revert
 - D10 | LiteParse（lit 命令）与 tesseract 本机均未安装，后端唯一 PDF 引擎不可用致入库死信；AskUserQuestion 裁决窗口未获响应，按自主合同与预标推荐项执行：授权 Tika/PDFBox 回退引擎（Tika 已在 classpath，V5 无新依赖）——engine=tika 经环境变量 FILE_PARSING_PDF_ENGINE 启用，LiteParse 保持默认引擎不动、不改 application.yml；扫描件无文本层时页为空被跳过（与 07 OCR blocked 既定口径一致）；由 emergent task-0009 承接 ParseService.java | by: V2 | reversal: checkpoint revert
+- D11 | task-0005 卡面"expectedChunkIds 与 evidence 一一对应"与解析器契约不符：expectedChunkIds 与 expectedFileNames 平行、每文件单值（EvalCase.java:19-22/99-100），按 evidence 平行写回会让 55 行多证据题触发 parser 长度 warn 且分块级 gold 失效；实现按解析器契约落地（写回后失配 0/126、hasUsableChunkGold 126/126），实测覆盖率 1.0000 | by: V2 | reversal: checkpoint revert
 
 ## Parked
 
