@@ -34,7 +34,7 @@
   - 成功判定：`--check` 退出 0 且 10/10 文件分块数 ≥1；`--self-test` 绿。
   - 失败处理：ES 不可达报"连接失败"而不是"分块为 0"；凭据缺失时给出环境变量名，不猜默认密码。
 
-- [ ] task-0003 真机冒烟接语料就绪前置
+- [x] task-0003 真机冒烟接语料就绪前置
   - id: task-0003
   - boundary: scripts/eval_real_smoke.sh, docs/eval/real-smoke.md
   - verify: `cd /Users/linyixi/PaiSmart/.spec/worktrees/2026-11-12_eval-real-run && bash scripts/eval_real_smoke.sh --require-corpus`

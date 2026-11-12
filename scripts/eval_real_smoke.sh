@@ -12,6 +12,13 @@
 #                     retrievalErrorRate<=EVAL_MAX_ERROR_RATE(默认0.1) 且
 #                     fullCoverageHitRate>=EVAL_MIN_COVERAGE(默认0.5)，不满足退出 1。
 #                     缺凭据退出 2 并指明缺哪个变量。401 时重新登录一次再试。
+#   --require-corpus:  语料就绪门禁（task-0003）：等价于 dry-run + 就绪检查——静态检查通过后调用
+#                     python3 scripts/eval_corpus_readiness.py --check（task-0002，把 manifest 的
+#                     每个 md5 与 ES 分块数对上），未就绪退出 2 并列出缺哪几篇；readiness 脚本
+#                     不存在时报「缺就绪检查」退出 2，不静默跳过。
+#                     --run --require-corpus：提交评测前强制同一检查，检查不过退出 2、
+#                     绝不发出 POST /api/v1/admin/eval/run；EVAL_SKIP_CORPUS_CHECK=1 可显式跳过
+#                     （仅限调试，只对 --run 生效）。
 #
 # 与后端代码事实对齐（RagEvalService.RunState）：
 #   - 后端终态枚举是 RUNNING/SUCCEEDED/FAILED；脚本把 SUCCEEDED/COMPLETED 都当成功终态、
@@ -19,7 +26,7 @@
 #   - datasetPath 只有 "classpath:eval/<名>" 走 classpath（RagEvalService.CLASSPATH_PREFIX），
 #     裸文件名会解析到 eval-datasets/ 下；默认提交 "classpath:eval/eval-v2.jsonl"。
 #
-# 真机前置与失败排查见 docs/eval/real-smoke.md 与 .spec/specs/2026-11-10_fix-eval-and-runtime-gaps/runbook.md。
+# 真机前置与失败排查见 docs/eval/real-smoke.md 与 docs/eval/runbook.md（服务/凭据/端点）。
 # token/密码只进内存：不写文件、不进日志、不回显。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -27,7 +34,7 @@ REPO_ROOT="$(pwd)"
 
 usage() {
   cat <<'EOF'
-用法: bash scripts/eval_real_smoke.sh [--dry-run|--run]
+用法: bash scripts/eval_real_smoke.sh [--dry-run|--run] [--require-corpus]
 
   --dry-run（默认）  只读静态检查：curl/python3 存在、EVAL_BASE_URL 缺省 http://localhost:8081、
                     数据集可读、报告目录可创建、/actuator/health 软检查（不可达只 warn）。
@@ -38,18 +45,50 @@ usage() {
                     retrievalErrorRate<=0.1（EVAL_MAX_ERROR_RATE 可覆盖）与
                     fullCoverageHitRate>=0.5（EVAL_MIN_COVERAGE 可覆盖）。
                     缺凭据退出 2 并指明缺哪个变量；401 自动重新登录一次；断言不满足退出 1。
+  --require-corpus   语料就绪门禁（等价于 dry-run + 就绪检查）：静态检查通过后调用
+                    python3 scripts/eval_corpus_readiness.py --check（manifest 的每个 md5 ↔
+                    ES 分块数）；未就绪退出 2 并列出缺哪几篇（补救：语料入库
+                    python3 scripts/eval_corpus_ingest.py --run，见 docs/eval/corpus-ingest.md）；
+                    readiness 脚本不存在时报「缺就绪检查」退出 2，不静默跳过。
+  --run --require-corpus
+                    真跑 + 提交前强制同一语料就绪检查：检查不过退出 2、不提交评测。
+                    EVAL_SKIP_CORPUS_CHECK=1 显式跳过（仅限调试，只对 --run 生效；
+                    --require-corpus 单独使用时检查照常执行）。
 
-环境变量与失败排查见 docs/eval/real-smoke.md。
+环境变量与失败排查见 docs/eval/real-smoke.md；语料入库见 docs/eval/corpus-ingest.md。
 EOF
 }
 
 DRY_RUN=1
-case "${1:---dry-run}" in
-  --dry-run|-d) DRY_RUN=1 ;;
-  --run|-r)     DRY_RUN=0 ;;
-  --help|-h)    usage; exit 0 ;;
-  *) echo "!! 未知参数: $1（支持 --dry-run / --run / --help）" >&2; exit 2 ;;
-esac
+REQUIRE_CORPUS=0
+MODE_SET=""
+if [ "$#" -eq 0 ]; then
+  set -- --dry-run
+fi
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --dry-run|-d)
+      if [ -n "$MODE_SET" ] && [ "$MODE_SET" != "dry" ]; then
+        echo "!! --dry-run 与 --run 互斥，只能二选一" >&2
+        exit 2
+      fi
+      DRY_RUN=1
+      MODE_SET=dry
+      ;;
+    --run|-r)
+      if [ -n "$MODE_SET" ] && [ "$MODE_SET" != "run" ]; then
+        echo "!! --dry-run 与 --run 互斥，只能二选一" >&2
+        exit 2
+      fi
+      DRY_RUN=0
+      MODE_SET=run
+      ;;
+    --require-corpus) REQUIRE_CORPUS=1 ;;
+    --help|-h)        usage; exit 0 ;;
+    *) echo "!! 未知参数: $1（支持 --dry-run / --run / --require-corpus / --help）" >&2; exit 2 ;;
+  esac
+  shift
+done
 
 # ---- 配置（环境变量可覆盖） ----------------------------------------------
 BASE_URL="${EVAL_BASE_URL:-http://localhost:8081}"   # 缺省 localhost:8081
@@ -62,6 +101,10 @@ POLL_INTERVAL="${EVAL_POLL_INTERVAL_SECONDS:-15}"
 POLL_TIMEOUT="${EVAL_POLL_TIMEOUT_SECONDS:-1800}"
 OUTPUT_DIR="${EVAL_OUTPUT_DIR:-eval-reports}"        # 与 application.yml eval.output-dir 缺省一致
 LABEL="real-smoke-$(date +%s)"
+# 语料就绪检查（task-0003）：readiness 脚本固定在本工作树 scripts/ 下（task-0002）；
+# EVAL_CORPUS_MANIFEST 可把 readiness 临时指向别的 manifest（透传 --manifest，调试/fixture 用）。
+READINESS_SCRIPT="$REPO_ROOT/scripts/eval_corpus_readiness.py"
+CORPUS_MANIFEST="${EVAL_CORPUS_MANIFEST:-}"
 
 ERRLOG="$(mktemp /tmp/eval-smoke-curl.XXXXXXXX)"
 # 门禁脚本必须保住原退出码：bash 3.2 的 EXIT trap 会把退出码重置为 trap 内最后一条命令的状态，
@@ -123,6 +166,43 @@ health_check() {  # 软检查：不可达只 warn，不算失败
   else
     echo "OK: /actuator/health 200"
   fi
+}
+
+# 语料就绪检查（task-0003）：调 eval_corpus_readiness.py --check（manifest ↔ ES 分块数）。
+# readiness 的退出码：0 就绪；1 未就绪（输出自带缺哪几篇的表格与清单）；2 无法判定
+# （ES 连接/认证失败、索引不存在、manifest 问题）。脚本的输出原样透传，不在本脚本里转述数字。
+#   - 未就绪/无法判定 → 一律退出 2（fail-closed），不静默放行；
+#   - readiness 脚本本身缺失 → 报「缺就绪检查」退出 2，绝不静默跳过。
+corpus_readiness_check() {
+  if [ ! -f "$READINESS_SCRIPT" ]; then
+    echo "!! 缺就绪检查：找不到 $READINESS_SCRIPT" >&2
+    echo "   没有「manifest ↔ ES 分块数」门禁就无法判定语料是否入库；按未就绪处理，退出 2（不静默跳过）" >&2
+    echo "   修复：确认当前工作树 scripts/ 下有 eval_corpus_readiness.py（task-0002）后重跑" >&2
+    exit 2
+  fi
+  local rc=0
+  if [ -n "$CORPUS_MANIFEST" ]; then
+    echo "==> 语料就绪检查（python3 scripts/eval_corpus_readiness.py --check --manifest ${CORPUS_MANIFEST}）..."
+    python3 -B "$READINESS_SCRIPT" --check --manifest "$CORPUS_MANIFEST" || rc=$?
+  else
+    echo "==> 语料就绪检查（python3 scripts/eval_corpus_readiness.py --check）..."
+    python3 -B "$READINESS_SCRIPT" --check || rc=$?
+  fi
+  case "$rc" in
+    0)
+      echo "OK: 语料就绪（manifest 全部文件 ES 分块数达标）"
+      ;;
+    1)
+      echo "!! 语料未就绪（缺哪几篇见上方 readiness 表格与清单）——不提交评测，退出 2" >&2
+      echo "   补救：python3 scripts/eval_corpus_ingest.py --run（dry-run/断点续传见 docs/eval/corpus-ingest.md）" >&2
+      exit 2
+      ;;
+    *)
+      echo "!! 语料就绪无法判定（eval_corpus_readiness.py --check 退出 ${rc}；常见：ES 连接/认证失败、manifest 问题）——按未就绪处理，退出 2" >&2
+      echo "   排查见 docs/eval/runbook.md 与 docs/eval/real-smoke.md" >&2
+      exit 2
+      ;;
+  esac
 }
 
 static_checks() {
@@ -283,7 +363,11 @@ PY
 # ---- dry-run（默认） ------------------------------------------------------
 
 if [ "$DRY_RUN" = "1" ]; then
-  echo "==> 真机冒烟 dry-run：只读静态检查（不要求 token，不发起真跑）"
+  if [ "$REQUIRE_CORPUS" = "1" ]; then
+    echo "==> 真机冒烟 dry-run + 语料就绪检查（--require-corpus）：只读检查（不要求 token，不发起真跑）"
+  else
+    echo "==> 真机冒烟 dry-run：只读静态检查（不要求 token，不发起真跑）"
+  fi
   if [ -z "${EVAL_BASE_URL:-}" ]; then
     echo "NOTE: EVAL_BASE_URL 未设置，缺省 $BASE_URL"
   fi
@@ -292,16 +376,38 @@ if [ "$DRY_RUN" = "1" ]; then
   echo "OK: python3 存在"
   echo "OK: 数据集 $(resolve_dataset_file "$DATASET_PATH") 可读（datasetPath=${DATASET_PATH}）"
   health_check
-  echo "dry-run PASS（静态检查全部满足；真跑需服务与凭据，见 docs/eval/real-smoke.md）"
+  if [ "$REQUIRE_CORPUS" = "1" ]; then
+    if [ -n "${EVAL_SKIP_CORPUS_CHECK:-}" ]; then
+      echo "NOTE: EVAL_SKIP_CORPUS_CHECK 只对 --run --require-corpus 生效；--require-corpus 单独使用时语料检查照常执行"
+    fi
+    corpus_readiness_check
+    echo "dry-run + 语料就绪 PASS（静态检查与语料就绪全部满足；真跑用 --run --require-corpus，见 docs/eval/real-smoke.md）"
+  else
+    echo "dry-run PASS（静态检查全部满足；真跑需服务与凭据，见 docs/eval/real-smoke.md）"
+  fi
   exit 0
 fi
 
 # ---- 真跑 -----------------------------------------------------------------
 
-echo "==> 真机冒烟真跑：${BASE_URL}（datasetPath=$DATASET_PATH topK=$TOP_K label=${LABEL}）"
+if [ "$REQUIRE_CORPUS" = "1" ]; then
+  echo "==> 真机冒烟真跑：${BASE_URL}（datasetPath=$DATASET_PATH topK=$TOP_K label=${LABEL}，--require-corpus：提交前强制语料就绪检查）"
+else
+  echo "==> 真机冒烟真跑：${BASE_URL}（datasetPath=$DATASET_PATH topK=$TOP_K label=${LABEL}）"
+fi
 static_checks
 echo "OK: 静态检查通过"
 health_check
+
+# 语料就绪前置（task-0003）：--run --require-corpus 时在取凭据/提交之前强制检查；
+# EVAL_SKIP_CORPUS_CHECK=1 显式跳过（仅限调试）。检查不过退出 2，绝不发出 /admin/eval/run。
+if [ "$REQUIRE_CORPUS" = "1" ]; then
+  if [ "${EVAL_SKIP_CORPUS_CHECK:-}" = "1" ]; then
+    echo "WARN: EVAL_SKIP_CORPUS_CHECK=1，显式跳过语料就绪检查（仅限调试；语料未入库会导致整轮空召回、白烧模型 token）"
+  else
+    corpus_readiness_check
+  fi
+fi
 
 # 三级取 token：EVAL_ADMIN_TOKEN → EVAL_ADMIN_USERNAME/PASSWORD → .env 的 ADMIN_BOOTSTRAP_*
 MISSING_NOTE=""
@@ -345,7 +451,7 @@ if [ -z "$TOKEN" ] && [ -z "$SMOKE_USER" ]; then
   echo "!! 缺少管理员凭据，无法真跑（缺的就是下面这些变量）：" >&2
   printf '%s' "$MISSING_NOTE" | sed 's/^/   - /' >&2
   echo "   三级顺序：EVAL_ADMIN_TOKEN → EVAL_ADMIN_USERNAME+EVAL_ADMIN_PASSWORD → $ENV_FILE 的 ADMIN_BOOTSTRAP_USERNAME+ADMIN_BOOTSTRAP_PASSWORD" >&2
-  echo "   排查见 docs/eval/real-smoke.md 与 .spec/specs/2026-11-10_fix-eval-and-runtime-gaps/runbook.md 第 2 节" >&2
+  echo "   排查见 docs/eval/real-smoke.md 与 docs/eval/runbook.md 第 3 节" >&2
   exit 2
 fi
 
@@ -362,7 +468,7 @@ if ! api_call POST /api/v1/admin/eval/run "$SUBMIT_BODY"; then
 fi
 if [ "$API_CODE" = "401" ]; then
   echo "!! 提交评测 401：token 过期或不是管理员（role!=ADMIN）；重新登录后仍失败" >&2
-  echo "   排查见 docs/eval/real-smoke.md 与 .spec/specs/2026-11-10_fix-eval-and-runtime-gaps/runbook.md 第 5 节" >&2
+  echo "   排查见 docs/eval/real-smoke.md 与 docs/eval/runbook.md 第 6 节" >&2
   exit 1
 fi
 if [ "$API_CODE" = "403" ]; then
