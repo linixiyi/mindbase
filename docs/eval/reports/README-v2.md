@@ -93,7 +93,7 @@ cd /Users/linyixi/PaiSmart && ./mvnw -q -B -Dtest=EvalDatasetIntegrityTest test
 `eval-v2.jsonl` 的 126 行全部执行——其中 6 行 `status="blocked"` 的 07 扫描件 OCR 题
 **也会被执行**，所以真机报告 `summary.totalCases=126`。摘要按"计数口径"呈现三个数：
 
-| 字段 | 首跑真机值 | 说明 |
+| 字段 | 口径值（数据集结构性，非实测） | 说明 |
 | --- | --- | --- |
 | `counting.reportTotalCases` | 126 | 报告原样（含 6 条 blocked 执行题） |
 | `counting.blockedExcluded` | 6 | caseId 命中数据集 `status="blocked"` id 集，**不进计数** |

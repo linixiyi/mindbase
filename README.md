@@ -45,7 +45,7 @@ MindBase 是一个企业级的 AI 知识库管理系统，围绕检索增强生�
 
 - 内置评测框架：检索看 Recall@K / MRR / nDCG@K，生成看 LLM-as-a-judge，支持人工抽检与评委一致率（含 Cohen's kappa）；17 条 neg 应拒答题不进检索指标分母
 - 评测集 v2：126 条（120 条计数题 + 6 条 OCR blocked 占位），基于 10 篇真实 PDF（`src/main/resources/eval/eval-v2.jsonl`，语料清单与选型见 `eval-datasets/corpus/README.md`）；v1 的 50 条（`mindbase-eval-v1.jsonl`）保留作历史基线
-- 首份真机报告：全文留在 git 忽略的 `eval-reports/`，压缩摘要落盘 `docs/eval/reports/v2-first-summary.json`（由 `scripts/eval_report_summary.py` 生成，执行记录见 `docs/eval/first-real-run.md`）。首跑 `releaseEligible=false` 属预期（SELF_JUDGE + 无人工判定 + 未配价）；发布判定不读报告里的冻结结论，以 `scripts/eval_release_preflight.py` 对「报告 + 人工判定 sidecar」的重算为准，步骤与分工见 `docs/eval/release-checklist.md`
+- 首份真机报告：全文留在 git 忽略的 `eval-reports/`，压缩摘要将落盘至 `docs/eval/reports/v2-first-summary.json`（由 `scripts/eval_report_summary.py` 生成，执行记录见 `docs/eval/first-real-run.md`）。首跑 `releaseEligible=false` 属预期（SELF_JUDGE + 无人工判定 + 未配价）；发布判定不读报告里的冻结结论，以 `scripts/eval_release_preflight.py` 对「报告 + 人工判定 sidecar」的重算为准，步骤与分工见 `docs/eval/release-checklist.md`
 - 历史评测报告见 `docs/eval/reports/`
 
 ## 技术栈
