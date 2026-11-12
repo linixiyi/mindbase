@@ -48,7 +48,7 @@
 
 - [x] task-0004 neg 题退出检索指标分母
   - id: task-0004
-  - boundary: src/main/java/com/mindbase/service/eval/EvalReportAggregator.java, src/main/java/com/mindbase/service/eval/EvalReport.java, scripts/eval_compare.py, new:src/test/java/com/mindbase/service/eval/NegRetrievalMetricScopeTest.java, src/test/java/com/mindbase/service/eval/EvalSmokeFixtureTest.java（D7：卡面"必要时同步 fixture"的承接文件）
+  - boundary: src/main/java/com/mindbase/service/eval/EvalReportAggregator.java, src/main/java/com/mindbase/service/eval/EvalReport.java, scripts/eval_compare.py, new:src/test/java/com/mindbase/service/eval/NegRetrievalMetricScopeTest.java, src/test/java/com/mindbase/service/eval/EvalSmokeFixtureTest.java
   - verify: `cd /Users/linyixi/PaiSmart/.spec/worktrees/2026-11-12_eval-real-run && ./mvnw -q -B -Dtest=NegRetrievalMetricScopeTest test`
   - expect: red
   - 背景：17 条 `expectedRefusal=true` 的题带 `expectedEvidence`（用于定位"论文没提这个信息"的锚点），[EvalReportAggregator.java:90](src/main/java/com/mindbase/service/eval/EvalReportAggregator.java#L90) 按"有 evidence"计入 `evidenceLabeled`，neg 因此进入 recall/docRecall/coverage/nDCG 分母；审计脚本对 17 条报 warn。生成侧 accuracy 仍应包含 neg（拒答正确率是生成指标）。
@@ -59,7 +59,7 @@
 
 - [ ] task-0005 按证据短语回填 expectedChunkIds
   - id: task-0005
-  - boundary: new:scripts/eval_backfill_chunk_ids.py, src/main/resources/eval/eval-v2.jsonl
+  - boundary: new:scripts/eval_backfill_chunk_ids.py, src/main/resources/eval/eval-v2.jsonl, src/test/java/com/mindbase/service/eval/EvalGoldFieldsTest.java
   - verify: `cd /Users/linyixi/PaiSmart/.spec/worktrees/2026-11-12_eval-real-run && python3 -B scripts/eval_backfill_chunk_ids.py --check --min-coverage 0.9`
   - expect: red
   - depends-on: task-0002
@@ -69,7 +69,7 @@
   - 成功判定：verify 绿；写回后数据集仍能被 `EvalDatasetParser` 解析（`mvn -Dtest=EvalGoldFieldsTest test` 通过）。
   - 失败处理：匹配到多个分块时取包含完整短语且 chunkId 最小的一个并在报告里标 ambiguous；不得用文件名哈希或页码猜 id。
 
-- [ ] task-0006 发布条件预检：独立评委、κ、定价
+- [x] task-0006 发布条件预检：独立评委、κ、定价
   - id: task-0006
   - boundary: new:scripts/eval_release_preflight.py, new:docs/eval/release-checklist.md, README.md
   - verify: `cd /Users/linyixi/PaiSmart/.spec/worktrees/2026-11-12_eval-real-run && python3 -B scripts/eval_release_preflight.py --self-test`
