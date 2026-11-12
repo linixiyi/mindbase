@@ -22,7 +22,7 @@
   - 成功判定：`--self-test` 绿；`--dry-run` 对 10 篇输出 10 行且 md5 与 manifest 一致。
   - 失败处理：单篇上传失败不删其他文件；重跑必须幂等（同 md5 已 COMPLETED 直接跳过）；不把 token 写进日志。
 
-- [ ] task-0002 语料就绪检查：manifest ↔ ES 分块数
+- [x] task-0002 语料就绪检查：manifest ↔ ES 分块数
   - id: task-0002
   - boundary: new:scripts/eval_corpus_readiness.py
   - verify: `cd /Users/linyixi/PaiSmart/.spec/worktrees/2026-11-12_eval-real-run && python3 -B scripts/eval_corpus_readiness.py --check`
