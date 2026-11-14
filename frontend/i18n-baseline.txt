@@ -73,7 +73,7 @@ src/views/_builtin/login/modules/reset-pwd.vue 0
 src/views/chat-history/index.vue 14
 src/views/chat/index.vue 2
 src/views/chat/modules/chat-list.vue 14
-src/views/chat/modules/chat-message.vue 28
+src/views/chat/modules/chat-message.vue 20
 src/views/chat/modules/conversation-sidebar.vue 11
 src/views/chat/modules/input-box.vue 18
 src/views/chat/modules/reference-preview-page.vue 4

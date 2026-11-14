@@ -47,14 +47,14 @@ class NegRetrievalMetricScopeTest {
         assertEquals(1.0, summary.fullCoverageHitRate());
         summary.ndcgAtK().forEach((k, v) -> assertEquals(1.0, v, "nDCG@" + k + " 只按非 neg 用例计算"));
 
-        // 生成与评委指标仍包含 neg：accuracy 按 2 例、拒答正确率按 2 例
+        // 生成与评委指标仍包含 neg：accuracy 按 2 例；refusalAccuracy 只按 neg 的 judgeCorrect 计算
         assertEquals(2, summary.judgedCases(), "accuracy 分母仍包含 neg 用例");
         assertEquals(1, summary.correctCases());
         assertEquals(0.5, summary.accuracy(), "neg 答错计入 accuracy 分子分母");
         assertEquals(3.5, summary.meanJudgeScore(), "(5+2)/2");
-        assertEquals(2, summary.refusalLabeledCases());
-        assertEquals(1, summary.refusalCorrectCases(), "正例正常回答符合标注，neg 未拒答不符合");
-        assertEquals(0.5, summary.refusalAccuracy());
+        assertEquals(1, summary.refusalLabeledCases(), "拒答口径只统计 neg 用例");
+        assertEquals(0, summary.refusalCorrectCases(), "neg 未拒答且评委判错 → 不计正确");
+        assertEquals(0.0, summary.refusalAccuracy());
         assertEquals(1, summary.refusalExpectedCases());
         assertEquals(0, summary.refusedAsExpected());
         assertEquals(0.5, summary.faithfulness(), "neg 的 faithfulness 仍进生成侧平均");

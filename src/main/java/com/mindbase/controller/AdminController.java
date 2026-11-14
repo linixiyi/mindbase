@@ -88,6 +88,10 @@ public class AdminController {
     @Value("${admin.clear-all-key:}")
     private String clearAllKey;
 
+    /** MinIO 迁移密钥，来自配置 admin.migrate-minio-key（环境变量 ADMIN_MIGRATE_MINIO_KEY）；为空时拒绝执行。 */
+    @Value("${admin.migrate-minio-key:}")
+    private String migrateMinioKey;
+
     @Autowired
     private com.mindbase.client.RerankClient rerankClient;
 
@@ -1116,8 +1120,17 @@ public class AdminController {
             adminUsername = jwtUtils.extractUsernameFromToken(token.replace("Bearer ", ""));
             validateAdmin(adminUsername);
 
-            // 简单密钥验证
-            if (!"migration2024".equals(adminKey)) {
+            // 密钥验证：来自配置，空配置拒绝执行（不回退默认密钥）
+            boolean migrateKeyNotConfigured = migrateMinioKey == null || migrateMinioKey.trim().isEmpty();
+            if (migrateKeyNotConfigured) {
+                LogUtils.logBusiness("MIGRATE_MINIO", adminUsername, "迁移密钥未配置，操作拒绝执行");
+                Map<String, Object> response = new HashMap<>();
+                response.put("code", 503);
+                response.put("message", "迁移密钥未配置，操作拒绝执行");
+                return ResponseEntity.status(503).body(response);
+            }
+            if (!AdminKeyVerifier.matches(migrateMinioKey, adminKey)) {
+                LogUtils.logBusiness("MIGRATE_MINIO", adminUsername, "迁移密钥不符，操作拒绝执行");
                 Map<String, Object> response = new HashMap<>();
                 response.put("code", 403);
                 response.put("message", "无效的管理员密钥");

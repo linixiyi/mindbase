@@ -52,6 +52,15 @@ public final class GenerationMetrics {
     /** claim 切分分隔：句读与换行；逗号不切（复合句仍是一条 claim） */
     private static final Pattern CLAIM_DELIMITERS = Pattern.compile("[。！？!?；;\n]+");
 
+    /** markdown 行首前缀：标题井号、列表横线/星号/加号、有序列表 1. / 1、 / 1) */
+    private static final Pattern MARKDOWN_LINE_PREFIX = Pattern.compile("(?m)^[ \\t]*(?:#{1,6}[ \\t]+|[-*+][ \\t]+|\\d+[.、)][ \\t]+)");
+
+    /** “结论：/论据：/补充：”等引导词 */
+    private static final Pattern CLAIM_PREFIX = Pattern.compile("^(?:结论|论据|依据|补充|说明|总结|答)[ \\t]*[:：][ \\t]*");
+
+    /** 只有元话语、没有事实内容的 claim */
+    private static final Pattern META_CLAIM = Pattern.compile("^(?:结论|论据|依据|补充|具体如下|如下|说明|原因|总结|概览|答案)[ \\t]*[:：]?[ \\t]*$");
+
     /**
      * 拒答标记词（匹配前与回答一起做 NFKC + 去空白 + 小写归一化，所以中文英文都按去空格后的形态写）。
      * 取强拒答语义的短语，避免把"资料中没有提到 X，但 Y"这类部分回答整条误判；
@@ -59,8 +68,9 @@ public final class GenerationMetrics {
      */
     private static final Set<String> REFUSAL_MARKERS = normalizeAll(
             "无法回答", "无法确定", "无法提供", "无法检索", "暂时无法", "无法从资料", "无法从知识库",
-            "不能回答", "不能确定", "不知道", "无法判断",
-            "没有找到相关", "未找到相关", "没有相关", "无相关", "未检索到", "暂无相关", "检索不到",
+            "不能回答", "不能确定", "不知道", "无法确认",
+            "没有找到", "未找到", "没有找到相关", "未找到相关", "没有找到关于", "未找到关于",
+            "没有相关", "无相关", "未检索到", "暂无相关", "检索不到",
             "资料中没有", "资料中未", "资料里没有", "资料里未", "知识库中没", "知识库里没",
             "文档中没有", "文档里没有", "没有足够的信息", "信息不足", "不足以回答", "没有依据", "缺乏依据",
             "没有提及", "未提及", "没有提到", "未提到",
@@ -159,15 +169,34 @@ public final class GenerationMetrics {
         if (answer == null || answer.isBlank()) {
             return List.of();
         }
-        String cleaned = CITATION_MARKERS.matcher(answer).replaceAll("");
+        String cleaned = stripMarkdown(CITATION_MARKERS.matcher(answer).replaceAll(""));
         List<String> claims = new ArrayList<>();
         for (String part : CLAIM_DELIMITERS.split(cleaned)) {
-            String claim = part.strip();
-            if (!claim.isEmpty() && RetrievalMetrics.normalizeText(claim).length() >= 2) {
+            String claim = stripClaimPrefix(part.strip());
+            // 标题/小标题（以冒号结尾且没有正文）与“结论/论据/具体如下”这类元话语不是事实主张，
+            // 不应被当成 claim 拉低 faithfulness；同一句的正文部分会保留。
+            if (claim.isEmpty() || claim.endsWith("：") || claim.endsWith(":")
+                    || META_CLAIM.matcher(claim).matches()) {
+                continue;
+            }
+            if (RetrievalMetrics.normalizeText(claim).length() >= 2) {
                 claims.add(claim);
             }
         }
         return List.copyOf(claims);
+    }
+
+    /** 去 markdown 强调符、标题井号、列表符号与行首编号，避免 ** / - / 1. 混进 claim 与证据匹配。 */
+    private static String stripMarkdown(String text) {
+        String normalized = text.replace("**", "").replace("__", "").replace("`", "");
+        normalized = MARKDOWN_LINE_PREFIX.matcher(normalized).replaceAll("");
+        return normalized;
+    }
+
+    /** 去掉“结论：”“论据：”等引导词；只去一次，正文里的同名词不受影响。 */
+    private static String stripClaimPrefix(String claim) {
+        String stripped = CLAIM_PREFIX.matcher(claim).replaceFirst("");
+        return stripped.strip();
     }
 
     /**
@@ -196,6 +225,12 @@ public final class GenerationMetrics {
     private static EvalCaseResult.ClaimVerdict classifyClaim(String claim, String normalized, List<String> evidence) {
         if (evidence.isEmpty()) {
             return new EvalCaseResult.ClaimVerdict(claim, UNVERIFIED, "没有检索证据可核对（unverified 不计入 faithfulness 分母）");
+        }
+        // 词面口径的硬边界：中文 claim 与英文证据（或反之）做 token 覆盖率只会得到假 unsupported。
+        // 跨语言 claim 标 unverified 并单列，不进入 faithfulness 分母；语义蕴含仍由 LLM 评委覆盖。
+        if (isCrossLingual(normalized, evidence)) {
+            return new EvalCaseResult.ClaimVerdict(claim, UNVERIFIED,
+                    "claim 与检索证据语言不一致（跨语言词面不可判，unverified 不计入 faithfulness 分母）");
         }
         if (evidence.stream().anyMatch(text -> text.contains(normalized))) {
             return new EvalCaseResult.ClaimVerdict(claim, SUPPORTED, "claim 归一化后完整出现在检索证据中");
@@ -329,11 +364,50 @@ public final class GenerationMetrics {
         if (answer == null || answer.isBlank()) {
             return false;
         }
-        String normalized = RetrievalMetrics.normalizeText(answer);
-        if (normalized.isEmpty()) {
+        // 只看第一条事实主张（splitClaims 已剥 markdown/“结论：”前缀）。旧实现扫全文，
+        // “资料中没有提到 X，但 Y”这类正常回答会被判成拒答（首份真机报告 34/109 假阳性）。
+        List<String> claims = splitClaims(answer);
+        if (claims.isEmpty()) {
             return false;
         }
-        return REFUSAL_MARKERS.stream().anyMatch(normalized::contains);
+        String firstClaim = RetrievalMetrics.normalizeText(claims.get(0));
+        if (firstClaim.isEmpty()) {
+            return false;
+        }
+        return REFUSAL_MARKERS.stream().anyMatch(firstClaim::contains);
+    }
+
+    /** 中文占比 ≥15% 视为中文文本；用于识别“中文 claim 对英文证据”的跨语言不可判。 */
+    private static boolean isCrossLingual(String normalizedClaim, List<String> evidence) {
+        boolean claimCjk = cjkRatio(normalizedClaim) >= 0.15d;
+        for (String text : evidence) {
+            if (text.isEmpty()) {
+                continue;
+            }
+            if ((cjkRatio(text) >= 0.15d) == claimCjk) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static double cjkRatio(String text) {
+        if (text == null || text.isEmpty()) {
+            return 0d;
+        }
+        int cjk = 0;
+        int total = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (Character.isWhitespace(c)) {
+                continue;
+            }
+            total++;
+            if (isCjk(c)) {
+                cjk++;
+            }
+        }
+        return total == 0 ? 0d : (double) cjk / total;
     }
 
     private static Set<String> normalizeAll(String... markers) {

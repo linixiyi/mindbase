@@ -34,7 +34,7 @@ REPO_ROOT="$(pwd)"
 
 usage() {
   cat <<'EOF'
-用法: bash scripts/eval_real_smoke.sh [--dry-run|--run] [--require-corpus]
+用法: bash scripts/eval_real_smoke.sh [--dry-run|--run] [--require-corpus] [--check-report FILE]
 
   --dry-run（默认）  只读静态检查：curl/python3 存在、EVAL_BASE_URL 缺省 http://localhost:8081、
                     数据集可读、报告目录可创建、/actuator/health 软检查（不可达只 warn）。
@@ -43,8 +43,10 @@ usage() {
                     → 仓库根 .env 的 ADMIN_BOOTSTRAP_USERNAME/PASSWORD）→ 提交 POST /api/v1/admin/eval/run
                     → 轮询 GET /api/v1/admin/eval/runs/{id} 到终态 → 取 /report 断言
                     retrievalErrorRate<=0.1（EVAL_MAX_ERROR_RATE 可覆盖）与
-                    fullCoverageHitRate>=0.5（EVAL_MIN_COVERAGE 可覆盖）。
+                    fullCoverageHitRate>=0.5（EVAL_MIN_COVERAGE 可覆盖），并校验生成失败率
+                    <=EVAL_MAX_FAILED_RATE（默认 0.02）与可评率 >=EVAL_MIN_JUDGED_RATE（默认 0.9）。
                     缺凭据退出 2 并指明缺哪个变量；401 自动重新登录一次；断言不满足退出 1。
+  --check-report F   只校验已有报告（不提交评测），复用同一组断言，用于复盘/回归。
   --require-corpus   语料就绪门禁（等价于 dry-run + 就绪检查）：静态检查通过后调用
                     python3 scripts/eval_corpus_readiness.py --check（manifest 的每个 md5 ↔
                     ES 分块数）；未就绪退出 2 并列出缺哪几篇（补救：语料入库
@@ -61,6 +63,7 @@ EOF
 
 DRY_RUN=1
 REQUIRE_CORPUS=0
+CHECK_REPORT=""
 MODE_SET=""
 if [ "$#" -eq 0 ]; then
   set -- --dry-run
@@ -84,8 +87,13 @@ while [ "$#" -gt 0 ]; do
       MODE_SET=run
       ;;
     --require-corpus) REQUIRE_CORPUS=1 ;;
+    --check-report)
+      CHECK_REPORT="${2:-}"
+      if [ -z "$CHECK_REPORT" ]; then echo "!! --check-report 需要报告文件路径" >&2; exit 2; fi
+      shift
+      ;;
     --help|-h)        usage; exit 0 ;;
-    *) echo "!! 未知参数: $1（支持 --dry-run / --run / --require-corpus / --help）" >&2; exit 2 ;;
+    *) echo "!! 未知参数: $1（支持 --dry-run / --run / --require-corpus / --check-report / --help）" >&2; exit 2 ;;
   esac
   shift
 done
@@ -97,8 +105,11 @@ DATASET_PATH="${EVAL_DATASET_PATH:-classpath:eval/eval-v2.jsonl}"
 TOP_K="${EVAL_TOP_K:-5}"
 MAX_ERROR_RATE="${EVAL_MAX_ERROR_RATE:-0.1}"
 MIN_COVERAGE="${EVAL_MIN_COVERAGE:-0.5}"
+# 生成失败率与可评率：只卡检索阈值会让“53/126 生成失败、0 条被评委判定”的坏报告通过冒烟。
+MAX_FAILED_RATE="${EVAL_MAX_FAILED_RATE:-0.02}"
+MIN_JUDGED_RATE="${EVAL_MIN_JUDGED_RATE:-0.9}"
 POLL_INTERVAL="${EVAL_POLL_INTERVAL_SECONDS:-15}"
-POLL_TIMEOUT="${EVAL_POLL_TIMEOUT_SECONDS:-1800}"
+POLL_TIMEOUT="${EVAL_POLL_TIMEOUT_SECONDS:-3600}"
 OUTPUT_DIR="${EVAL_OUTPUT_DIR:-eval-reports}"        # 与 application.yml eval.output-dir 缺省一致
 LABEL="real-smoke-$(date +%s)"
 # 语料就绪检查（task-0003）：readiness 脚本固定在本工作树 scripts/ 下（task-0002）；
@@ -323,11 +334,12 @@ api_call() {
   done
 }
 
-assert_gate() {  # assert_gate <report-json-file>：两条阈值断言，不满足退出 1
-  python3 - "$1" "$MAX_ERROR_RATE" "$MIN_COVERAGE" <<'PY'
+assert_gate() {  # assert_gate <report-json-file>：检索阈值 + 生成有效性，不满足退出 1
+  python3 - "$1" "$MAX_ERROR_RATE" "$MIN_COVERAGE" "$MAX_FAILED_RATE" "$MIN_JUDGED_RATE" <<'PY'
 import json, sys
 
-path, max_err, min_cov = sys.argv[1], float(sys.argv[2]), float(sys.argv[3])
+path, max_err, min_cov, max_failed_rate, min_judged_rate = (
+    sys.argv[1], float(sys.argv[2]), float(sys.argv[3]), float(sys.argv[4]), float(sys.argv[5]))
 d = json.load(open(path))
 rep = d
 if isinstance(d, dict) and "summary" not in d:
@@ -337,8 +349,16 @@ if isinstance(d, dict) and "summary" not in d:
 s = rep.get("summary") or {}
 err = s.get("retrievalErrorRate")
 cov = s.get("fullCoverageHitRate")
+total = s.get("totalCases") or 0
+failed = s.get("failedCases")
+judged = s.get("judgedCases")
+accuracy = s.get("accuracy")
+failed_rate = (failed / total) if (total and failed is not None) else None
+judged_rate = (judged / total) if (total and judged is not None) else None
 print(f"retrievalErrorRate = {err}（上限 {max_err}）")
 print(f"fullCoverageHitRate = {cov}（下限 {min_cov}）")
+print(f"failedCases = {failed}/{total}（失败率上限 {max_failed_rate}）")
+print(f"judgedCases = {judged}/{total}（可评率下限 {min_judged_rate}）")
 
 ok = True
 if err is None:
@@ -353,12 +373,35 @@ if cov is None:
 elif cov < min_cov:
     print(f"!! fullCoverageHitRate {cov} < {min_cov}，冒烟不通过", file=sys.stderr)
     ok = False
+if failed_rate is None:
+    print("!! failedCases/totalCases 缺失，无法判定生成有效性，冒烟不通过", file=sys.stderr)
+    ok = False
+elif failed_rate > max_failed_rate:
+    print(f"!! 生成失败率 {failed_rate:.4f} > {max_failed_rate}（{failed}/{total}），冒烟不通过", file=sys.stderr)
+    ok = False
+if judged_rate is None:
+    print("!! judgedCases/totalCases 缺失，无法判定可评率，冒烟不通过", file=sys.stderr)
+    ok = False
+elif judged_rate < min_judged_rate:
+    print(f"!! 可评率 {judged_rate:.4f} < {min_judged_rate}（{judged}/{total}），冒烟不通过", file=sys.stderr)
+    ok = False
+if accuracy is None:
+    print("!! accuracy 为 null（没有一条被评委判定），冒烟不通过", file=sys.stderr)
+    ok = False
 
 if not ok:
     sys.exit(1)
-print("阈值断言通过")
+print("阈值断言通过（检索 + 生成有效性）")
 PY
 }
+
+# ---- 只校验已有报告（--check-report） -------------------------------------
+if [ -n "$CHECK_REPORT" ]; then
+  echo "==> 只校验已有报告（--check-report）：$CHECK_REPORT"
+  assert_gate "$CHECK_REPORT"
+  echo "报告校验 PASS（runId 见报告）"
+  exit 0
+fi
 
 # ---- dry-run（默认） ------------------------------------------------------
 
@@ -542,7 +585,7 @@ fi
 REPORT_FILE="$(mktemp "/tmp/eval-smoke-report-${RUN_ID}.XXXXXXXX")"
 printf '%s' "$API_BODY" > "$REPORT_FILE"
 echo "报告已保存: $REPORT_FILE"
-echo "==> 阈值断言（retrievalErrorRate<=${MAX_ERROR_RATE} 且 fullCoverageHitRate>=${MIN_COVERAGE}）..."
+echo "==> 阈值断言（retrievalErrorRate<=${MAX_ERROR_RATE} 且 fullCoverageHitRate>=${MIN_COVERAGE} 且生成失败率<=${MAX_FAILED_RATE} 且可评率>=${MIN_JUDGED_RATE}）..."
 if ! assert_gate "$REPORT_FILE"; then
   echo "真机冒烟 FAIL（阈值不满足，退出 1）" >&2
   exit 1

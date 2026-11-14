@@ -12,6 +12,7 @@ bash scripts/eval_real_smoke.sh --dry-run              # 默认：只读静态�
 bash scripts/eval_real_smoke.sh --require-corpus       # dry-run + 语料就绪检查（manifest ↔ ES 分块数）
 bash scripts/eval_real_smoke.sh --run --require-corpus # 真跑，提交前强制语料就绪检查
 bash scripts/eval_real_smoke.sh --run                  # 真跑：提交评测、轮询到终态、断言阈值（不做语料检查）
+bash scripts/eval_real_smoke.sh --check-report F       # 只校验已有报告（不提交评测），用于复盘/回归
 ```
 
 ### --dry-run（默认）
@@ -98,10 +99,12 @@ echo $?   # 2
 | `ADMIN_BOOTSTRAP_USERNAME` / `ADMIN_BOOTSTRAP_PASSWORD`（仓库根 `.env`） | — | 三级凭据；脚本自读，不回显值 |
 | `EVAL_MAX_ERROR_RATE` | `0.1` | retrievalErrorRate 上限 |
 | `EVAL_MIN_COVERAGE` | `0.5` | fullCoverageHitRate 下限 |
+| `EVAL_MAX_FAILED_RATE` | `0.02` | 生成失败率上限；允许 126 题中 2 条瞬时失败，但 53/126（42%）这种坏报告会被拒绝 |
+| `EVAL_MIN_JUDGED_RATE` | `0.9` | 可评率下限（judgedCases/totalCases）；低于它说明评委没真正判定，报告不可用 |
 | `EVAL_DATASET_PATH` | `classpath:eval/eval-v2.jsonl` | 提交的 datasetPath；裸文件名按 `eval-datasets/` 下解析 |
 | `EVAL_TOP_K` | `5` | 提交的 topK |
 | `EVAL_POLL_INTERVAL_SECONDS` | `15` | 轮询间隔 |
-| `EVAL_POLL_TIMEOUT_SECONDS` | `1800` | 轮询超时（评测整轮 12–20 分钟，别设太小） |
+| `EVAL_POLL_TIMEOUT_SECONDS` | `3600` | 轮询超时（120 题实测约 47 分钟；663 秒不够时设 3600 以上） |
 | `EVAL_OUTPUT_DIR` | `eval-reports` | 与 `application.yml` 的 `eval.output-dir` 同源，用于 dry-run 可写检查 |
 | `EVAL_ENV_FILE` | `<仓库根>/.env` | 三级凭据来源文件（便于在别的目录测试）；readiness 子进程同样继承 |
 | `EVAL_SKIP_CORPUS_CHECK` | （空） | 设为 `1` 时跳过 `--run --require-corpus` 的语料就绪检查；仅限调试，只对 `--run` 生效 |
@@ -128,7 +131,8 @@ echo $?   # 2
 | `提交评测 403` | 1 | 用了普通用户 token；`/api/v1/admin/**` 要求 `ROLE_ADMIN` |
 | `提交评测失败 HTTP 400` | 1 | 检查 datasetPath（404 时也走这里）与 topK 范围（≤ `eval.max-top-k`=20） |
 | `评测终态 FAILED` | 1 | 看 status message；常见：ES 未启动、MinIO/bucket 缺失、模型 key 无效 |
-| `轮询超时` | 1 | 126 题整轮 12–20 分钟；确认 `EVAL_POLL_TIMEOUT_SECONDS` 足够，再手动查 `GET /runs/{id}` |
+| `轮询超时` | 2 | 126 题整轮实测约 47 分钟（2026-11-13 首跑）；默认已提到 3600s，仍不够时调大 `EVAL_POLL_TIMEOUT_SECONDS`，或手动查 `GET /runs/{id}` |
+| `生成失败率/可评率/accuracy 不通过` | 1 | 报告没真正生成或被评委判定（模型网关 502、熔断器 OPEN、key 失效）。先看 `failedCases` 与后端日志，修复模型通道后重跑；不要用这种报告做质量结论 |
 | `retrievalErrorRate/fullCoverageHitRate 为 null` | 1 | 报告没有可计算的样本（如数据集没标 expectedEvidence）；冒烟不允许不可判定的通过 |
 | 检索全空（error rate 1.0 或 coverage 0） | 1 | 先看 `/actuator/health`，再查报告 `retrievalMode` 与逐例 `score`；ES 未启动/文档未索引/阈值过滤；`--run --require-corpus` 可在提交前拦住「语料未入库」这种成因 |
 

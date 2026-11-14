@@ -21,8 +21,9 @@ import java.util.TreeMap;
  * neg 口径（task-0004）：应拒答题（expectedRefusal=true，数据集 type=neg）退出检索指标分母——
  * evidenceLabeledCases、recallAtK、mrr、docRecallAtK、meanExpectedDocCoverage、fullCoverageHitRate
  * 与 nDCG@K 的分母只含非 neg 用例；neg 用例的检索结果单独计数（summary.negExcludedCases）但不计入
- * 命中率（检索到"论文没提这个信息"的证据锚点不是检索成功）。accuracy/refusal/faithfulness/citation
- * 等生成与评委指标仍包含 neg 用例（拒答正确率是生成指标）。summary 新增 retrievalCases 与
+ * 命中率（检索到"论文没提这个信息"的证据锚点不是检索成功）。accuracy/faithfulness/citation
+ * 等生成与评委指标仍包含 neg 用例；refusalAccuracy 只按 neg 用例的 judgeCorrect 计算
+ * （拒答或纠正错误前提都算处理正确），refusedAsExpected 只作为行为诊断量，不参与正确率。summary 新增 retrievalCases 与
  * negExcludedCases 两个计数字段（additive，schemaVersion 保持 2.0），与旧口径对账：
  * labeledCases + negExcludedCases = 旧口径 labeledCases。
  * <p>
@@ -121,12 +122,13 @@ public final class EvalReportAggregator {
             }
             GenerationMetrics.Result generation = result.generation();
             if (generation != null) {
-                if (generation.refusalCorrect() != null) {
-                    refusalLabeled++;
-                    refusalCorrectCases += generation.refusalCorrect() ? 1 : 0;
-                }
+                // 拒答口径只统计 neg（expectedRefusal=true）：用评委对 neg 的最终判定衡量
+                // “有没有编造/是否纠正错误前提”，而不是用标记词匹配全文。
+                // 首份真机报告里 34/109 条正常回答因正文出现“资料中没有”被误判为拒答，旧口径 0.6984 不可用。
                 if (generation.refusalExpected()) {
                     refusalExpected++;
+                    refusalLabeled++;
+                    refusalCorrectCases += Boolean.TRUE.equals(result.judgeCorrect()) ? 1 : 0;
                     refusedAsExpected += Integer.valueOf(1).equals(generation.refusal()) ? 1 : 0;
                 }
                 if (generation.faithfulness() != null) {

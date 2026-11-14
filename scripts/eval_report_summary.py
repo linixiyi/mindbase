@@ -295,6 +295,24 @@ def validate_report(root) -> dict:
             if preflight.as_number(summary.get(key)) is None:
                 failures.append(f"报告 summary.{key} 为 null（{label}不可判定）"
                                 "——不能当作有效 120 题口径，先排查检索/覆盖再重跑")
+        # 2026-11-14 事故：53/126 生成失败、0 条被评委判定的报告仍能通过旧摘要校验。
+        # 报告摘要只归档“确实生成了、确实评过”的 run，否则数字没有意义。
+        judged = preflight.as_int(summary.get("judgedCases"))
+        failed = preflight.as_int(summary.get("failedCases"))
+        total = preflight.as_int(summary.get("totalCases"))
+        if judged is None or judged <= 0:
+            failures.append(f"报告 summary.judgedCases={judged!r}（必须 >0）——没有一条被评委判定，"
+                            "不能作为评测结论归档，先排查模型/网关再重跑")
+        elif total and judged / total < 0.9:
+            failures.append(f"报告 summary.judgedCases={judged}/{total}（<90%）——可评率过低，"
+                            "不能作为评测结论归档，先排查生成失败再重跑")
+        if failed is None:
+            failures.append("报告 summary.failedCases 缺失——无法判断生成失败率")
+        elif total and failed / total > 0.1:
+            failures.append(f"报告 summary.failedCases={failed}/{total}（>10%）——生成失败率过高，"
+                            "不能作为评测结论归档，先排查模型/网关再重跑")
+        if preflight.as_number(summary.get("accuracy")) is None:
+            failures.append("报告 summary.accuracy 为 null——没有可用的评委结论，不能作为评测结论归档")
 
     cases = root.get("cases")
     if not isinstance(cases, list):
@@ -815,7 +833,8 @@ def _fixture_dataset(path: Path, counting, blocked):
 
 
 def _fixture_report(case_ids, dataset_source, *, schema_version="2.0", coverage=0.75,
-                    err_rate=0.0, retrieval_cases=None, total=None, independence="SELF_JUDGE",
+                    err_rate=0.0, retrieval_cases=None, total=None, judged_cases=None,
+                    failed_cases=1, independence="SELF_JUDGE",
                     judge="deepseek/deepseek-chat", llm="deepseek/deepseek-chat",
                     eligible=False, reason="评委与生成共用同一模型（SELF_JUDGE），自评分数不能用于发布判定",
                     cost_amount=None, config_extra=None):
@@ -831,12 +850,12 @@ def _fixture_report(case_ids, dataset_source, *, schema_version="2.0", coverage=
         "docRecallAtK": 0.8,
         "evidenceLabeledCases": len(cases) - 1,
         "meanExpectedDocCoverage": 0.6,
-        "judgedCases": len(cases) - 1,
+        "judgedCases": len(cases) - 1 if judged_cases is None else judged_cases,
         "correctCases": len(cases) - 3,
         "meanJudgeScore": 0.82,
         "accuracy": 0.8,
         "needsHumanReviewCount": 2,
-        "failedCases": 1,
+        "failedCases": failed_cases,
         "retrievalModeCounts": {"HYBRID": len(cases)},
         "diagnosisCounts": {"NONE": len(cases) - 1, "RETRIEVAL_FAILED": 1},
         "ndcgAtK": {"3": 0.7, "5": 0.7, "10": 0.7},
@@ -1086,6 +1105,13 @@ def self_test() -> int:
         code, text = _run_write(clean_env, write_path=str(out_dir / "summary8f.json"),
                                 report_arg=str(report8f), env_file_arg=str(empty_env))
         assert code == 1 and "重复 caseId" in text, (code, text)
+
+        # ── fixture 8h：生成失败率过高 / 无评委结论 → 退出 1（2026-11-14 事故：53/126 失败仍可通过旧校验） ──
+        report8h, _ = write_report("report-fix-8h.json", _fixture_report(
+            all_ids, dataset_source, judged_cases=0, failed_cases=53))
+        code, text = _run_write(clean_env, write_path=str(out_dir / "summary8h.json"),
+                                report_arg=str(report8h), env_file_arg=str(empty_env))
+        assert code == 1 and "judgedCases" in text and "failedCases" in text, (code, text)
 
         # ── fixture 9：datasetSource 无法定位（upload: 形态）→ 退出 2 "无法核对计数口径"，不猜 ──
         report9, _ = write_report("report-fix-9.json", _fixture_report(all_ids, "upload:eval-v2.jsonl"))

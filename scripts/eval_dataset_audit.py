@@ -27,7 +27,7 @@ spec 2026-11-10_fix-eval-and-runtime-gaps task-0012（C12）：126 题从未做�
 | 答案为空（非 neg）            | error | answer 与 referenceAnswer 都为空 → 评委没有参考答案 |
 | neg 缺 referenceAnswer        | error | EvalDatasetParser.java:139-144 对所有用例（含 neg）强制要求 referenceAnswer，缺失整份数据集解析失败 |
 | 问题重复                      | warn  | NFKC 归一化去空白后相同；可能是变体题，人工确认（解析器不查） |
-| neg 题带 evidence             | warn  | neg 题（type=neg 或 expectedRefusal=true）带 expectedEvidence 会进 evidenceLabeled 分母并按证据短语判相关，污染覆盖率口径（当前数据集 17 条全部如此，故为 warn 不阻断） |
+| neg 题带 evidence             | warn  | neg 题（type=neg 或 expectedRefusal=true）的 evidence 是“该信息不存在”的定位锚点；聚合器已按 expectedRefusal 把 neg 排除出检索分母（task-0004），保留本检查用于防止回退，数据集 17 条均为有意标注 |
 | md5 与 manifest 不一致        | warn  | case 的 md5 与 manifest 条目不同 → MD5 匹配静默失效，退回文件名匹配（解析器不查，只有本审计能发现） |
 | manifest 条目异常             | warn  | manifest 文档条目缺 name 或 md5 |
 
@@ -274,8 +274,8 @@ def audit_cases(entries, name_to_md5, manifest_findings=None):
             if evidence:
                 findings.append(_finding(
                     "warn", CHECK_NEG_EVIDENCE, f"行 {line_no}", label,
-                    "neg 题（type=neg 或 expectedRefusal=true）标注了 expectedEvidence：会进 evidenceLabeled "
-                    "分母并按证据短语判相关，污染拒答题的覆盖率口径，建议清空或人工确认", line_no))
+                    "neg 题标注了 expectedEvidence（该信息不存在的定位锚点）；聚合器已把 neg "
+                    "排除出检索分母（task-0004），保留检查仅用于防止回退", line_no))
             reference = case.get("referenceAnswer")
             if not (isinstance(reference, str) and reference.strip()):
                 findings.append(_finding(

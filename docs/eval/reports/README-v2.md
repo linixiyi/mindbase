@@ -147,3 +147,14 @@ effective release gate（复用 `scripts/eval_release_preflight.py` 同一套纯
 核对（退出 2 "无法核对计数口径"），且 20 题本来就不满足 120 计数口径。这是预期行为：
 摘要脚本只归档 120 题真机报告；已实测该路径输出不含报告任何正文片段（60 条
 question/answer/retrievedText 等提取片段 0 命中），也不落盘任何文件。
+
+### 指标口径修订（2026-11-14）
+
+首份真机摘要 `v2-first-summary.json` 里的 `refusalAccuracy=0.6984` 与 `faithfulness=0.0638` 是**旧实现**的数字，已撤回，不作为质量口径：
+
+- 拒答：旧实现用标记词扫全文，34 条正常回答被误判为拒答；新实现只看第一条主张，`refusalAccuracy` 按 neg 的 `judgeCorrect` 计算（拒答/纠正错误前提都算对）。
+- faithfulness：旧实现对中文回答与英文证据做词面覆盖率；新实现去 markdown/元话语，并把跨语言 claim 标 `unverified` 单列，不进入分母。
+
+2026-11-14 第一次重跑因本地模型网关 502（53/126 生成失败、0 条被评委判定）作废（`eval-reports/INVALID-...json`）；网关恢复后 19:09 重跑成功，报告 `1e50c36b212f`，摘要 `v2-second-summary.json`：refusalAccuracy=**0.9412**（16/17）、faithfulness=**0.1807**、accuracy=0.8852、judged=122/126，取代首跑这两个旧数字。该报告仍因 `fullCoverageHitRate=0.4954 < 0.5` 未过冒烟覆盖率阈值，且 `releaseEligible=false` 不变。
+
+冒烟与摘要脚本已增加生成失败率（默认 ≤2%）/可评率（≥90%）门禁，防止“检索阈值通过但生成全坏”的报告被归档。

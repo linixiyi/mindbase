@@ -76,6 +76,12 @@ src/main/resources/cert
 # 离线 RAG 评测报告（eval.output-dir）
 /eval-reports
 
+# Agent/测试运行产物（不是源码）
+.zcode/
+frontend/test-results/
+frontend/playwright-report/
+.spec/worktrees/
+
 # Local release configuration and Python caches
 /scripts/.deploy/
 __pycache__/

@@ -76,3 +76,20 @@ docker run --rm --network host --entrypoint /bin/sh -e MC_CONFIG_DIR=/tmp/.mc bi
 - **pnpm 12**：包管理器配置（`shamefullyHoist` 等）要写在 `frontend/pnpm-workspace.yaml`（不读 `.npmrc`）；
   `allowBuilds` 必须是真实布尔值，占位符文本会让 `pnpm install --frozen-lockfile` 直接报错。
 - **frontend pre-commit**：`pnpm typecheck && pnpm lint`（全仓）+ `git diff --exit-code`，提交前先本地跑一遍 lint。
+
+## 安全与评测相关环境变量（不写入仓库）
+
+以下变量都从环境变量或仓库根 `.env` 读取；仓库里只保留占位符，不提交真实值。
+
+| 变量 | 作用 | 空值行为 |
+| --- | --- | --- |
+| `SECURITY_TRUSTED_PROXIES` | 逗号分隔的受信代理 CIDR（IPv4 CIDR + IPv6 精确地址）。只有直连对端在列表内才采信 `X-Forwarded-For` / `CF-Connecting-IP` | 空 = 不信任任何转发头；反向代理后所有请求会按代理 IP 计限流，部署时必须配代理网段 |
+| `ADMIN_CLEAR_ALL_KEY` | `POST /api/v1/admin/clear-all-data` 的二次校验密钥 | 空 = 接口返回 503，拒绝执行 |
+| `ADMIN_MIGRATE_MINIO_KEY` | `POST /api/v1/admin/migrate-minio` 的二次校验密钥 | 空 = 接口返回 503，拒绝执行 |
+| `EVAL_JUDGE_PROVIDER` / `EVAL_JUDGE_MODEL` | 离线评测的独立评委供应商与模型；不配则评委与生成同模型（SELF_JUDGE） | 空 = SELF_JUDGE，报告 `releaseEligible=false` |
+| `EVAL_PRICING_INPUT_PER_1K` / `EVAL_PRICING_OUTPUT_PER_1K` / `EVAL_PRICING_CURRENCY` | 评测成本折算单价（每 1000 tokens） | 空 = `cost.amount=null`，note 写 `unpriced` |
+| `EVAL_HUMAN_AGREEMENT_MIN_KAPPA` / `EVAL_HUMAN_AGREEMENT_MIN_CASES` | 人工复核 κ 下限与最少可比样本 | 默认 0.6 / 5；env 置空表示不启用 κ 检查，但不改变 `releaseEligible` 的其他阻断项 |
+| `EVAL_POLL_TIMEOUT_SECONDS` | `scripts/eval_real_smoke.sh` 轮询评测终态的超时 | 默认 3600s（120 题实测约 47 分钟） |
+
+人工复核流程见 `docs/eval/release-checklist.md`：评委与人工一致率写在报告旁的 `*.human-reviews.json`，
+原报告不改；发布判定用 `scripts/eval_release_preflight.py` 对「报告 + sidecar」重算。
